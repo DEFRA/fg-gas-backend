@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { wreck } from "../../common/wreck.js";
 import { Grant } from "../models/grant.js";
-import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
+import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 import { invokeActionUseCase } from "./invoke-action.use-case.js";
 
-vi.mock("./find-grant-by-code.use-case.js");
+vi.mock("../services/resolve-config-version.service.js");
 vi.mock("../../common/wreck.js");
 
 describe("invokeActionUseCase", () => {
@@ -219,8 +219,8 @@ describe("invokeActionUseCase", () => {
   });
 
   it("throws when the grant does not exist", async () => {
-    findGrantByCodeUseCase.mockRejectedValue(
-      new Error("Grant with code non-existent-grant not found"),
+    resolveAndFetchGrant.mockRejectedValue(
+      new Error("No active config version found for non-existent-grant"),
     );
 
     await expect(
@@ -229,7 +229,7 @@ describe("invokeActionUseCase", () => {
         name: "get-test",
         method: "GET",
       }),
-    ).rejects.toThrow("Grant with code non-existent-grant not found");
+    ).rejects.toThrow("No active config version found for non-existent-grant");
   });
 
   it("throws when the action does not exist", async () => {
@@ -267,5 +267,9 @@ const givenGrantWithActions = (actions) => {
     },
   });
 
-  findGrantByCodeUseCase.mockResolvedValue(grant);
+  resolveAndFetchGrant.mockResolvedValue({
+    grant,
+    resolvedVersion: "1.0.0",
+    definitionSource: "mongodb",
+  });
 };

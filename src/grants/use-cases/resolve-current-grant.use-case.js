@@ -4,7 +4,6 @@ import { logger } from "../../common/logger.js";
 import { parseSemver } from "../../common/semver.js";
 import { updateCurrentConfigVersion } from "../repositories/application.repository.js";
 import { findLatestForMajor } from "../repositories/config-version.repository.js";
-import { findByCode } from "../repositories/grant.repository.js";
 import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 
 // Process-level cache of immutable grant definitions keyed by `${code}@${version}`.
@@ -75,12 +74,6 @@ const memoResolve = async (memo, key, produce) => {
   return result;
 };
 
-const legacyResolution = async (grantCode) => ({
-  grant: await findByCode(grantCode),
-  resolvedVersion: null,
-  definitionSource: DefinitionSource.MongoDB,
-});
-
 // Resolves the grant definition an application should currently use: the latest
 // active version within the same major as the application's pinned configVersion.
 export const resolveCurrentGrantUseCase = async (
@@ -89,7 +82,9 @@ export const resolveCurrentGrantUseCase = async (
   memo,
 ) => {
   if (!pinnedVersion) {
-    return legacyResolution(grantCode);
+    throw Boom.badRequest(
+      `Application for grant "${grantCode}" has no pinned config version`,
+    );
   }
 
   const major = parseMajor(pinnedVersion);
@@ -113,9 +108,6 @@ export const persistResolvedVersion = async (application, resolvedVersion) => {
 };
 
 const determineResolutionType = (pinnedVersion, resolvedVersion) => {
-  if (!pinnedVersion) {
-    return "legacy";
-  }
   if (resolvedVersion !== pinnedVersion) {
     return "roll-forward";
   }
