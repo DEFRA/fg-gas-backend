@@ -33,7 +33,8 @@ const withdrawApplication = async (command, session) => {
     session,
   );
   const { currentStage, currentPhase } = application;
-  const agreement = application.getActiveAgreement();
+  const agreement =
+    application.getActiveAgreement() ?? application.getAcceptedAgreement();
 
   const publications = [];
 

@@ -120,6 +120,58 @@ describe("withdrawApplicationUseCase", () => {
     );
   });
 
+  it.each([true, false])(
+    "requests withdrawal of an accepted agreement (managed: %s)",
+    async (managed) => {
+      canHandleInternalCommand.mockResolvedValue(managed);
+      agreement.accept({
+        startDate: "2024-01-01",
+        endDate: "2027-01-01",
+        acceptedDate: "2024-01-02T12:00:00Z",
+      });
+      const application = new Application({
+        currentPhase: "PHASE_PRE_AWARD",
+        currentStage: "STAGE_FC_REVIEWING",
+        currentStatus: "STATUS_WITHDRAWAL_REQUESTED",
+        clientRef: "test-client-ref",
+        code: "test-code",
+        agreements: { "agreement-123": agreement },
+        phases: [],
+      });
+      const session = {};
+      findByClientRefAndCode.mockResolvedValueOnce(application);
+
+      await withdrawApplicationUseCase(
+        { clientRef: application.clientRef, code: application.code },
+        session,
+      );
+
+      expect(saveEvents).toHaveBeenCalledExactlyOnceWith(
+        [
+          {
+            event: expect.objectContaining({
+              data: {
+                clientRef: application.clientRef,
+                code: application.code,
+                status: AgreementServiceStatus.Withdrawn,
+                agreementNumber: agreement.agreementRef,
+              },
+            }),
+            target: managed
+              ? internalCommandTarget
+              : config.sns.updateAgreementStatusTopicArn,
+          },
+        ],
+        session,
+      );
+      expect(update).not.toHaveBeenCalled();
+      expect(application.getFullyQualifiedStatus()).toBe(
+        "PHASE_PRE_AWARD:STAGE_FC_REVIEWING:STATUS_WITHDRAWAL_REQUESTED",
+      );
+      expect(agreement.latestStatus).toBe(Status.Accepted);
+    },
+  );
+
   it("routes unmanaged agreement withdrawal to the legacy topic", async () => {
     canHandleInternalCommand.mockResolvedValue(false);
     const application = new Application({

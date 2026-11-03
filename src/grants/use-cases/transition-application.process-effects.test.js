@@ -123,7 +123,7 @@ describe("what each grant process declares it does", () => {
     },
   );
 
-  it("REQUEST_APPLICATION_WITHDRAWAL sets and tells CW the status it declares when no agreement is on offer", async () => {
+  it("REQUEST_APPLICATION_WITHDRAWAL sets and tells CW the status it declares when no offered or accepted agreement exists", async () => {
     const application = anApplication(null);
     findByClientRefAndCode.mockResolvedValue(application);
 
@@ -133,7 +133,7 @@ describe("what each grant process declares it does", () => {
       process: "REQUEST_APPLICATION_WITHDRAWAL",
       setsStatus: application.currentStatus,
       tellsCw: tellsCaseworking(),
-      onlyWhen: "no agreement is on offer",
+      onlyWhen: "no offered or accepted agreement exists",
     });
     expect(application.currentStatus).toBe(ApplicationStatus.Withdrawn);
   });

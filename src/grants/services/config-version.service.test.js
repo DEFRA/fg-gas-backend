@@ -373,7 +373,7 @@ describe("findGrantLifecycle", () => {
         process: "REQUEST_APPLICATION_WITHDRAWAL",
         setsStatus: "APPLICATION_WITHDRAWN",
         tellsCw: true,
-        onlyWhen: "no agreement is on offer",
+        onlyWhen: "no offered or accepted agreement exists",
       },
     ]);
   });

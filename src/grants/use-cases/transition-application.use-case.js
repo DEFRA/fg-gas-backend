@@ -33,7 +33,7 @@ const grantProcesses = {
   REQUEST_APPLICATION_WITHDRAWAL: grantProcess(withdrawApplicationUseCase, {
     setsStatus: ApplicationStatus.Withdrawn,
     tellsCw: true,
-    onlyWhen: "no agreement is on offer",
+    onlyWhen: "no offered or accepted agreement exists",
   }),
   REQUEST_AGREEMENT_CANCELLATION: grantProcess(
     requestAgreementCancellationUseCase,
