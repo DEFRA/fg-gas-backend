@@ -4,10 +4,9 @@ import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { findConfigDefinition } from "../../common/config-broker/config-catalog.repository.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
-import { internalEventTarget, saveEvents } from "../../events/index.js";
+import { saveEvents } from "../../events/index.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { ClaimPaymentRequestedEvent } from "../events/claim-payment-requested.event.js";
 import { createClaimSubmittedReportingPublication } from "../events/claim-reporting.event.js";
 import { Claim } from "../models/claim.js";
 import { ClaimableEntitlement } from "../models/claimable-entitlement.js";
@@ -27,6 +26,7 @@ import {
 } from "./entitlement-errors.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
 import { hasRemainingApplicationClaimCapacityUseCase } from "../use-cases/has-remaining-application-claim-capacity.use-case.js";
+import { requestClaimPaymentUseCase } from "../use-cases/request-claim-payment.use-case.js";
 import {
   pinnedVersionOf,
   resolveCurrentGrantUseCase,
@@ -265,7 +265,6 @@ const insertClaim = async ({ command, claimCode }, session) => {
   return {
     created: true,
     claimId: insertedId.toString(),
-    createdAt: claim.createdAt,
     savedClaim: claim,
   };
 };
@@ -346,12 +345,6 @@ const claimTemplateFor = async ({ command, grant }) => {
 const templatePaysOnSubmission = (template) =>
   Boolean(template?.claim) && !template.claim.requiresApproval;
 
-const claimFacts = ({ metadata, claim }) => ({
-  sbi: metadata.sbi,
-  frn: metadata.frn,
-  totalAmountPence: claim.totalClaimAmountPence,
-});
-
 // Check the optional definition without loading or evaluating it: mapping
 // belongs to Payments and must not make an accepted Claim fail.
 const claimPaymentFor = async ({ command, grant, configVersion }) => {
@@ -382,48 +375,6 @@ const agreementFor = async ({ code, clientRef }, session) => {
   }
 
   return agreement;
-};
-
-const requestClaimPayment = async (
-  {
-    command,
-    claimable,
-    agreement,
-    configVersion,
-    paymentConfigured,
-    executedAt,
-  },
-  session,
-) => {
-  if (!paymentConfigured || claimable.claim?.requiresApproval) {
-    return;
-  }
-
-  const event = new ClaimPaymentRequestedEvent({
-    code: command.code,
-    clientRef: command.clientRef,
-    clientClaimRef: command.payload.metadata.clientClaimRef,
-    entitlementId: command.payload.claim.entitlementId,
-    configVersion,
-    agreement: {
-      agreementNumber: agreement.agreementNumber,
-      agreementVersion: agreement.version,
-      correlationId: agreement.correlationId,
-    },
-    executedAt,
-    claim: claimFacts(command.payload),
-  });
-
-  await saveEvents(
-    [
-      {
-        event,
-        target: internalEventTarget,
-        segregationRef: command.clientRef,
-      },
-    ],
-    session,
-  );
 };
 
 const transitionOnFinalClaim = async (
@@ -494,7 +445,7 @@ const submitInTransaction = async (
     session,
   );
 
-  const { createdAt, savedClaim, ...result } = await insertClaimWithAudit(
+  const { savedClaim, ...result } = await insertClaimWithAudit(
     { command, claimCode: claimable.claimCode },
     session,
   );
@@ -517,14 +468,13 @@ const submitInTransaction = async (
 
   await transitionOnFinalClaim({ grant, application, claimable }, session);
 
-  await requestClaimPayment(
+  await requestClaimPaymentUseCase(
     {
-      command,
-      claimable,
+      claim: savedClaim,
       agreement,
       configVersion: pinnedVersion,
       paymentConfigured,
-      executedAt: createdAt,
+      requiresApproval: claimable.claim?.requiresApproval,
     },
     session,
   );

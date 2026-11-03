@@ -54,4 +54,26 @@ describe("Claim submission reporting", () => {
     });
     expect(validateReportingEvent(publication.event).valid).toBe(true);
   });
+
+  it("rejects a reporting event when the Claim has no SBI", () => {
+    const claim = Claim.create({
+      code: "woodland",
+      clientRef: "application-1",
+      claimCode: "ENT_CS_CAPITAL_PA3",
+      clientClaimRef: "WMP-6HB-J8E-C0001",
+      metadata: {},
+      claim: { entitlementId: "entitlement-1", totalClaimAmountPence: 150025 },
+      createdAt: "2026-09-10T17:29:55.456Z",
+    });
+
+    expect(() =>
+      createClaimSubmittedReportingPublication({
+        claim,
+        agreement: {
+          agreementNumber: "WMP123456789",
+          correlationId: "agreement-correlation-id",
+        },
+      }),
+    ).toThrow('Invalid Claim reporting event: "eventData.sbi" is required');
+  });
 });
