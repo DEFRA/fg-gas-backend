@@ -74,22 +74,16 @@ export const auditActions = {
 // The protective-monitoring code on every Grant Admin read.
 export const PMC_0706_SECURITY = { pmccode: "0706" };
 
-// The version of the FCP audit event schema this envelope is built to - not
-// the service's release version, which says nothing about the event's shape.
-// Matches `DEFAULT_VERSION` in @defra/fcp-audit-publisher, which this service
-// never picks up because it validates the payload and publishes it through its
-// own outbox rather than calling `publishAuditEvent`.
+// The FCP audit event schema version, not the service's release version.
 export const AUDIT_SCHEMA_VERSION = "1.0.0";
 
-// The GIO application name, shared by every service on the Grants Platform.
+// The GIO application code, confirmed by the audit team.
 export const AUDIT_APPLICATION = "Grants";
 
-// The standard names the identity provider that issued the user id. Every user
-// this service records is an Entra object id, so every one is prefixed `AAD/`.
+// Entra object ids are recorded as `AAD/<id>`.
 export const AAD_USER_PREFIX = "AAD/";
 
-// CDP names its environments `dev`, `test`, `prod`; the audit standard wants
-// those same names prefixed. A local run has no ENVIRONMENT at all.
+// CDP environments are published as `cdp-<env>`; a local run is `local`.
 export const LOCAL_ENVIRONMENT = "local";
 export const CDP_ENVIRONMENT_PREFIX = "cdp-";
 
