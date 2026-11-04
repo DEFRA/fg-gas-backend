@@ -2,11 +2,12 @@ import { Position } from "./position.js";
 
 export class ExternalStatusMapping {
   constructor(entry, { phase, stage }) {
-    const { code, source, mappedTo } = entry;
+    const { code, source, mappedTo, fromStatus } = entry;
 
     this.entry = entry;
     this.code = code;
     this.source = source;
+    this.fromStatus = fromStatus;
     this.mappedTo = mappedTo;
     this.phase = phase;
     this.stage = stage;
@@ -31,6 +32,7 @@ export class ExternalStatusMapping {
       source: this.source,
       code: this.code,
       whileIn: `${this.phase}:${this.stage}`,
+      ...(this.fromStatus !== undefined && { fromStatus: this.fromStatus }),
       mappedTo: this.mappedTo,
       to: this.target?.toString() ?? null,
     };

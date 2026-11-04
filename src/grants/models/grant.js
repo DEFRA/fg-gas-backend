@@ -342,12 +342,14 @@ export class Grant {
     currentStage,
     externalRequestedState,
     sourceSystem,
+    currentStatus,
   ) {
     const statusMapping = this.#findExternalStatusMapping(
       currentPhase,
       currentStage,
       externalRequestedState,
       sourceSystem,
+      currentStatus,
     );
 
     if (!statusMapping) {
@@ -361,9 +363,16 @@ export class Grant {
     );
   }
 
-  #matchesExternalStatus(status, externalRequestedState, sourceSystem) {
+  #matchesExternalStatus(
+    status,
+    externalRequestedState,
+    sourceSystem,
+    currentStatus,
+  ) {
     return (
-      status.code === externalRequestedState && status.source === sourceSystem
+      status.code === externalRequestedState &&
+      status.source === sourceSystem &&
+      (status.fromStatus === undefined || status.fromStatus === currentStatus)
     );
   }
 
@@ -372,12 +381,14 @@ export class Grant {
     source,
     currentPhase,
     currentStage,
+    currentStatus,
   ) {
     return this.#findExternalStatusMapping(
       currentPhase,
       currentStage,
       externalRequestedState,
       source,
+      currentStatus,
     );
   }
 
@@ -387,6 +398,7 @@ export class Grant {
     currentStage,
     externalRequestedState,
     sourceSystem,
+    currentStatus,
   ) {
     const { stage: stageMap } = this.#findPhaseStage(
       this.externalStatusMap?.phases,
@@ -394,9 +406,26 @@ export class Grant {
       currentStage,
     );
 
-    const statusMapping = stageMap?.statuses?.find((status) =>
-      this.#matchesExternalStatus(status, externalRequestedState, sourceSystem),
-    );
+    const matches =
+      stageMap?.statuses?.filter((status) =>
+        this.#matchesExternalStatus(
+          status,
+          externalRequestedState,
+          sourceSystem,
+          currentStatus,
+        ),
+      ) ?? [];
+
+    if (
+      matches.length > 1 &&
+      matches.some((mapping) => mapping.fromStatus !== undefined)
+    ) {
+      throw Boom.badImplementation(
+        `Ambiguous ${sourceSystem} status "${externalRequestedState}" mapping at "${currentPhase}:${currentStage}:${currentStatus}"`,
+      );
+    }
+
+    const [statusMapping] = matches;
 
     if (!statusMapping?.mappedTo) {
       return null;
@@ -570,8 +599,8 @@ export class Grant {
     return positions.some((position) => validFrom.matches(position.toString()));
   }
 
-  // Only the mapping the lookup finds for its source and code while in its
-  // phase and stage is ever applied.
+  // Describe the mappings reachable for each current-status condition, while
+  // preserving first-match behaviour for existing unconditioned entries.
   #appliedExternalStatusMappings() {
     return new ExternalStatusMap(this.externalStatusMap).mappings
       .filter(
@@ -581,6 +610,7 @@ export class Grant {
             mapping.stage,
             mapping.code,
             mapping.source,
+            mapping.fromStatus,
           ) === mapping.entry,
       )
       .map((mapping) => mapping.describe());
