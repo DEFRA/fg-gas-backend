@@ -55,6 +55,14 @@
 **Current Config Version**
 : The version of its grant an application was last resolved to. It moves forward within its major only when the application is read or acted on through Grants, so it can lag the version the application would resolve to now.
 
+## Claims
+
+**Claim**
+: A submitted request against one Entitlement. Submission records receipt by GAS, regardless of whether approval is required or a Payment has been requested.
+
+**Client Claim Reference**
+: The caller's reference for a Claim, unique within its grant code and Client Reference. This is the Claim ID used for reporting; Payments owns the separate Payment Hub claim ID.
+
 ## Events
 
 **Event Reference**
