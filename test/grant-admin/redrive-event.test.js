@@ -92,8 +92,13 @@ const aDeadOutboxDoc = (overrides = {}) => ({
   ...overrides,
 });
 
+// Longer than GAS gives Caseworking, so a timeout is GAS's answer, not ours.
+const CLIENT_TIMEOUT_MS = 10_000;
+
 const redrive = (service, box, id) =>
-  wreck.post(`/grant-admin/events/${service}/${box}/${id}/redrive`);
+  wreck.post(`/grant-admin/events/${service}/${box}/${id}/redrive`, {
+    timeout: CLIENT_TIMEOUT_MS,
+  });
 
 const bodyOf = (error) => {
   const payload = error.data?.payload;

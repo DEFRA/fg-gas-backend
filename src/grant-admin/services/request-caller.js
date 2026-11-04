@@ -3,3 +3,8 @@
 // populating credentials. Shared by every grant-admin route that attributes a
 // read or a mutation, so they can never derive the caller differently.
 export const callerOf = (request) => request.auth?.credentials?.service ?? null;
+
+// The hash of the token this request is authenticated with. Only ever compared,
+// never logged, audited or answered.
+export const callerHashOf = (request) =>
+  request.auth?.credentials?.tokenHash ?? null;

@@ -92,6 +92,9 @@ const aDeadOutboxDoc = (overrides = {}) => ({
   ...overrides,
 });
 
+// Longer than GAS gives Caseworking, so a timeout is GAS's answer, not ours.
+const CLIENT_TIMEOUT_MS = 10_000;
+
 // A purge names its operator, so every call here carries `x-actor`; the one
 // test that leaves it out passes its own headers.
 const purge = (
@@ -104,6 +107,7 @@ const purge = (
   wreck.post(`/grant-admin/events/${service}/${box}/${id}/purge`, {
     payload,
     headers,
+    timeout: CLIENT_TIMEOUT_MS,
   });
 
 const redrive = (service, box, id) =>

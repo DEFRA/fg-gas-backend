@@ -1,6 +1,5 @@
 import { agreements } from "./agreements/index.js";
 import { reportAccessTokenIdentity } from "./auth/access-token-identity.js";
-import { seedAccessToken } from "./auth/seed-access-token.js";
 import { assertDefinitionCheckRegistered } from "./common/config-broker/definition-checks.js";
 import { logger } from "./common/logger.js";
 import { grantAdmin } from "./grant-admin/index.js";
@@ -30,6 +29,5 @@ await server.register([
 // explicitly if the Payments plugin stops providing its definition check.
 assertDefinitionCheckRegistered("payment");
 // After register, which runs the migrations, and before any request is served.
-await seedAccessToken();
 await reportAccessTokenIdentity();
 await server.start();

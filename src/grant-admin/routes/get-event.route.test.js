@@ -22,7 +22,7 @@ const validateParams = (params) =>
 
 const aRequest = (overrides = {}) => ({
   params: { service: "gas", box: "inbox", id: ID },
-  auth: { credentials: { service: "grants-ui", tokenId: "t-1" } },
+  auth: { credentials: { service: "grants-ui", tokenHash: "t-1" } },
   ...overrides,
 });
 

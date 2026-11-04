@@ -4,6 +4,7 @@ import { config } from "../common/config.js";
 import { logger } from "../common/logger.js";
 import { db } from "../common/mongo-client.js";
 import { verifyCallerToken } from "./caller-token.js";
+import { AccessToken } from "./models/access-token.js";
 
 // FGP-1394: the caller-token header is being renamed from 'x-encrypted-auth' to
 // 'x-user-context' (it carries a signed, not encrypted, value). Accept the new
@@ -27,14 +28,12 @@ const getBearerToken = (header) => {
   return header.slice("Bearer ".length).trim();
 };
 
-// Predicate to determine whether an access token record has expired
-const isExpired = (record, now = new Date()) =>
-  Boolean(record?.expiresAt && now > record.expiresAt);
-
 const setupAccessTokens = () => {
   const col = db.collection("access_tokens");
   return {
-    findById: async (id) => col.findOne({ id }),
+    // Not the deployed default of a secondary, which can lag a revoke.
+    findById: async (id) =>
+      col.findOne({ id }, { readPreference: "primaryPreferred" }),
   };
 };
 
@@ -48,12 +47,13 @@ const registerServiceAuth = async (server) => {
       );
       const record = await tokens.findById(tokenHash);
 
-      if (!record || isExpired(record)) {
+      // The same rule Grant Admin lists and revokes by.
+      if (!record || !AccessToken.fromDocument(record).isActive(new Date())) {
         throw Boom.unauthorized("Invalid token");
       }
 
       return h.authenticated({
-        credentials: { service: record.clientId, tokenId: record.id },
+        credentials: { service: record.clientId, tokenHash: record.id },
         // FGP-1534: remove legacy client metadata after identity migration.
         // Only allow-list auditing uses it; authorisation keeps credentials.service.
         artifacts: { client: record.client },

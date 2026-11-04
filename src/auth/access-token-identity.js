@@ -1,6 +1,7 @@
 import { db } from "../common/mongo-client.js";
 import { logger } from "../common/logger.js";
 import { ADMIN_CLIENT } from "../grant-admin/admin-client.js";
+import { CLIENT_NAME } from "./models/access-token.js";
 
 // FGP-1534: access tokens name their service in `client`, `clientId` or both,
 // while authentication reads only `clientId`. This copies `client` into
@@ -94,6 +95,30 @@ export const createSeededClientIdIndex = async (accessTokens) => {
   }
 };
 
+// Auth compares expiresAt with `>=`, so one that is not a date reads oddly.
+// Aggregation's $type, which unlike the query operator never matches an array
+// by its elements.
+const nonDateExpiry = {
+  $expr: {
+    $not: [{ $in: [{ $type: "$expiresAt" }, ["missing", "null", "date"]] }],
+  },
+};
+
+// Grant Admin manages a token only under a name that passes the name rule.
+const withoutClientName = {
+  $expr: {
+    $not: [
+      {
+        $cond: [
+          { $eq: [{ $type: "$clientId" }, "string"] },
+          { $regexMatch: { input: "$clientId", regex: CLIENT_NAME } },
+          false,
+        ],
+      },
+    ],
+  },
+};
+
 const countShape = (accessTokens, shape) =>
   accessTokens.countDocuments({ $expr: shape }, primary);
 
@@ -101,71 +126,56 @@ export const countIdentityShapes = async (accessTokens) => {
   const [
     canonical,
     conflicting,
-    conflictingSeeded,
     adminLegacyOnly,
     legacyOnly,
     invalid,
-    seededCollisions,
+    nonDateExpiries,
+    unnamed,
   ] = await Promise.all([
     countShape(accessTokens, shapes.canonical),
     countShape(accessTokens, shapes.conflicting),
-    accessTokens.countDocuments(
-      { seeded: true, $expr: shapes.conflicting },
-      primary,
-    ),
     countShape(accessTokens, shapes.adminLegacyOnly),
     countShape(accessTokens, shapes.legacyOnly),
     countShape(accessTokens, shapes.invalid),
-    countSeededCollisions(accessTokens),
+    accessTokens.countDocuments(nonDateExpiry, primary),
+    accessTokens.countDocuments(withoutClientName, primary),
   ]);
 
   return {
     canonical,
     conflicting,
-    conflictingSeeded,
     adminLegacyOnly,
     legacyOnly,
     invalid,
-    seededCollisions,
+    nonDateExpiries,
+    unnamed,
   };
 };
 
-const hasSeededClientIdIndex = async (accessTokens) =>
-  (await accessTokens.indexes()).some(
-    ({ name }) => name === SEEDED_CLIENT_ID_INDEX,
-  );
-
 const UNRESOLVED = [
-  "conflictingSeeded",
   "adminLegacyOnly",
   "legacyOnly",
   "invalid",
-  "seededCollisions",
+  "nonDateExpiries",
+  "unnamed",
 ];
-
-const isComplete = (counts, indexed) =>
-  indexed && UNRESOLVED.every((shape) => counts[shape] === 0);
 
 // Runs on every boot so records written by older versions, or left behind by
 // the migration, keep showing up until they are resolved. Never fails startup.
 export const reportAccessTokenIdentity = async () => {
   try {
-    const accessTokens = db.collection("access_tokens");
-    const [counts, indexed] = await Promise.all([
-      countIdentityShapes(accessTokens),
-      hasSeededClientIdIndex(accessTokens),
-    ]);
+    const counts = await countIdentityShapes(db.collection("access_tokens"));
 
     const message =
       `Access token identity: ${counts.canonical} canonical, ` +
-      `${counts.conflicting} conflicting (${counts.conflictingSeeded} seeded), ` +
+      `${counts.conflicting} conflicting, ` +
       `${counts.legacyOnly} client only, ` +
       `${counts.adminLegacyOnly} admin client only, ` +
       `${counts.invalid} without an identity, ` +
-      `${counts.seededCollisions} seeded sharing a clientId, ` +
-      `seeded clientId index ${indexed ? "present" : "missing"}`;
+      `${counts.nonDateExpiries} with an expiresAt that is not a date, ` +
+      `${counts.unnamed} without a valid client name`;
 
-    if (isComplete(counts, indexed)) {
+    if (UNRESOLVED.every((shape) => counts[shape] === 0)) {
       logger.info(message);
     } else {
       logger.warn(message);
