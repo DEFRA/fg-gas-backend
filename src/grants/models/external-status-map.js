@@ -4,7 +4,11 @@ import { Position } from "./position.js";
 
 export class ExternalStatusMap {
   constructor(externalStatusMap) {
-    this.mappings = (externalStatusMap?.phases ?? []).flatMap((phase) =>
+    this.phases = externalStatusMap?.phases ?? [];
+  }
+
+  get mappings() {
+    return this.phases.flatMap((phase) =>
       phase.stages.flatMap((stage) =>
         stage.statuses.map(
           (status) =>
@@ -17,9 +21,43 @@ export class ExternalStatusMap {
     );
   }
 
+  find({ phase, stage, code, source, status }) {
+    const candidates = this.#statusesIn(phase, stage);
+    const matches = candidates.filter(
+      (entry) =>
+        entry.code === code &&
+        entry.source === source &&
+        (entry.fromStatus === undefined || entry.fromStatus === status),
+    );
+    this.#assertUnambiguous(matches, { phase, stage, code, source, status });
+    const [mapping = {}] = matches;
+    return mapping.mappedTo ? mapping : null;
+  }
+
+  #statusesIn(phase, stage) {
+    return this.#findStage(phase, stage)?.statuses ?? [];
+  }
+
+  #findStage(phase, stage) {
+    const definition = this.phases.find((entry) => entry.code === phase);
+    return definition?.stages?.find((entry) => entry.code === stage);
+  }
+
+  #assertUnambiguous(matches, { phase, stage, code, source, status }) {
+    if (
+      matches.length > 1 &&
+      matches.some((entry) => entry.fromStatus !== undefined)
+    ) {
+      throw Boom.badImplementation(
+        `Ambiguous ${source} status "${code}" mapping at "${phase}:${stage}:${status}"`,
+      );
+    }
+  }
+
   assertTargetsExistIn(lifecycle) {
-    for (const mapping of this.mappings) {
-      this.#assertFromStatus(mapping, lifecycle);
+    const mappings = this.mappings;
+    for (const mapping of mappings) {
+      this.#assertFromStatus(mapping, lifecycle, mappings);
       if (!lifecycle.has(mapping.target)) {
         throw Boom.badImplementation(
           `${mapping.source} status "${mapping.code}" at "${mapping.phase}:${mapping.stage}" is mapped to "${mapping.mappedTo}" which does not match any position in "phases"`,
@@ -28,7 +66,7 @@ export class ExternalStatusMap {
     }
   }
 
-  #assertFromStatus(mapping, lifecycle) {
+  #assertFromStatus(mapping, lifecycle, mappings) {
     if (mapping.fromStatus === undefined) {
       return;
     }
@@ -44,7 +82,7 @@ export class ExternalStatusMap {
     }
     const scopeOf = ({ phase, stage, source, code }) =>
       JSON.stringify([phase, stage, source, code]);
-    const siblings = this.mappings.filter(
+    const siblings = mappings.filter(
       (other) => scopeOf(other) === scopeOf(mapping),
     );
     const overlaps = siblings.some(

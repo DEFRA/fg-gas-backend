@@ -363,19 +363,6 @@ export class Grant {
     );
   }
 
-  #matchesExternalStatus(
-    status,
-    externalRequestedState,
-    sourceSystem,
-    currentStatus,
-  ) {
-    return (
-      status.code === externalRequestedState &&
-      status.source === sourceSystem &&
-      (status.fromStatus === undefined || status.fromStatus === currentStatus)
-    );
-  }
-
   hasExternalStatusMapping(
     externalRequestedState,
     source,
@@ -392,7 +379,6 @@ export class Grant {
     );
   }
 
-  // eslint-disable-next-line complexity
   #findExternalStatusMapping(
     currentPhase,
     currentStage,
@@ -400,38 +386,13 @@ export class Grant {
     sourceSystem,
     currentStatus,
   ) {
-    const { stage: stageMap } = this.#findPhaseStage(
-      this.externalStatusMap?.phases,
-      currentPhase,
-      currentStage,
-    );
-
-    const matches =
-      stageMap?.statuses?.filter((status) =>
-        this.#matchesExternalStatus(
-          status,
-          externalRequestedState,
-          sourceSystem,
-          currentStatus,
-        ),
-      ) ?? [];
-
-    if (
-      matches.length > 1 &&
-      matches.some((mapping) => mapping.fromStatus !== undefined)
-    ) {
-      throw Boom.badImplementation(
-        `Ambiguous ${sourceSystem} status "${externalRequestedState}" mapping at "${currentPhase}:${currentStage}:${currentStatus}"`,
-      );
-    }
-
-    const [statusMapping] = matches;
-
-    if (!statusMapping?.mappedTo) {
-      return null;
-    }
-
-    return statusMapping;
+    return new ExternalStatusMap(this.externalStatusMap).find({
+      phase: currentPhase,
+      stage: currentStage,
+      code: externalRequestedState,
+      source: sourceSystem,
+      status: currentStatus,
+    });
   }
 
   #parseMappedToField(mappedTo, currentPhase, currentStage) {
