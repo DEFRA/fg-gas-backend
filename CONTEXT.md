@@ -36,7 +36,7 @@
 : How a status reported by another service, such as Case Working, moves an application to a Position.
 
 **External Status Mapping**
-: One entry of the External Status Map: a source's status code, the phase and stage it applies while in, and where it moves the application, when a Move to there allows it. Only the first entry for a source and code in a stage is applied.
+: One entry of the External Status Map: a source's reported status, the current phase and stage and optionally the current GAS status it applies to, and the Position it moves the application to when a Move allows it. A current-status condition distinguishes different application outcomes for the same reported status.
 
 **Claim Approval Transition**
 : The move GAS makes itself, from one Position to another, when a claim submitted at that Position leaves no claim to make, unless the claim requires approval. GAS publishes the move to Case Working.

@@ -30,6 +30,7 @@ const getValidatedMapping = (grant, application, command) => {
     application.currentStage,
     command.externalRequestedState,
     command.sourceSystem,
+    application.currentStatus,
   );
 
   if (!mapping.valid) {
@@ -107,12 +108,14 @@ const checkForExternalStatusMapping = (
   sourceSystem,
   currentPhase,
   currentStage,
+  currentStatus,
 ) => {
   return grant.hasExternalStatusMapping(
     requestedStatus,
     sourceSystem,
     currentPhase,
     currentStage,
+    currentStatus,
   );
 };
 
@@ -158,6 +161,7 @@ export const applyExternalStateChange = async (command) => {
         command.sourceSystem,
         application.currentPhase,
         application.currentStage,
+        application.currentStatus,
       )
     ) {
       logger.info(

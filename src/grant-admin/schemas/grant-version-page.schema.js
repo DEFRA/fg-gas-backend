@@ -120,6 +120,7 @@ const externalStatusMappingSchema = Joi.object({
   source: Joi.string().required(),
   code: codeSchema,
   whileIn: Joi.string().required(),
+  fromStatus: Joi.string(),
   mappedTo: Joi.string().required(),
   to: Joi.string().allow(null).required(),
 }).label("ExternalStatusMapping");
