@@ -137,7 +137,7 @@ describe("external mappings conditioned by current GAS status", () => {
     entries[0].fromStatus = fromStatus;
     expect(() =>
       Grant.fromDefinition(definition(entries), "1.0.0", dependencies),
-    ).toThrow();
+    ).toThrow("Invalid grant definition");
   });
 
   it("rejects a condition that names no status in its stage", () => {
