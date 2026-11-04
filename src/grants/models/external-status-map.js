@@ -80,6 +80,12 @@ export class ExternalStatusMap {
         `${mapping.source} status "${mapping.code}" has fromStatus "${mapping.fromStatus}" which does not match a position in "${mapping.phase}:${mapping.stage}"`,
       );
     }
-    this.find({ ...mapping, status: mapping.fromStatus });
+    if (
+      this.find({ ...mapping, status: mapping.fromStatus }) !== mapping.entry
+    ) {
+      throw Boom.badImplementation(
+        `Unreachable ${mapping.source} status "${mapping.code}" mapping at "${from}"`,
+      );
+    }
   }
 }

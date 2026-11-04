@@ -89,4 +89,37 @@ describe("ExternalStatusMap", () => {
       `CW status "EXTERNAL" at "PRE_AWARD:REVIEW" is mapped to "${mappedTo}" which does not match any position in "phases"`,
     );
   });
+
+  it.each(["phase", "stage"])(
+    "rejects a conditioned mapping hidden in a repeated %s block",
+    (block) => {
+      const first = {
+        code: "terminated",
+        source: "AS",
+        fromStatus: "IN_REVIEW",
+        mappedTo: "::IN_REVIEW",
+      };
+      const definition = mapOf([first]);
+      const repeatedStage = { code: "REVIEW", statuses: [{ ...first }] };
+      if (block === "phase") {
+        definition.phases.push({ code: "PRE_AWARD", stages: [repeatedStage] });
+      } else {
+        definition.phases[0].stages.push(repeatedStage);
+      }
+      const map = new ExternalStatusMap(definition);
+
+      expect(
+        map.find({
+          phase: "PRE_AWARD",
+          stage: "REVIEW",
+          code: "terminated",
+          source: "AS",
+          status: "IN_REVIEW",
+        }),
+      ).toBe(first);
+      expect(() => map.assertTargetsExistIn(lifecycle)).toThrow(
+        'Unreachable AS status "terminated" mapping at "PRE_AWARD:REVIEW:IN_REVIEW"',
+      );
+    },
+  );
 });
