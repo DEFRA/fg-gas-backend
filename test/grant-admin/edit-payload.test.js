@@ -103,10 +103,14 @@ const withSheetId = (event, sheetId = "AA0109") => ({
   data: { ...event.data, sheetId },
 });
 
+// Longer than GAS gives Caseworking, so a timeout is GAS's answer, not ours.
+const CLIENT_TIMEOUT_MS = 10_000;
+
 const edit = (service, box, id, body, headers = { "x-actor": "donatas" }) =>
   wreck.post(`/grant-admin/events/${service}/${box}/${id}/payload`, {
     payload: body,
     headers,
+    timeout: CLIENT_TIMEOUT_MS,
   });
 
 const anEdit = (payload, overrides = {}) => ({

@@ -218,6 +218,14 @@ export default [
             },
             {
               target: "**/grant-admin/**/!(*.test).js",
+              from: ["**/auth/**"],
+              except: ["**/auth/services/api-client.service.js"],
+              message:
+                "Grant Admin may only enter Auth through its API client service. " +
+                "See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
+              target: "**/grant-admin/**/!(*.test).js",
               from: ["**/agreements/**"],
               message:
                 "Grant Admin must not import Agreements. See docs/MODULE_BOUNDARIES.md.",

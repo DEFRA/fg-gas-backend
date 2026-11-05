@@ -71,12 +71,25 @@ const emptyWorkflows = () => ({
   fetches: {},
 });
 
+// The client routes: `list` is the list's 200 body, `issue` an issue's 201
+// body, and `token` the body a change of expiry or a rotate answers; a revoke
+// or a delete answers 204. A `refusal` of `{ status, body }` answers every
+// client route with it instead.
+const emptyClients = () => ({
+  mode: "ok",
+  list: { tokens: [] },
+  issue: null,
+  token: null,
+  refusal: null,
+});
+
 const defaultState = () => ({
   inbox: emptyBox(),
   outbox: emptyBox(),
   cases: emptyCases(),
   buckets: emptyBuckets(),
   workflows: emptyWorkflows(),
+  clients: emptyClients(),
 });
 
 let server;
@@ -109,6 +122,7 @@ const handleControl = async (request, response) => {
     cases: { ...state.cases, ...(patch.cases ?? {}) },
     buckets: { ...state.buckets, ...(patch.buckets ?? {}) },
     workflows: { ...state.workflows, ...(patch.workflows ?? {}) },
+    clients: { ...state.clients, ...(patch.clients ?? {}) },
   };
 
   send(response, OK, { ok: true });
@@ -148,7 +162,9 @@ const record = async (name, request) => {
     actorId: request.headers["x-actor-id"] ?? null,
     actor: request.headers["x-actor"] ?? null,
     searchRepeat: request.headers["x-search-repeat"] ?? null,
-    body: request.method === "POST" ? await readBody(request) : null,
+    body: ["POST", "PUT"].includes(request.method)
+      ? await readBody(request)
+      : null,
   };
 
   requests.push(entry);
@@ -490,6 +506,60 @@ const isBucketPath = (pathname) =>
   [BUCKETS_PATH, TIMELINE_PATH].includes(pathname) ||
   BUCKET_QUERY_PATH.test(pathname);
 
+const CLIENTS_PATH =
+  /^\/actuators\/clients(?:\/[^/]+\/tokens(?:\/[^/]+(?:\/(revoke|rotate|expiry))?)?)?$/;
+
+const CREATED = 201;
+
+const noContent = (response) => {
+  response.writeHead(NO_CONTENT);
+  return response.end();
+};
+
+const CLIENT_ANSWERS = {
+  revoke: (_, response) => noContent(response),
+  rotate: (clients, response) => send(response, CREATED, clients.token),
+  expiry: (clients, response) => send(response, OK, clients.token),
+};
+
+const answerClients = (pathname, method, clients, response) => {
+  const [, action] = CLIENTS_PATH.exec(pathname);
+
+  if (action) {
+    return CLIENT_ANSWERS[action](clients, response);
+  }
+
+  if (method === "DELETE") {
+    return noContent(response);
+  }
+
+  return method === "POST"
+    ? send(response, CREATED, clients.issue)
+    : send(response, OK, clients.list);
+};
+
+// GET /actuators/clients, POST /actuators/clients/{clientId}/tokens, and on
+// .../tokens/{tokenId}: DELETE, POST /revoke, POST /rotate and PUT /expiry.
+const handleClients = async (pathname, request, response) => {
+  await record("clients", request);
+
+  if (!isAuthorised(request)) {
+    return send(response, UNAUTHORIZED, { message: "bad token" });
+  }
+
+  const { clients } = state;
+
+  if (clients.mode !== "ok") {
+    return respondForMode(clients, response);
+  }
+
+  if (clients.refusal) {
+    return send(response, clients.refusal.status, clients.refusal.body);
+  }
+
+  return answerClients(pathname, request.method, clients, response);
+};
+
 const route = async (request, response) => {
   const { pathname } = new URL(request.url, "http://stub.local");
 
@@ -511,6 +581,10 @@ const route = async (request, response) => {
 
   if (CASE_PATH.test(pathname)) {
     return handleCases(pathname, request, response);
+  }
+
+  if (CLIENTS_PATH.test(pathname)) {
+    return handleClients(pathname, request, response);
   }
 
   if (WORKFLOW_PATH.test(pathname)) {

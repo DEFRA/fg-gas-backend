@@ -56,8 +56,27 @@ describe("auth plugin", () => {
     expect(res.statusCode).toBe(200);
     expect(res.result.creds).toEqual({
       service: "http-client",
-      tokenId: validId,
+      tokenHash: validId,
     });
+  });
+
+  // A secondary can lag a revoke or an issue; the test Mongo is one node, so
+  // only the option can be shown.
+  it("looks the token up on the primary while there is one", async () => {
+    const server = await createServer();
+    server.route({ method: "GET", path: "/secure", handler: () => "ok" });
+
+    await server.initialize();
+    await server.inject({
+      method: "GET",
+      url: "/secure",
+      headers: { authorization: "Bearer good" },
+    });
+
+    expect(db.collection("access_tokens").findOne).toHaveBeenCalledWith(
+      { id: validId },
+      { readPreference: "primaryPreferred" },
+    );
   });
 
   it("accepts whitespace around the token (header is trimmed)", async () => {
@@ -85,6 +104,55 @@ describe("auth plugin", () => {
       method: "GET",
       url: "/secure",
       headers: { authorization: "Bearer wrong" },
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  // The vectors Grant Admin's generator and Caseworking's auth are held to: a
+  // token any of the three hashes must be found by the same hash here.
+  it.each([
+    [
+      "Grant Admin's",
+      "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc",
+      "dc4bf80c77473d130fa0de86ba4018fe98bb214005e6a5891d12ba91446f9e81",
+    ],
+    [
+      "Caseworking's",
+      "fgp-1572-hash-vector",
+      "95ef91517beb2901c394cf3294bcbe82077e432cd1aac452bca75b6988fe06cb",
+    ],
+  ])("finds a token by %s fixed hash vector", async (_, raw, hash) => {
+    tokensById[hash] = { id: hash, clientId: "grants-ui" };
+    const server = await createServer();
+    server.route({
+      method: "GET",
+      path: "/secure",
+      handler: (request) => request.auth.credentials,
+    });
+
+    await server.initialize();
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/secure",
+      headers: { authorization: `Bearer ${raw}` },
+    });
+
+    expect(res.result).toEqual({ service: "grants-ui", tokenHash: hash });
+  });
+
+  it("rejects a revoked token, whatever its expiry", async () => {
+    tokensById[validId].revokedAt = new Date("2026-11-01T10:00:00.000Z");
+    const server = await createServer();
+    server.route({ method: "GET", path: "/secure", handler: () => "ok" });
+
+    await server.initialize();
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/secure",
+      headers: { authorization: "Bearer good" },
     });
 
     expect(res.statusCode).toBe(401);

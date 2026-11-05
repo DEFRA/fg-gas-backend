@@ -14,6 +14,7 @@ import {
   cwRequest,
   describeError,
   operatorHeaders,
+  readCwAnswer,
   withDocumentRetry,
 } from "./cw-http.js";
 
@@ -147,19 +148,8 @@ const cwFetchSchema = Joi.object({
   files: Joi.array().items(cwFetchedFile).required(),
 });
 
-// Only the keys GAS knows are passed on; the document is Caseworking's as stored.
-const readWorkflowAnswer = (schema, payload, what) => {
-  const { error, value } = schema.validate(payload, { stripUnknown: true });
-
-  if (error) {
-    throw Boom.badGateway(`CW-BE answered ${what} that cannot be read`);
-  }
-
-  return value;
-};
-
 export const findCwWorkflowVersions = async (code, { actor } = {}) =>
-  readWorkflowAnswer(
+  readCwAnswer(
     cwWorkflowVersionsSchema,
     await cwRequest(
       "get",
@@ -172,7 +162,7 @@ export const findCwWorkflowVersions = async (code, { actor } = {}) =>
 
 const readWorkflowVersion = async (ref, { include, actor }) => {
   const query = include ? `?include=${encodeURIComponent(include)}` : "";
-  const answer = readWorkflowAnswer(
+  const answer = readCwAnswer(
     cwWorkflowVersionSchema,
     await cwRequest(
       "get",
@@ -196,7 +186,7 @@ const cwExistenceSchema = Joi.object({ exists: Joi.boolean().required() });
 
 // Only yes or no, so it names no `x-actor` and Caseworking writes no audit.
 export const findCwWorkflowVersionExistence = async (ref) =>
-  readWorkflowAnswer(
+  readCwAnswer(
     cwExistenceSchema,
     await cwRequest(
       "get",
@@ -214,7 +204,7 @@ const toFetchedFile = ({ file, outcome, reason, message }) =>
 
 // Caseworking audits the fetch itself and refuses one that names nobody.
 export const fetchCwWorkflowDefinition = async (ref, { by }) => {
-  const { files } = readWorkflowAnswer(
+  const { files } = readCwAnswer(
     cwFetchSchema,
     await cwRequest(
       "post",

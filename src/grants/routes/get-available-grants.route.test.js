@@ -157,7 +157,7 @@ describe("available grants authentication and validation", () => {
   });
   it("rejects authenticated credentials without service identity", async () => {
     const response = await inject(url, {
-      auth: { strategy: "service", credentials: { tokenId: "synthetic" } },
+      auth: { strategy: "service", credentials: { tokenHash: "synthetic" } },
     });
     expect(response.statusCode).toBe(401);
     expect(response.result).not.toHaveProperty("grants");

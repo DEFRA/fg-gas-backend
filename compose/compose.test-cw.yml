@@ -10,6 +10,9 @@
 # LAND_DATA_URL carries credentials and a query, and LAND_DATA_HEADERS a
 # secret, so the admin Agreement tab can be shown to answer neither.
 #
+# SERVICE_ACCESS_TOKEN_HASH is what an environment still holding the old
+# seeding secret boots with; GAS must write nothing from it.
+#
 # HTTP_CLIENT_TIMEOUT_MS is shortened from the 10 s default so the "CW times
 # out" case costs a few seconds rather than the whole test timeout.
 services:
@@ -18,5 +21,6 @@ services:
       CW_BACKEND_URL: "${CW_BACKEND_URL}"
       CW_BACKEND_TOKEN: "${CW_BACKEND_TOKEN}"
       HTTP_CLIENT_TIMEOUT_MS: "${HTTP_CLIENT_TIMEOUT_MS}"
+      SERVICE_ACCESS_TOKEN_HASH: "it-boot-seed:b007b007b007b007b007b007b007b007b007b007b007b007b007b007b007b007"
       LAND_DATA_URL: "https://u:p@land-data.test/base/?k=v"
       LAND_DATA_HEADERS: "Authorization:secret"

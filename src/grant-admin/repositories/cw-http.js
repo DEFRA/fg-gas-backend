@@ -20,6 +20,17 @@ export const cwUrl = (path) => new URL(path, config.cwBackend.url).toString();
 
 export const statusOf = (error) => error?.output?.statusCode ?? null;
 
+// No connection was made, so nothing reached Caseworking.
+const UNSENT_CODES = new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+]);
+
+export const isUnsent = (error) => UNSENT_CODES.has(error?.code);
+
 // `wreck` attaches the CW response body to the error; read only the status.
 export const describeError = (error) => {
   const statusCode = statusOf(error);
@@ -115,6 +126,18 @@ export const cwRequest = async (
   } catch (error) {
     throw toFailure(error, label, expected, failures);
   }
+};
+
+// Only the keys GAS knows are passed on, and a stored row only with its hash
+// masked, so no hash Caseworking sends reaches the admin.
+export const readCwAnswer = (schema, payload, what) => {
+  const { error, value } = schema.validate(payload, { stripUnknown: true });
+
+  if (error) {
+    throw Boom.badGateway(`CW-BE answered ${what} that cannot be read`);
+  }
+
+  return value;
 };
 
 // `actor` is sent as the admin encoded it; Caseworking decodes it.
