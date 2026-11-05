@@ -8,17 +8,20 @@ import {
   ApplicationStatus,
 } from "../../src/grants/models/application.js";
 import { GrantDocument } from "../../src/grants/models/grant-document.js";
+import { seedConfigVersion } from "../helpers/applications.js";
 import { createTestGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
 let applications;
 let grants;
 let client;
+let db;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  applications = client.db().collection("applications");
-  grants = client.db().collection("grants");
+  db = client.db();
+  applications = db.collection("applications");
+  grants = db.collection("grants");
 });
 
 afterAll(async () => {
@@ -31,13 +34,15 @@ describe("GET /grants/{code}/applications/{clientRef}/status", () => {
 
   it("should get application status", async () => {
     // The status endpoint resolves the grant definition for the application,
-    // so a legacy (unversioned) grant document must exist for the code.
+    // so a versioned grant document and config_versions entry must exist.
     await grants.insertOne(new GrantDocument(createTestGrant({ code })));
+    await seedConfigVersion(db, code);
 
     await applications.insertOne(
       Application.new({
         clientRef,
         code,
+        configVersion: "1.0.0",
         currentPhase: ApplicationPhase.PreAward,
         currentStage: ApplicationStage.Assessment,
         currentStatus: ApplicationStage.Assessment,
@@ -76,8 +81,8 @@ describe("GET /grants/{code}/applications/{clientRef}/status", () => {
       status: ApplicationStage.Assessment,
       grantCode: code,
       clientRef,
-      originalConfigVersion: null,
-      currentConfigVersion: null,
+      originalConfigVersion: "1.0.0",
+      currentConfigVersion: "1.0.0",
     });
   });
 });
