@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
+import { decimalPlaces } from "../../common/decimal-places.js";
 import { logger } from "../../common/logger.js";
 import {
   resolveRefs,
@@ -228,14 +229,11 @@ const unstorableDecimal = (name, claimCode, field) =>
 // with more decimal places than the template allows is refused rather than
 // rounded, so a capping value is never quietly changed.
 const toStoredDecimal = (name, field, value, claimCode) => {
-  const factor = 10 ** field.decimalPlaces;
-  const stored = Math.round(value * factor);
-
-  if (!Number.isFinite(value) || stored / factor !== value) {
+  if (!Number.isFinite(value) || decimalPlaces(value) > field.decimalPlaces) {
     throw unstorableDecimal(name, claimCode, field);
   }
 
-  return stored;
+  return Math.round(value * 10 ** field.decimalPlaces);
 };
 
 const toStoredValue = (name, field, value, claimCode) =>
