@@ -50,17 +50,17 @@ const onlyFor = (unitType, schema) =>
 
 // A field is either collected from whoever creates the entitlement - so it
 // needs a label to render against - or fixed by the definition, in which case
-// it needs the value itself. `value` may be a literal or a
-// "jsonata: <expression>" resolved against the agreement when the entitlement
-// is created; it stays an opaque string here, because a grant definition on its
-// own has nothing to resolve it against.
+// it needs the value itself and may carry a label for whoever displays it.
+// `value` may be a literal or a "jsonata: <expression>" resolved against the
+// agreement when the entitlement is created; it stays an opaque string here,
+// because a grant definition on its own has nothing to resolve it against.
 const field = Joi.object({
   input: Joi.boolean().required(),
 
   label: Joi.any().when("input", {
     is: true,
     then: Joi.string().required(),
-    otherwise: Joi.forbidden(),
+    otherwise: absentAsNull(Joi.string()),
   }),
 
   value: Joi.any().when("input", {
