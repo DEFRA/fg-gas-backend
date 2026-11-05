@@ -347,12 +347,14 @@ export class Grant {
     currentStage,
     externalRequestedState,
     sourceSystem,
+    currentStatus,
   ) {
     const statusMapping = this.#findExternalStatusMapping(
       currentPhase,
       currentStage,
       externalRequestedState,
       sourceSystem,
+      currentStatus,
     );
 
     if (!statusMapping) {
@@ -366,48 +368,36 @@ export class Grant {
     );
   }
 
-  #matchesExternalStatus(status, externalRequestedState, sourceSystem) {
-    return (
-      status.code === externalRequestedState && status.source === sourceSystem
-    );
-  }
-
   hasExternalStatusMapping(
     externalRequestedState,
     source,
     currentPhase,
     currentStage,
+    currentStatus,
   ) {
     return this.#findExternalStatusMapping(
       currentPhase,
       currentStage,
       externalRequestedState,
       source,
+      currentStatus,
     );
   }
 
-  // eslint-disable-next-line complexity
   #findExternalStatusMapping(
     currentPhase,
     currentStage,
     externalRequestedState,
     sourceSystem,
+    currentStatus,
   ) {
-    const { stage: stageMap } = this.#findPhaseStage(
-      this.externalStatusMap?.phases,
-      currentPhase,
-      currentStage,
-    );
-
-    const statusMapping = stageMap?.statuses?.find((status) =>
-      this.#matchesExternalStatus(status, externalRequestedState, sourceSystem),
-    );
-
-    if (!statusMapping?.mappedTo) {
-      return null;
-    }
-
-    return statusMapping;
+    return new ExternalStatusMap(this.externalStatusMap).find({
+      phase: currentPhase,
+      stage: currentStage,
+      code: externalRequestedState,
+      source: sourceSystem,
+      status: currentStatus,
+    });
   }
 
   #parseMappedToField(mappedTo, currentPhase, currentStage) {
@@ -575,8 +565,8 @@ export class Grant {
     return positions.some((position) => validFrom.matches(position.toString()));
   }
 
-  // Only the mapping the lookup finds for its source and code while in its
-  // phase and stage is ever applied.
+  // Describe the mappings reachable for each current-status condition, while
+  // preserving first-match behaviour for existing unconditioned entries.
   #appliedExternalStatusMappings() {
     return new ExternalStatusMap(this.externalStatusMap).mappings
       .filter(
@@ -586,6 +576,7 @@ export class Grant {
             mapping.stage,
             mapping.code,
             mapping.source,
+            mapping.fromStatus,
           ) === mapping.entry,
       )
       .map((mapping) => mapping.describe());

@@ -1155,4 +1155,86 @@ describe("applyExternalStateChange", () => {
       expect(update).not.toHaveBeenCalled();
     });
   });
+  describe("terminated responses during Forestry Commission review", () => {
+    it.each([
+      ["STATUS_REJECTION_REQUESTED", "STATUS_AGREEMENT_REJECTED"],
+      ["STATUS_WITHDRAWAL_REQUESTED", "STATUS_APPLICATION_WITHDRAWN"],
+    ])("moves %s to %s", async (currentStatus, targetStatus) => {
+      const phase = "PHASE_PRE_AWARD";
+      const stage = "STAGE_FC_REVIEWING";
+      const outcomes = [
+        ["STATUS_REJECTION_REQUESTED", "STATUS_AGREEMENT_REJECTED"],
+        ["STATUS_WITHDRAWAL_REQUESTED", "STATUS_APPLICATION_WITHDRAWN"],
+      ];
+      const grant = new Grant({
+        code: "woodland",
+        actions: [],
+        metadata: {
+          description: "Woodland",
+          startDate: "2026-01-01T00:00:00Z",
+        },
+        phases: [
+          {
+            code: phase,
+            stages: [
+              {
+                code: stage,
+                statuses: outcomes.flatMap(([fromStatus, code]) => [
+                  { code: fromStatus, validFrom: [] },
+                  { code, validFrom: [{ code: fromStatus, processes: [] }] },
+                ]),
+              },
+            ],
+          },
+        ],
+        externalStatusMap: {
+          phases: [
+            {
+              code: phase,
+              stages: [
+                {
+                  code: stage,
+                  statuses: outcomes.map(([fromStatus, target]) => ({
+                    code: "terminated",
+                    source: "AS",
+                    fromStatus,
+                    mappedTo: `${phase}:${stage}:${target}`,
+                  })),
+                },
+              ],
+            },
+          ],
+        },
+      });
+      const application = new Application({
+        ...mockApplication,
+        code: "woodland",
+        currentPhase: phase,
+        currentStage: stage,
+        currentStatus,
+      });
+      findByClientRefAndCode.mockResolvedValue(application);
+      resolveGrantForApplication.mockResolvedValue({
+        grant,
+        resolvedVersion: null,
+      });
+
+      await applyExternalStateChange({
+        clientRef: application.clientRef,
+        code: "woodland",
+        externalRequestedState: "terminated",
+        sourceSystem: "AS",
+        eventData: {},
+      });
+
+      expect(application.currentStatus).toBe(targetStatus);
+      expect(update).toHaveBeenCalledWith(application, {});
+      expect(createStatusTransitionUpdateUseCase).toHaveBeenCalledWith(
+        expect.objectContaining({
+          originalFullyQualifiedStatus: `${phase}:${stage}:${currentStatus}`,
+          newFullyQualifiedStatus: `${phase}:${stage}:${targetStatus}`,
+        }),
+      );
+    });
+  });
 });

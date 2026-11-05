@@ -3,6 +3,9 @@ import Joi from "joi";
 const externalStatus = Joi.object({
   code: Joi.string().required(),
   source: Joi.string().required(),
+  fromStatus: Joi.string()
+    .pattern(/^[^:]+$/)
+    .optional(),
   mappedTo: Joi.string().required(),
 })
   .unknown()
