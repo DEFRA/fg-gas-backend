@@ -108,6 +108,7 @@ export const setup = async ({ globalConfig }) => {
         CW_BACKEND_URL: `http://host.docker.internal:${env.CW_STUB_PORT}`,
         CW_BACKEND_TOKEN: env.CW_BACKEND_TOKEN,
         HTTP_CLIENT_TIMEOUT_MS: env.HTTP_CLIENT_TIMEOUT_MS,
+        CW_BACKEND_TIMEOUT_MS: env.CW_BACKEND_TIMEOUT_MS,
       })
       .withWaitStrategy("gas", Wait.forHttp("/health"))
       .up();
