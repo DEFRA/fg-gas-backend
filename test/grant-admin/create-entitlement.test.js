@@ -52,6 +52,23 @@ const agreementDependentTemplate = {
   },
 };
 
+// A template whose fixed decimal reads from the application's answers, which
+// GAS has to store scaled like the input decimals Admin sends.
+const applicationDependentTemplate = {
+  ...entitlementTemplate,
+  fields: {
+    ...entitlementTemplate.fields,
+    originalTotalHectares: {
+      input: false,
+      label: "Original Total area of eligible woodland",
+      value: "$.application.answers.totalHectaresForSelectedParcels",
+      unitType: "decimal",
+      decimalPlaces: 4,
+      unit: "HA",
+    },
+  },
+};
+
 const grantPayload = (code, template = entitlementTemplate) => ({
   code,
   version: "0.0.0",
@@ -68,7 +85,10 @@ const grantPayload = (code, template = entitlementTemplate) => ({
       questions: {
         $schema: "https://json-schema.org/draft/2020-12/schema",
         type: "object",
-        properties: { question1: { type: "string" } },
+        properties: {
+          question1: { type: "string" },
+          totalHectaresForSelectedParcels: { type: "number" },
+        },
       },
       stages: [
         {
@@ -80,7 +100,10 @@ const grantPayload = (code, template = entitlementTemplate) => ({
   ],
 });
 
-const seedGrantAndApplication = async (template = entitlementTemplate) => {
+const seedGrantAndApplication = async (
+  template = entitlementTemplate,
+  answers = { question1: "test" },
+) => {
   const code = `entitlement-grant-${randomUUID().slice(0, 8)}`;
   const clientRef = `wmp-${randomUUID().slice(0, 8)}`;
 
@@ -96,7 +119,7 @@ const seedGrantAndApplication = async (template = entitlementTemplate) => {
         crn: "9000000007",
         configVersion: "1.0.0",
       },
-      answers: { question1: "test" },
+      answers,
     },
   });
 
@@ -197,6 +220,25 @@ describe("POST /grant-admin/grants/{code}/applications/{clientRef}/claims/entitl
           errorCode: "INVALID_CLAIM_CODE",
         },
       },
+    });
+  });
+
+  it("stores a fixed decimal taken from the application as a scaled integer", async () => {
+    const target = await seedGrantAndApplication(applicationDependentTemplate, {
+      question1: "test",
+      totalHectaresForSelectedParcels: 12.3456,
+    });
+
+    const response = await createEntitlement({
+      ...target,
+      data: { totalHectares: { value: 120000 } },
+    });
+
+    expect(response.res.statusCode).toBe(201);
+    const stored = await entitlements.findOne({ id: response.payload.id });
+    expect(stored.data).toEqual({
+      totalHectares: 120000,
+      originalTotalHectares: 123456,
     });
   });
 
