@@ -35,8 +35,9 @@ export default defineConfig({
       FLOCI_PORT,
       CW_STUB_PORT,
       CW_BACKEND_TOKEN: "cw-stub-token",
-      // Shortened from the 10 s default so the "CW times out" case is quick.
       HTTP_CLIENT_TIMEOUT_MS: "3000",
+      // Shortened from the 4 s default so the "CW times out" cases are quick.
+      CW_BACKEND_TIMEOUT_MS: "300",
       PORT: String(GAS_PORT),
       API_URL: `http://localhost:${GAS_PORT}`,
       MONGO_URI: `mongodb://localhost:${MONGO_PORT}/fg-gas-backend?directConnection=true`,
