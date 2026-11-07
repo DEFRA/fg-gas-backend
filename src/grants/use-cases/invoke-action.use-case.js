@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { wreck } from "../../common/wreck.js";
-import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
+import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 
 export const invokeActionUseCase = async ({
   code,
@@ -15,7 +15,7 @@ export const invokeActionUseCase = async ({
     `Invoke action for grant ${code} with name ${name} and method ${method} `,
   );
 
-  const grant = await findGrantByCodeUseCase(code);
+  const { grant } = await resolveAndFetchGrant(code);
 
   const action = grant.actions.find(
     (e) => e.method === method && e.name === name,

@@ -140,53 +140,19 @@ describe("save", () => {
 });
 
 describe("findByCode", () => {
-  it("defaults to version 0.0.0 and returns the legacy grant", async () => {
-    const findOne = vi.fn().mockResolvedValueOnce({
-      code: "adding-value",
-      version: "0.0.0",
-      metadata: {
-        description: "test",
-        startDate: "2021-01-01T00:00:00.000Z",
-      },
-      actions: [
-        {
-          method: "GET",
-          name: "test",
-          url: "http://localhost",
-        },
-      ],
-    });
+  it("passes the version through to the filter without a default", async () => {
+    const findOne = vi.fn().mockResolvedValueOnce(null);
 
     db.collection.mockReturnValue({
       findOne,
     });
 
-    const result = await findByCode("adding-value");
-
-    expect(db.collection).toHaveBeenCalledWith("grants");
+    await findByCode("adding-value");
 
     expect(findOne).toHaveBeenCalledWith({
       code: "adding-value",
-      version: "0.0.0",
+      version: undefined,
     });
-
-    expect(result).toStrictEqual(
-      new Grant({
-        code: "adding-value",
-        version: "0.0.0",
-        metadata: {
-          description: "test",
-          startDate: "2021-01-01T00:00:00.000Z",
-        },
-        actions: [
-          {
-            method: "GET",
-            name: "test",
-            url: "http://localhost",
-          },
-        ],
-      }),
-    );
   });
 
   it("returns a grant for an explicit version", async () => {
@@ -395,7 +361,7 @@ describe("entitlementTemplates", () => {
   it("rehydrates entitlementTemplates from a stored document via findByCode", async () => {
     const findOne = vi.fn().mockResolvedValueOnce({
       code: "woodland",
-      version: "0.0.0",
+      version: "1.0.0",
       metadata: {
         description: "test",
         startDate: "2021-01-01T00:00:00.000Z",
@@ -407,7 +373,7 @@ describe("entitlementTemplates", () => {
 
     db.collection.mockReturnValue({ findOne });
 
-    const result = await findByCode("woodland");
+    const result = await findByCode("woodland", "1.0.0");
 
     expect(result.entitlementTemplates).toEqual(entitlementTemplates);
   });
@@ -460,7 +426,7 @@ describe("entitlementTemplates", () => {
 
       db.collection.mockReturnValue({ findOne });
 
-      const result = await findByCode("legacy");
+      const result = await findByCode("legacy", "1.0.0");
 
       expect(result.entitlementTemplates).toEqual([]);
       expect(result.findEntitlementTemplate("ANYTHING")).toBeUndefined();
@@ -507,7 +473,7 @@ describe("entitlementTemplates", () => {
 
     db.collection.mockReturnValue({ findOne });
 
-    const result = await findByCode("woodland");
+    const result = await findByCode("woodland", "1.0.0");
     const template = result.findEntitlementTemplate("ENT_TRACTOR");
 
     expect(template.description).toBeUndefined();
@@ -585,11 +551,11 @@ describe("pages", () => {
   it("rehydrates pages from a stored document via findByCode", async () => {
     const findOne = vi
       .fn()
-      .mockResolvedValueOnce({ ...definition, version: "0.0.0" });
+      .mockResolvedValueOnce({ ...definition, version: "1.0.0" });
 
     db.collection.mockReturnValue({ findOne });
 
-    const result = await findByCode("woodland");
+    const result = await findByCode("woodland", "1.0.0");
 
     expect(result.pages).toEqual(pages);
   });
@@ -600,13 +566,13 @@ describe("pages", () => {
   it("reads a stored null as no pages at all", async () => {
     const findOne = vi.fn().mockResolvedValueOnce({
       ...definition,
-      version: "0.0.0",
+      version: "1.0.0",
       pages: null,
     });
 
     db.collection.mockReturnValue({ findOne });
 
-    const result = await findByCode("woodland");
+    const result = await findByCode("woodland", "1.0.0");
 
     expect(result.pages).toBeUndefined();
   });
@@ -633,7 +599,7 @@ describe("amendablePositions", () => {
 
       db.collection.mockReturnValue({ findOne });
 
-      const result = await findByCode("legacy");
+      const result = await findByCode("legacy", "1.0.0");
 
       expect(result.amendablePositions).toEqual(expected);
     },

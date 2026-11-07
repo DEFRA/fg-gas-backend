@@ -68,7 +68,7 @@ export const save = async (grant, session) => {
 
 export const findByCode = async (code, version) => {
   const grants = db.collection(collection);
-  const filter = { code, version: version ?? "0.0.0" };
+  const filter = { code, version };
   const result = await grants.findOne(filter);
 
   return result && toGrant(result);

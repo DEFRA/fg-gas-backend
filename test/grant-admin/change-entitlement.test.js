@@ -8,10 +8,12 @@ import {
   ApplicationStatus,
 } from "../../src/grants/models/application.js";
 import { GrantDocument } from "../../src/grants/models/grant-document.js";
+import { seedConfigVersion } from "../helpers/applications.js";
 import { createTestGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
 let client;
+let db;
 let applications;
 let grants;
 let entitlements;
@@ -20,7 +22,7 @@ let outbox;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  const db = client.db();
+  db = client.db();
   applications = db.collection("applications");
   grants = db.collection("grants");
   entitlements = db.collection("entitlements");
@@ -92,10 +94,12 @@ const seed = async () => {
       createTestGrant({ code, entitlementTemplates: [template], pages }),
     ),
   );
+  await seedConfigVersion(db, code);
   await applications.insertOne(
     Application.new({
       clientRef,
       code,
+      configVersion: "1.0.0",
       currentPhase: ApplicationPhase.PostAward,
       currentStage: position.stage,
       currentStatus: position.status,

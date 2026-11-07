@@ -28,6 +28,7 @@ services:
       # plain `docker compose up` never exposes them; the integration test
       # harness passes "true" to exercise the routes.
       ENABLE_TEST_ENDPOINTS: "${ENABLE_TEST_ENDPOINTS:-false}"
+      GRANT_DEFINITION_CACHE_ENABLED: "${GRANT_DEFINITION_CACHE_ENABLED:-true}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:3102/health"]
       interval: 10s

@@ -11,10 +11,12 @@ import {
   it,
 } from "vitest";
 import { grant1 } from "../fixtures/grants.js";
+import { seedConfigVersion } from "../helpers/applications.js";
 import { wreck } from "../helpers/wreck.js";
 
 let grants;
 let client;
+let db;
 
 const listenOnAvailablePort = (server) =>
   new Promise((resolve, reject) => {
@@ -32,7 +34,8 @@ const closeServer = (server) =>
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  grants = client.db().collection("grants");
+  db = client.db();
+  grants = db.collection("grants");
 });
 
 afterAll(async () => {
@@ -82,6 +85,7 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
   });
 
   it("invokes an action and returns the response", async () => {
+    await seedConfigVersion(db, grant1.code);
     await grants.insertMany([
       {
         ...grant1,
@@ -115,6 +119,7 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
   });
 
   it("invokes an action with parameters and returns the response", async () => {
+    await seedConfigVersion(db, grant1.code);
     await grants.insertMany([
       {
         ...grant1,

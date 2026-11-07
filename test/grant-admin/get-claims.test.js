@@ -8,6 +8,7 @@ import {
   ApplicationStatus,
 } from "../../src/grants/models/application.js";
 import { GrantDocument } from "../../src/grants/models/grant-document.js";
+import { seedConfigVersion } from "../helpers/applications.js";
 import { createTestGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
@@ -15,12 +16,14 @@ let applications;
 let grants;
 let entitlements;
 let client;
+let db;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  applications = client.db().collection("applications");
-  grants = client.db().collection("grants");
-  entitlements = client.db().collection("entitlements");
+  db = client.db();
+  applications = db.collection("applications");
+  grants = db.collection("grants");
+  entitlements = db.collection("entitlements");
 });
 
 afterAll(async () => {
@@ -95,10 +98,12 @@ const seed = async (options = {}) => {
   await grants.insertOne(
     new GrantDocument(createTestGrant({ code, entitlementTemplates, pages })),
   );
+  await seedConfigVersion(db, code);
   await applications.insertOne(
     Application.new({
       clientRef,
       code,
+      configVersion: "1.0.0",
       currentPhase: currentPhase ?? position.phase,
       currentStage: position.stage,
       currentStatus: position.status,

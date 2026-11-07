@@ -698,6 +698,8 @@ describe("POST /grants/{code}/applications", () => {
       currentStatus: "NEW",
       clientRef: previousClientRef,
       code: "test-code-1",
+      originalConfigVersion: "1.0.0",
+      currentConfigVersion: "1.0.0",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       submittedAt: new Date("2024-01-01T00:00:00.000Z"),
