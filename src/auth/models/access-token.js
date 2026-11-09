@@ -235,12 +235,10 @@ export class AccessToken {
     }
   }
 
-  // `client` is written until FGP-1534 removes it.
   toDocument() {
     return {
       id: this.id,
       clientId: this.clientId,
-      client: this.clientId,
       expiresAt: this.expiresAt,
       createdAt: this.createdAt,
       createdBy: this.createdBy,

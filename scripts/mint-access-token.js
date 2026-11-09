@@ -62,8 +62,7 @@
  * Notes
  * -----
  * - The database document shape:
- *   { id: <sha256 hex>, client: <string>, clientId: <string>, expiresAt: <Date|null> }
- *   (FGP-1534: client is written until every GAS version reads clientId.)
+ *   { id: <sha256 hex>, clientId: <string>, expiresAt: <Date|null> }
  * - To use the token in HTTP client requests, set the Authorization header:
  *   Authorization: Bearer <RAW_TOKEN>
  */
@@ -97,7 +96,6 @@ async function main() {
 
     const doc = {
       id: hash,
-      client: clientName,
       clientId: clientName,
       expiresAt: expires ? new Date(expires) : null,
     };

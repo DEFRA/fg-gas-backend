@@ -256,7 +256,6 @@ describe("GAS API clients", () => {
     const stored = await accessTokens.findOne({ id: hashOf(raw) });
     expect(stored).toMatchObject({
       clientId: "it-consumer",
-      client: "it-consumer",
       expiresAt: null,
       createdBy: "Ann Operator",
       tokenHint: hintOf(raw),
@@ -264,6 +263,7 @@ describe("GAS API clients", () => {
     expect(stored.createdAt).toBeInstanceOf(Date);
     expect(stored).not.toHaveProperty("updatedAt");
     expect(stored).not.toHaveProperty("seeded");
+    expect(stored).not.toHaveProperty("client");
 
     // Authenticated, and refused only because the surface is the admin's.
     expect(await callAs(raw)).toBe(403);

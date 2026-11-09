@@ -54,9 +54,6 @@ const registerServiceAuth = async (server) => {
 
       return h.authenticated({
         credentials: { service: record.clientId, tokenHash: record.id },
-        // FGP-1534: remove legacy client metadata after identity migration.
-        // Only allow-list auditing uses it; authorisation keeps credentials.service.
-        artifacts: { client: record.client },
       });
     },
   }));

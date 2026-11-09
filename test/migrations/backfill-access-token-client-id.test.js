@@ -12,10 +12,6 @@ import {
   vi,
 } from "vitest";
 import { up as backfillClientIds } from "../../migrations/20261028120000-backfill-access-token-client-id.js";
-import {
-  reportAccessTokenIdentity,
-  SEEDED_CLIENT_ID_INDEX,
-} from "../../src/auth/access-token-identity.js";
 import { logger } from "../../src/common/logger.js";
 import { requireAdminClient } from "../../src/grant-admin/admin-client.js";
 import { createServer } from "../../src/server.js";
@@ -27,6 +23,7 @@ const SUITE_TOKENS = [
 ];
 
 const ADMIN = "fg-grants-platform-admin";
+const SEEDED_CLIENT_ID_INDEX = "seeded_client_id_unique";
 const EXPIRES_AT = new Date("2099-01-01T00:00:00.000Z");
 
 let client;
@@ -235,41 +232,5 @@ describe("access after the backfill", () => {
 
     expect((await call("/probe", expired)).statusCode).toBe(401);
     expect((await call("/probe", { raw: randomUUID() })).statusCode).toBe(401);
-  });
-});
-
-describe("reporting access token identity", () => {
-  it("counts each shape without logging tokens or hashes", async () => {
-    await insert(
-      aToken({ client: "grants-ui", clientId: "grants-ui" }),
-      aToken({ client: "grants-ui", clientId: "other-ui", seeded: true }),
-      aToken({ client: "grants-ui", clientId: "other-ui" }),
-      aToken({ client: "legacy-ui" }),
-      aToken({ client: ADMIN }),
-      aToken({ client: "" }),
-      aToken({ client: "dup", clientId: "dup", seeded: true }),
-      aToken({ client: "dup-renamed", clientId: "dup", seeded: true }),
-    );
-    const warn = vi.spyOn(logger, "warn");
-
-    await reportAccessTokenIdentity();
-
-    // The suite's own two tokens are canonical too.
-    expect(warn).toHaveBeenCalledWith(
-      "Access token identity: 4 canonical, 3 conflicting, 1 client only, 1 admin client only, 1 without an identity, 0 with an expiresAt that is not a date, 3 without a valid client name",
-    );
-    expect(warn.mock.calls.flat().join(" ")).not.toMatch(/[0-9a-f]{64}/);
-  });
-
-  it("logs info once every token is canonical", async () => {
-    await insert(aToken({ client: "grants-ui", seeded: true }));
-    await migrate();
-    const info = vi.spyOn(logger, "info");
-
-    await reportAccessTokenIdentity();
-
-    expect(info).toHaveBeenCalledWith(
-      "Access token identity: 3 canonical, 0 conflicting, 0 client only, 0 admin client only, 0 without an identity, 0 with an expiresAt that is not a date, 0 without a valid client name",
-    );
   });
 });
