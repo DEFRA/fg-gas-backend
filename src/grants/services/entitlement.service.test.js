@@ -503,6 +503,80 @@ describe("EntitlementService", () => {
     expect(insertEntitlement).not.toHaveBeenCalled();
   });
 
+  describe("a fixed decimal field", () => {
+    const withFixedDecimal = (value) => {
+      const fixedDecimal = {
+        ...template,
+        fields: {
+          hectares: { input: true, label: "Hectares", unitType: "decimal" },
+          originalHectares: {
+            input: false,
+            value,
+            unitType: "decimal",
+            decimalPlaces: 4,
+          },
+        },
+      };
+      resolveCurrentGrantUseCase.mockResolvedValue({
+        grant: {
+          ...grant,
+          findEntitlementTemplate: vi.fn(() => fixedDecimal),
+          findEntitlementTemplatesAvailableAt: vi.fn(() => [fixedDecimal]),
+        },
+      });
+    };
+
+    const answering = (answers) => {
+      const answered = {
+        ...application,
+        referenceContext: () => ({ answers }),
+      };
+      findApplicationByClientRefAndCodeUseCase.mockResolvedValue(answered);
+      lockForUpdate.mockResolvedValue(answered);
+    };
+
+    it("stores a value taken from the application as a scaled integer", async () => {
+      withFixedDecimal("$.application.answers.totalHectares");
+      answering({ totalHectares: 12.3456 });
+
+      await createEntitlement(command);
+
+      expect(Entitlement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { hectares: 3, originalHectares: 123456 },
+        }),
+      );
+    });
+
+    it("stores a literal value as a scaled integer", async () => {
+      withFixedDecimal(1.5);
+
+      await createEntitlement(command);
+
+      expect(Entitlement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { hectares: 3, originalHectares: 15000 },
+        }),
+      );
+    });
+
+    it.each([
+      ["more decimal places than the template allows", 4.12345],
+      ["a value that is not a number", "4.5"],
+    ])("maps %s to 422", async (_, totalHectares) => {
+      withFixedDecimal("$.application.answers.totalHectares");
+      answering({ totalHectares });
+
+      await expect(createEntitlement(command)).rejects.toMatchObject({
+        output: {
+          statusCode: 422,
+          payload: { errorCode: "ENTITLEMENT_DATA_UNRESOLVED" },
+        },
+      });
+      expect(insertEntitlement).not.toHaveBeenCalled();
+    });
+  });
+
   it("rethrows a resolution failure that is not an unresolved reference", async () => {
     const needsAgreement = {
       ...template,

@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { decimalPlaces } from "../../common/decimal-places.js";
 import { entitlementTemplate } from "../schemas/grant/entitlement-template.js";
 import { Entitlement } from "./entitlement.js";
 
@@ -152,7 +153,7 @@ export class EntitlementTemplate {
     return (
       this.#isFiniteNumber(value) &&
       this.#withinRange(value, field.minValue, field.maxValue) &&
-      this.#decimalPlaces(value) <= field.decimalPlaces
+      decimalPlaces(value) <= field.decimalPlaces
     );
   }
 
@@ -179,13 +180,6 @@ export class EntitlementTemplate {
 
   #meetsMaximum(value, maximum) {
     return maximum == null || value <= maximum;
-  }
-
-  #decimalPlaces(value) {
-    const [coefficient, exponent] = value.toString().toLowerCase().split("e");
-    const decimals = (coefficient.split(".")[1] ?? "").length;
-
-    return Math.max(0, decimals - Number(exponent ?? 0));
   }
 
   #creationRejection(position, instances, submittedData) {
