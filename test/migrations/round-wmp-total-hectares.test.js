@@ -149,7 +149,16 @@ describe("rounding woodland totalHectaresForSelectedParcels to 4 decimal places"
     expect(await applications.find({}).toArray()).toStrictEqual(once);
     expect(info.mock.calls).toEqual([
       [
-        "Rounded totalHectaresForSelectedParcels to 4 decimal places on 2 woodland applications: wmp-a 4.3024000000000004 -> 4.3024; wmp-c 12.605900000000002 -> 12.6059, 13.778399999999998 -> 13.7784",
+        "Rounding totalHectaresForSelectedParcels on application wmp-a PHASE_PRE_AWARD: 4.3024000000000004 -> 4.3024",
+      ],
+      [
+        "Rounding totalHectaresForSelectedParcels on application wmp-c PHASE_PRE_AWARD: 12.605900000000002 -> 12.6059",
+      ],
+      [
+        "Rounding totalHectaresForSelectedParcels on application wmp-c PHASE_CLAIM: 13.778399999999998 -> 13.7784",
+      ],
+      [
+        "Rounded totalHectaresForSelectedParcels to 4 decimal places on 2 woodland applications",
       ],
       [
         "Rounded totalHectaresForSelectedParcels to 4 decimal places on 0 woodland applications",
