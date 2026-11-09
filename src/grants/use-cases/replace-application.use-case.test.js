@@ -191,7 +191,7 @@ describe("replaceApplicationUseCase", () => {
       clientRef: "ref-123",
       phases: [],
     });
-    withTransaction.mockImplementation(async (cb) => cb({}));
+    withTransaction.mockImplementation(async (operation) => operation({}));
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(prevApplication);
 
     await expect(

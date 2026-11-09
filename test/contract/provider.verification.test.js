@@ -193,9 +193,9 @@ vi.mock("../../src/common/mongo-client.js", () => {
   };
 
   const createMockSession = () => ({
-    withTransaction: vi.fn().mockImplementation(async (callback) => {
+    withTransaction: vi.fn().mockImplementation(async (operation) => {
       // Execute callback with mock session
-      return callback({});
+      return operation({});
     }),
     endSession: vi.fn().mockResolvedValue(),
   });

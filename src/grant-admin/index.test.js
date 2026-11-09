@@ -20,7 +20,9 @@ describe("grant-admin", () => {
       .sort();
 
     expect(routes).toEqual([
+      "delete /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}",
       "get /grant-admin/buckets",
+      "get /grant-admin/clients/{service}",
       "get /grant-admin/events/{service}/{box}/{id}",
       "get /grant-admin/grants/{code}/allow-list",
       "get /grant-admin/grants/{code}/applications/{clientRef}/claims",
@@ -48,12 +50,16 @@ describe("grant-admin", () => {
       "get /grant-admin/workflows/{workflowCode}/cases/{caseRef}/raw",
       "post /grant-admin/buckets/{bucketId}/query",
       "post /grant-admin/buckets/{bucketId}/summaries/{summaryId}",
+      "post /grant-admin/clients/{service}/{clientId}/tokens",
+      "post /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/revoke",
+      "post /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/rotate",
       "post /grant-admin/events/{service}/{box}/{id}/payload",
       "post /grant-admin/events/{service}/{box}/{id}/purge",
       "post /grant-admin/events/{service}/{box}/{id}/redrive",
       "post /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements",
       "post /grant-admin/grants/{code}/versions/{version}/fetch",
       "post /grant-admin/workflows/{code}/versions/{version}/fetch",
+      "put /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/expiry",
       "put /grant-admin/grants/{code}/allow-list",
       "put /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
       "put /grant-admin/grants/{code}/settings",

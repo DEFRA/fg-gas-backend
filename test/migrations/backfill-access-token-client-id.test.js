@@ -256,12 +256,12 @@ describe("reporting access token identity", () => {
 
     // The suite's own two tokens are canonical too.
     expect(warn).toHaveBeenCalledWith(
-      "Access token identity: 4 canonical, 3 conflicting (2 seeded), 1 client only, 1 admin client only, 1 without an identity, 2 seeded sharing a clientId, seeded clientId index missing",
+      "Access token identity: 4 canonical, 3 conflicting, 1 client only, 1 admin client only, 1 without an identity, 0 with an expiresAt that is not a date, 3 without a valid client name",
     );
     expect(warn.mock.calls.flat().join(" ")).not.toMatch(/[0-9a-f]{64}/);
   });
 
-  it("logs info once every token is canonical and indexed", async () => {
+  it("logs info once every token is canonical", async () => {
     await insert(aToken({ client: "grants-ui", seeded: true }));
     await migrate();
     const info = vi.spyOn(logger, "info");
@@ -269,7 +269,7 @@ describe("reporting access token identity", () => {
     await reportAccessTokenIdentity();
 
     expect(info).toHaveBeenCalledWith(
-      "Access token identity: 3 canonical, 0 conflicting (0 seeded), 0 client only, 0 admin client only, 0 without an identity, 0 seeded sharing a clientId, seeded clientId index present",
+      "Access token identity: 3 canonical, 0 conflicting, 0 client only, 0 admin client only, 0 without an identity, 0 with an expiresAt that is not a date, 0 without a valid client name",
     );
   });
 });

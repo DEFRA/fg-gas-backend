@@ -411,6 +411,148 @@ describe("Grant", () => {
       },
     );
 
+    describe("entitlement fields that read an application answer", () => {
+      const readingAnswer = (field, questions) => {
+        const published = definition();
+        published.phases[0].questions = {
+          ...published.phases[0].questions,
+          ...questions,
+        };
+        published.entitlementTemplates = [
+          {
+            claimCode: "ENT_WMP",
+            name: "WMP entitlement",
+            materialised: false,
+            fields: {
+              hectares: {
+                input: true,
+                label: "Hectares",
+                unitType: "decimal",
+                decimalPlaces: 4,
+                unit: "HA",
+              },
+              originalHectares: {
+                input: false,
+                value: "$.application.answers.totalHectares",
+                unitType: "decimal",
+                decimalPlaces: 4,
+                unit: "HA",
+                ...field,
+              },
+            },
+            maxEntitlements: 1,
+            availableAt: [{ phase: "PRE_AWARD", stage: "ASSESSMENT" }],
+          },
+        ];
+        return published;
+      };
+
+      const capped = (fgMaxDecimalPlaces) => ({
+        properties: { totalHectares: { type: "number", fgMaxDecimalPlaces } },
+      });
+
+      it.each([4, 2, 0])(
+        "accepts an answer whose question caps it at %d decimal places",
+        (places) => {
+          expect(() =>
+            fromDefinition(readingAnswer({}, capped(places))),
+          ).not.toThrow();
+        },
+      );
+
+      it("rejects an answer whose question does not cap its decimal places", () => {
+        const published = readingAnswer(
+          {},
+          { properties: { totalHectares: { type: "number" } } },
+        );
+
+        expect(() => fromDefinition(published)).toThrow(
+          'Grant "test-grant" entitlement template "ENT_WMP" field "originalHectares" reads answer "totalHectares", whose question must set fgMaxDecimalPlaces to at most 4',
+        );
+      });
+
+      it("rejects an answer whose question allows more decimal places than the template", () => {
+        expect(() => fromDefinition(readingAnswer({}, capped(5)))).toThrow(
+          /must set fgMaxDecimalPlaces to at most 4/,
+        );
+      });
+
+      it("rejects an answer that no phase's questions declare", () => {
+        expect(() => fromDefinition(readingAnswer({}, {}))).toThrow(
+          'Grant "test-grant" entitlement template "ENT_WMP" field "originalHectares" reads answer "totalHectares", which no phase\'s questions declare',
+        );
+      });
+
+      it("follows the shorter $.answers reference to the same answer", () => {
+        const published = readingAnswer(
+          { value: "$.answers.totalHectares" },
+          { properties: { totalHectares: { type: "number" } } },
+        );
+
+        expect(() => fromDefinition(published)).toThrow(/fgMaxDecimalPlaces/);
+      });
+
+      it("finds a nested answer's question", () => {
+        const published = readingAnswer(
+          { value: "$.application.answers.land.totalHectares" },
+          { properties: { land: { type: "object", ...capped(4) } } },
+        );
+
+        expect(() => fromDefinition(published)).not.toThrow();
+      });
+
+      it("checks a question declared in a conditional branch", () => {
+        const published = readingAnswer(
+          {},
+          {
+            if: { properties: { hasLand: { const: true } } },
+            then: { properties: { totalHectares: { type: "number" } } },
+          },
+        );
+
+        expect(() => fromDefinition(published)).toThrow(/fgMaxDecimalPlaces/);
+      });
+
+      it("checks every phase that declares the answer", () => {
+        const published = readingAnswer({}, capped(4));
+        published.phases[1].questions = {
+          properties: { totalHectares: { type: "number" } },
+        };
+
+        expect(() => fromDefinition(published)).toThrow(/fgMaxDecimalPlaces/);
+      });
+
+      it.each([
+        ["a literal value", { value: 1.5 }],
+        [
+          "a jsonata expression",
+          { value: "jsonata: $.application.answers.totalHectares * 2" },
+        ],
+        [
+          "a reference to data that is not an answer",
+          { value: "$.agreement.totalHectares" },
+        ],
+        [
+          "a string field",
+          {
+            unitType: "string",
+            decimalPlaces: undefined,
+            unit: undefined,
+          },
+        ],
+      ])("leaves alone %s", (_, field) => {
+        const published = readingAnswer(field, {});
+
+        expect(() => fromDefinition(published)).not.toThrow();
+      });
+
+      it("still loads a stored grant whose answer is not capped", () => {
+        const { entitlementTemplates } = readingAnswer({}, {});
+
+        expect(() => createTestGrant({ entitlementTemplates })).not.toThrow();
+      });
+    });
+
     it("rejects questions that cannot be compiled", () => {
       const published = definition();
       published.phases[1].questions = { type: "object" };

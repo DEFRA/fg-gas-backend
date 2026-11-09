@@ -14,6 +14,8 @@ export const auditEntities = {
   WORKFLOW: "WORKFLOW",
   // One list Grant Admin can show, as its owning service declares it.
   BUCKET: "BUCKET",
+  // A named caller of GAS or Caseworking: the access tokens sharing a name.
+  API_CLIENT: "API_CLIENT",
 };
 
 export const auditActions = {
@@ -69,10 +71,22 @@ export const auditActions = {
   FETCH_CONFIG_DEFINITION: "FETCH_CONFIG_DEFINITION",
   // One page of one audited bucket.
   QUERY_BUCKET: "QUERY_BUCKET",
+  VIEW_API_CLIENT: "VIEW_API_CLIENT",
+  ISSUE_API_TOKEN: "ISSUE_API_TOKEN",
+  REVOKE_API_TOKEN: "REVOKE_API_TOKEN",
+  // Removing one token that can no longer call.
+  DELETE_API_TOKEN: "DELETE_API_TOKEN",
+  // Setting when a token stops working, which revives a revoked one.
+  CHANGE_API_TOKEN_EXPIRY: "CHANGE_API_TOKEN_EXPIRY",
+  // Replacing a token with a new one, the old kept only for an overlap.
+  ROTATE_API_TOKEN: "ROTATE_API_TOKEN",
 };
 
 // The protective-monitoring code on every Grant Admin read.
 export const PMC_0706_SECURITY = { pmccode: "0706" };
+
+// Account permission and privilege management: issuing and revoking tokens.
+export const PMC_0705_SECURITY = { pmccode: "0705" };
 
 // The FCP audit event schema version, not the service's release version.
 export const AUDIT_SCHEMA_VERSION = "1.0.0";

@@ -394,6 +394,76 @@ describe("POST /grants/{code}/applications", () => {
     });
   });
 
+  it("returns 400 when an answer has more decimal places than its question allows", async () => {
+    await insertGrant({
+      code: "test-code-1",
+      version: "0.0.0",
+      metadata: {
+        description: "test description 1",
+        startDate: "2100-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      amendablePositions: [],
+
+      phases: [
+        {
+          code: "PHASE_1",
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: {
+              hectares: {
+                type: "number",
+                fgMaxDecimalPlaces: 4,
+              },
+            },
+          },
+          stages: [
+            { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+          ],
+        },
+      ],
+    });
+
+    await seedConfigVersion(db, "test-code-1");
+
+    let response;
+    try {
+      await wreck.post("/grants/test-code-1/applications", {
+        json: true,
+        payload: {
+          metadata: {
+            clientRef: "12345",
+            submittedAt: new Date(),
+            sbi: "123456789",
+            frn: "1234567890",
+            crn: "1234567890",
+            defraId: "1234567890",
+            configVersion: "1.0.0",
+          },
+          answers: {
+            hectares: 270.54729999999995, // floating-point noise from a sum
+          },
+        },
+      });
+    } catch (err) {
+      response = err.data.payload;
+    }
+
+    const documents = await applications
+      .find({}, { projection: { _id: 0 } })
+      .toArray();
+
+    expect(documents).toEqual([]);
+
+    expect(response).toEqual({
+      statusCode: 400,
+      error: "Bad Request",
+      message:
+        'Application with clientRef "12345" has invalid answers: hectares must have at most 4 decimal places',
+    });
+  });
+
   it("returns 409 when clientRef exists", async () => {
     await insertGrant({
       code: "test-code-1",

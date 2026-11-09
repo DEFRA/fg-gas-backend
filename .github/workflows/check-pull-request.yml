@@ -12,9 +12,46 @@ on:
       - synchronize
       - ready_for_review
 
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  pr-validator:
-    name: Run Pull Request Checks
+  lint:
+    name: Lint and format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Use Node version
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore ESLint cache
+        uses: actions/cache@v6
+        with:
+          path: .eslintcache
+          key: eslint-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: eslint-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check format
+        run: npm run format:check
+
+  unit:
+    name: Unit tests and Sonar
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -32,21 +69,41 @@ jobs:
       - name: Create .env file
         run: npm run setup:env
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Check format
-        run: npm run format:check
-
       - name: Run unit tests
         run: npm run test:unit -- --coverage
 
       - name: SonarCloud Scan
         if: github.actor != 'dependabot[bot]'
-        uses: SonarSource/sonarqube-scan-action@v8.3.0
+        uses: SonarSource/sonarqube-scan-action@v8.4.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Use Node version
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Warm Docker images
+        run: |
+          # Overlap the image pulls and the GAS build with npm ci.
+          cp --update=none .env.example .env
+          docker compose pull --ignore-buildable --quiet > /dev/null 2>&1 &
+          docker build --quiet . > /dev/null 2>&1 &
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create .env file
+        run: npm run setup:env
 
       - name: Run integration tests
         run: |
@@ -80,12 +137,6 @@ jobs:
           if [ -f "$RUNNER_TEMP/gas-floci-startup.log" ]; then
             cat "$RUNNER_TEMP/gas-floci-startup.log"
           fi
-
-      - name: Build docker image
-        run: |
-          set +e
-          docker build --no-cache --tag fg-gas-backend .
-          exit $?
 
   pact:
     name: Pact

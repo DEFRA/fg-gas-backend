@@ -92,8 +92,6 @@ describe("reportAccessTokenIdentity", () => {
   beforeEach(() => {
     accessTokens = {
       countDocuments: vi.fn().mockResolvedValue(0),
-      aggregate: vi.fn().mockReturnValue(collisions(0)),
-      indexes: vi.fn().mockResolvedValue([{ name: SEEDED_CLIENT_ID_INDEX }]),
     };
     db.collection.mockReturnValue(accessTokens);
   });
@@ -105,20 +103,19 @@ describe("reportAccessTokenIdentity", () => {
 
     expect(db.collection).toHaveBeenCalledWith("access_tokens");
     expect(logger.info).toHaveBeenCalledWith(
-      "Access token identity: 4 canonical, 1 conflicting (0 seeded), 0 client only, 0 admin client only, 0 without an identity, 0 seeded sharing a clientId, seeded clientId index present",
+      "Access token identity: 4 canonical, 1 conflicting, 0 client only, 0 admin client only, 0 without an identity, 0 with an expiresAt that is not a date, 0 without a valid client name",
     );
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it.each([
-    ["a seeded conflict", [4, 1, 1, 0, 0, 0], 0],
-    ["an admin client only record", [4, 0, 0, 1, 0, 0], 0],
-    ["a client only record", [4, 0, 0, 0, 1, 0], 0],
-    ["a record without an identity", [4, 0, 0, 0, 0, 1], 0],
-    ["seeded records sharing a clientId", [4, 0, 0, 0, 0, 0], 2],
-  ])("warns while %s remains", async (_, counts, shared) => {
+    ["an admin client only record", [4, 0, 1, 0, 0, 0]],
+    ["a client only record", [4, 0, 0, 1, 0, 0]],
+    ["a record without an identity", [4, 0, 0, 0, 1, 0]],
+    ["an expiresAt that is not a date", [4, 0, 0, 0, 0, 1]],
+    ["a record without a valid client name", [4, 0, 0, 0, 0, 0, 1]],
+  ])("warns while %s remains", async (_, counts) => {
     countsInOrder(...counts);
-    accessTokens.aggregate.mockReturnValue(collisions(shared));
 
     await reportAccessTokenIdentity();
 
@@ -126,13 +123,18 @@ describe("reportAccessTokenIdentity", () => {
     expect(logger.info).not.toHaveBeenCalled();
   });
 
-  it("warns while the seeded clientId index is missing", async () => {
-    accessTokens.indexes.mockResolvedValue([{ name: "_id_" }]);
-
+  it("counts every expiresAt that is neither a date nor null, an array of dates among them", async () => {
     await reportAccessTokenIdentity();
 
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("seeded clientId index missing"),
+    expect(accessTokens.countDocuments).toHaveBeenCalledWith(
+      {
+        $expr: {
+          $not: [
+            { $in: [{ $type: "$expiresAt" }, ["missing", "null", "date"]] },
+          ],
+        },
+      },
+      { readPreference: "primary" },
     );
   });
 

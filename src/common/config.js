@@ -123,12 +123,6 @@ const schema = Joi.object({
   CALLER_TOKEN_ENFORCE: Joi.boolean().optional(),
   // QA-only /api/test endpoints; must never be enabled in production.
   ENABLE_TEST_ENDPOINTS: Joi.boolean().optional(),
-  // `client:sha256hex`, validated by seed-access-token.js so a bad value warns, not stops boot.
-  SERVICE_ACCESS_TOKEN_HASH: Joi.string()
-    .trim()
-    .lowercase()
-    .allow("")
-    .optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -238,7 +232,6 @@ export const config = {
     audience: "gas",
     allowedIssuers: CALLER_TOKEN_ALLOWED_ISSUERS,
   },
-  serviceAccessTokenHash: vars.SERVICE_ACCESS_TOKEN_HASH,
   adminReadTimeoutMs: vars.ADMIN_READ_TIMEOUT_MS,
   cwBackend: {
     url: vars.CW_BACKEND_URL,

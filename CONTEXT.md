@@ -136,3 +136,14 @@ _Avoid_: on entry.
 
 **Grant Title**
 : The display name configured for a grant. When no title is configured, its description serves as its title.
+
+## API clients
+
+**API Client**
+: A named caller of GAS or Caseworking, such as `grants-ui` on GAS. It is the access tokens that share its name, and is never stored on its own. A token whose name breaks the name rule belongs to no client. Clients are per service. Avoid: service account, API key.
+
+**Access Token**
+: One credential of one API Client, stored only as its hash and shown once, when issued. It is active until it is revoked or its expiry passes, which is derived and never stored. A client may hold several, so it can rotate without an outage.
+
+**Platform Client**
+: The client an admin path runs on: `fg-grants-platform-admin` on GAS and `fg-gas-backend` on Caseworking. It is managed like any other, except that the token a request calls with can't be revoked.
