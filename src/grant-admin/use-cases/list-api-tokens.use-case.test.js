@@ -24,7 +24,7 @@ const reader = {
 const lastAudit = () => writeAuditEvent.mock.calls.at(-1)[0];
 
 beforeEach(() => {
-  withTransaction.mockImplementation(async (callback) => callback({}));
+  withTransaction.mockImplementation(async (operation) => operation({}));
 });
 
 describe("listApiTokensUseCase", () => {
