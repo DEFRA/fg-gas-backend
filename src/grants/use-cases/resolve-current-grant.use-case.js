@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { config } from "../../common/config.js";
 import { DefinitionSource } from "../../common/definition-source.js";
 import { logger } from "../../common/logger.js";
 import { parseSemver } from "../../common/semver.js";
@@ -8,9 +9,10 @@ import { resolveAndFetchGrant } from "../services/resolve-config-version.service
 
 // Process-level cache of immutable grant definitions keyed by `${code}@${version}`.
 // Safe to cache indefinitely: a (code, version) definition never changes.
+// Disabled via config.grantDefinitionCacheEnabled for integration tests
+// that mutate grant documents in MongoDB between test cases.
 const MAX_CACHE_ENTRIES = 100;
-const definitionCache =
-  process.env.GRANT_DEFINITION_CACHE_ENABLED === "false" ? null : new Map();
+const definitionCache = config.grantDefinitionCacheEnabled ? new Map() : null;
 
 const cacheKey = (code, version) => `${code}@${version}`;
 
@@ -84,7 +86,7 @@ export const resolveCurrentGrantUseCase = async (
   memo,
 ) => {
   if (!pinnedVersion) {
-    throw Boom.badRequest(
+    throw Boom.badImplementation(
       `Application for grant "${grantCode}" has no pinned config version`,
     );
   }

@@ -41,7 +41,7 @@ describe("resolveCurrentGrantUseCase", () => {
       resolveCurrentGrantUseCase("pigs-might-fly", null),
     ).rejects.toThrow(
       expect.objectContaining({
-        output: expect.objectContaining({ statusCode: 400 }),
+        output: expect.objectContaining({ statusCode: 500 }),
         message: expect.stringContaining("has no pinned config version"),
       }),
     );
@@ -215,7 +215,7 @@ describe("resolveGrantForApplication", () => {
     expect(message).toContain("resolutionType=roll-forward");
   });
 
-  it("throws badRequest and logs error when application has no pinned version", async () => {
+  it("throws badImplementation and logs error when application has no pinned version", async () => {
     const application = anApplication({
       currentConfigVersion: null,
       originalConfigVersion: null,
@@ -223,7 +223,7 @@ describe("resolveGrantForApplication", () => {
 
     await expect(resolveGrantForApplication(application)).rejects.toThrow(
       expect.objectContaining({
-        output: expect.objectContaining({ statusCode: 400 }),
+        output: expect.objectContaining({ statusCode: 500 }),
         message: expect.stringContaining("has no pinned config version"),
       }),
     );
