@@ -190,8 +190,8 @@ describe("allow-list routes", () => {
   );
 
   it.each([
-    [{ service: "grants-ui", tokenId: "synthetic" }, 200],
-    [{ tokenId: "synthetic" }, 401],
+    [{ service: "grants-ui", tokenHash: "synthetic" }, 200],
+    [{ tokenHash: "synthetic" }, 401],
   ])(
     "handles credentials without artifacts: %j",
     async (credentials, status) => {

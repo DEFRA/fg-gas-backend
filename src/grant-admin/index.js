@@ -3,6 +3,14 @@ import {
   saveGrantSettingsRoute,
 } from "./routes/grant-settings.route.js";
 import { requireAdminClient } from "./admin-client.js";
+import {
+  changeApiTokenExpiryRoute,
+  deleteApiTokenRoute,
+  issueApiTokenRoute,
+  listApiTokensRoute,
+  revokeApiTokenRoute,
+  rotateApiTokenRoute,
+} from "./routes/api-clients.route.js";
 import { createEntitlementRoute } from "./routes/create-entitlement.route.js";
 import { editPayloadRoute } from "./routes/edit-payload.route.js";
 import { getClaimRoute } from "./routes/get-claim.route.js";
@@ -85,6 +93,12 @@ export const grantAdmin = {
       viewWorkflowVersionEventsRoute,
       viewWorkflowVersionRawRoute,
       fetchWorkflowDefinitionRoute,
+      listApiTokensRoute,
+      issueApiTokenRoute,
+      revokeApiTokenRoute,
+      deleteApiTokenRoute,
+      changeApiTokenExpiryRoute,
+      rotateApiTokenRoute,
     ]);
   },
 };

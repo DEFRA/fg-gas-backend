@@ -45,10 +45,10 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 
 ### Grant Admin entry points
 
-Grant Admin enters the Grants application layer through six named services, and
-Payments through two named use cases. It reads a stored Agreement definition
-through the definition-stores registry, and event administration enters the
-shared event module directly:
+Grant Admin enters the Grants application layer through six named services,
+Payments through two named use cases, and Auth through one named service. It
+reads a stored Agreement definition through the definition-stores registry, and
+event administration enters the shared event module directly:
 
 | Caller        | Entry point                                                          | Responsibility                                                                                                                                              |
 | ------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -61,6 +61,7 @@ shared event module directly:
 | `grant-admin` | `common/config-broker/definition-stores.js` (`findStoredDefinition`) | A grant version's stored Agreement definition and its Service Addresses, read-only, for its Agreement tab                                                   |
 | `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js`                 | Which of an application's Claims have raised a Payment                                                                                                      |
 | `grant-admin` | `payments/use-cases/find-stored-payment-definition.use-case.js`      | A grant version's stored Payment definition, read-only, for its admin pages                                                                                 |
+| `grant-admin` | `auth/services/api-client.service.js`                                | API clients: list, issue, revoke, rotate, re-expire and delete GAS access tokens, by hash only                                                              |
 | `grant-admin` | `events/repositories/inbox.repository.js`                            | Event admin: inspect, redrive, purge and edit GAS inbound events                                                                                            |
 | `grant-admin` | `events/repositories/outbox.repository.js`                           | Event admin: inspect, redrive, purge and edit GAS outbound events                                                                                           |
 | `grant-admin` | `common/buckets/registry.js` and `engine.js`                         | Every list: the catalogue and one query route over the declared buckets                                                                                     |
@@ -74,6 +75,14 @@ roles: the Claims overview refuses hidden access and reports the access it
 decided, and entitlement creation and update refuse anything short of full
 access. Claim submission is not one of these - the applicant-facing Grants UI
 calls it, for an applicant rather than a Caseworking operator.
+
+What names a client, and which token may be revoked, are Auth's rules, not the
+BFF's: `auth/models/` refuses an invalid name, hash, hint or expiry, a taken
+name, deleting a token that can still call, and stopping the token the request
+itself calls with, by revoke, expiry or rotate. Grant Admin chooses between
+GAS's own clients and Caseworking's, forwards `cw` to Caseworking's
+`/actuators/clients` routes, which apply Caseworking's own rules, and audits
+both. It never reads or answers a hash.
 
 The Claims page is a read-model join across two contexts: Grants resolves a
 Claim against the template it was made under, Payments answers whether it has

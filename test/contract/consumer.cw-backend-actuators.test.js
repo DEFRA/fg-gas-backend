@@ -1,6 +1,7 @@
 // Consumer test: fg-gas-backend reads buckets, cases and workflow versions FROM
 // fg-cw-backend's actuators, over HTTP, for the Grant Admin lists, record pages
-// and record links, and asks it to fetch a workflow definition.
+// and record links, asks it to fetch a workflow definition, and manages its
+// API clients.
 //
 // A separate provider name from the message pact (consumer.cw-backend.test.js),
 // so each pair is verified on its own. Case payloads and documents are config
@@ -9,6 +10,7 @@ import { MatchersV3, PactV3 } from "@pact-foundation/pact";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { withRequestContext } from "../../src/common/get-request-context.js";
+import { MASKED_HASH } from "../../src/auth/models/masked-hash.js";
 import {
   CASE_NOT_FOUND,
   findCwBuckets,
@@ -18,6 +20,14 @@ import {
   queryCwBucket,
   readCwBucketTimeline,
 } from "../../src/grant-admin/repositories/cw-actuators.repository.js";
+import {
+  changeCwApiTokenExpiry,
+  deleteCwApiToken,
+  findCwApiTokens,
+  issueCwApiToken,
+  revokeCwApiToken,
+  rotateCwApiToken,
+} from "../../src/grant-admin/repositories/cw-clients.repository.js";
 import {
   WORKFLOW_NOT_FOUND,
   WORKFLOW_VERSION_NOT_FOUND,
@@ -35,6 +45,7 @@ const { cwBackend } = vi.hoisted(() => ({
 }));
 
 vi.mock("../../src/common/logger.js");
+vi.mock("../../src/common/mongo-client.js", () => ({ db: {} }));
 vi.mock("../../src/common/config.js", () => ({
   config: {
     cwBackend,
@@ -828,6 +839,445 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           );
 
           expect(doc.case.exists).toBe(true);
+        },
+      ));
+  });
+
+  describe("the API client actuators", () => {
+    const CLIENT = "fg-gas-backend";
+    const TOKEN_ID = "6650c1f2a9e4b1d07c20bd91";
+    const HASH = "0123456789abcdef".repeat(4);
+    const HINT = "x9Q_";
+    const OBJECT_ID = "^[0-9a-f]{24}$";
+    const tokenHash = regex("^[0-9a-f]{64}$", HASH);
+    const tokenHint = regex("^[A-Za-z0-9_-]{4}$", HINT);
+
+    const clientState = (description, parameters = {}) => [
+      {
+        description,
+        parameters: { clientId: CLIENT, tokenId: TOKEN_ID, ...parameters },
+      },
+    ];
+
+    const callsWithItsToken = clientState(
+      "fg-gas-backend calls with a token made before CW-2",
+    );
+
+    const refusal = (status, errorCode) => ({
+      status,
+      body: { statusCode: status, errorCode },
+    });
+
+    const errorOf = (call) => asOperator(call).catch((e) => e);
+
+    it("lists every token row, marking the one GAS calls with", () =>
+      run(
+        {
+          states: callsWithItsToken,
+          uponReceiving: "a read of the API client tokens",
+          withRequest: {
+            method: "GET",
+            path: "/actuators/clients",
+            headers: operatorHeaders,
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              tokens: eachLike({
+                tokenId: regex(OBJECT_ID, TOKEN_ID),
+                clientId: like(CLIENT),
+                status: regex("^(ACTIVE|EXPIRED|REVOKED)$", "ACTIVE"),
+                tokenHint: null,
+                createdAt: null,
+                createdBy: null,
+                expiresAt: null,
+                revokedAt: null,
+                revokedBy: null,
+                inUse: boolean(true),
+                stored: {
+                  _id: { $oid: regex(OBJECT_ID, TOKEN_ID) },
+                  id: regex(MASKED_HASH.source, "012••••••def"),
+                  client: like(CLIENT),
+                  expiresAt: null,
+                },
+              }),
+            },
+          },
+        },
+        async () => {
+          const { tokens } = await asOperator(() =>
+            findCwApiTokens({ actor: ACTOR }),
+          );
+
+          expect(tokens[0]).toMatchObject({
+            clientId: CLIENT,
+            inUse: true,
+            stored: { client: CLIENT, id: "012••••••def" },
+          });
+        },
+      ));
+
+    it("issues a new client's first token from its hash and hint", () =>
+      run(
+        {
+          states: callsWithItsToken,
+          uponReceiving: "an issue of a new API client's first token",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/clients/role-reader/tokens",
+            headers: operatorHeaders,
+            body: { tokenHash, tokenHint, expiresAt: null, newClient: true },
+          },
+          willRespondWith: {
+            status: 201,
+            body: {
+              token: {
+                tokenId: regex(OBJECT_ID, TOKEN_ID),
+                clientId: "role-reader",
+                status: "ACTIVE",
+                tokenHint,
+                createdAt,
+                createdBy: like("Łukasz"),
+                expiresAt: null,
+                revokedAt: null,
+                revokedBy: null,
+                inUse: false,
+              },
+            },
+          },
+        },
+        async () => {
+          const { token } = await asOperator(() =>
+            issueCwApiToken(
+              "role-reader",
+              {
+                tokenHash: HASH,
+                tokenHint: HINT,
+                expiresAt: null,
+                newClient: true,
+              },
+              { actor: ACTOR },
+            ),
+          );
+
+          expect(token).toMatchObject({
+            status: "ACTIVE",
+            tokenHint: HINT,
+            inUse: false,
+          });
+          expect(token.createdAt).toBeInstanceOf(Date);
+        },
+      ));
+
+    it.each([
+      [
+        "a new client whose name is taken",
+        CLIENT,
+        true,
+        409,
+        "API_CLIENT_EXISTS",
+      ],
+      [
+        "a client that does not exist",
+        "no-such-client",
+        false,
+        404,
+        "API_CLIENT_NOT_FOUND",
+      ],
+    ])(
+      "refuses an issue to %s",
+      (description, clientId, newClient, status, errorCode) =>
+        run(
+          {
+            states: callsWithItsToken,
+            uponReceiving: `an issue to ${description}`,
+            withRequest: {
+              method: "POST",
+              path: `/actuators/clients/${clientId}/tokens`,
+              headers: operatorHeaders,
+              body: { tokenHash, tokenHint, expiresAt: null, newClient },
+            },
+            willRespondWith: refusal(status, errorCode),
+          },
+          async () => {
+            const error = await errorOf(() =>
+              issueCwApiToken(
+                clientId,
+                {
+                  tokenHash: HASH,
+                  tokenHint: HINT,
+                  expiresAt: null,
+                  newClient,
+                },
+                { actor: ACTOR },
+              ),
+            );
+
+            expect(error.output.statusCode).toBe(status);
+            expect(error.output.payload.errorCode).toBe(errorCode);
+          },
+        ),
+    );
+
+    it("revokes another active token of a client", () =>
+      run(
+        {
+          states: clientState(
+            "a client has an active token GAS does not call with",
+            { clientId: "role-reader" },
+          ),
+          uponReceiving: "a revoke of an active API token",
+          withRequest: {
+            method: "POST",
+            path: `/actuators/clients/role-reader/tokens/${TOKEN_ID}/revoke`,
+            headers: operatorHeaders,
+          },
+          willRespondWith: { status: 204 },
+        },
+        async () => {
+          await expect(
+            asOperator(() =>
+              revokeCwApiToken("role-reader", TOKEN_ID, { actor: ACTOR }),
+            ),
+          ).resolves.toBeUndefined();
+        },
+      ));
+
+    it("refuses to revoke the token GAS calls with", () =>
+      run(
+        {
+          states: callsWithItsToken,
+          uponReceiving: "a revoke of the token GAS calls with",
+          withRequest: {
+            method: "POST",
+            path: `/actuators/clients/${CLIENT}/tokens/${TOKEN_ID}/revoke`,
+            headers: operatorHeaders,
+          },
+          willRespondWith: refusal(409, "API_TOKEN_IN_USE"),
+        },
+        async () => {
+          const error = await errorOf(() =>
+            revokeCwApiToken(CLIENT, TOKEN_ID, { actor: ACTOR }),
+          );
+
+          expect(error.output.statusCode).toBe(409);
+          expect(error.output.payload.errorCode).toBe("API_TOKEN_IN_USE");
+        },
+      ));
+
+    it("answers 404 API_TOKEN_NOT_FOUND for a token not under that name", () =>
+      run(
+        {
+          states: callsWithItsToken,
+          uponReceiving: "a revoke of a token under another client's name",
+          withRequest: {
+            method: "POST",
+            path: `/actuators/clients/role-reader/tokens/${TOKEN_ID}/revoke`,
+            headers: operatorHeaders,
+          },
+          willRespondWith: refusal(404, "API_TOKEN_NOT_FOUND"),
+        },
+        async () => {
+          const error = await errorOf(() =>
+            revokeCwApiToken("role-reader", TOKEN_ID, { actor: ACTOR }),
+          );
+
+          expect(error.output.payload.errorCode).toBe("API_TOKEN_NOT_FOUND");
+        },
+      ));
+
+    const tokenRow = (fields) => ({
+      tokenId: regex(OBJECT_ID, TOKEN_ID),
+      clientId: "role-reader",
+      status: "ACTIVE",
+      tokenHint,
+      createdAt,
+      createdBy: like("Łukasz"),
+      revokedAt: null,
+      revokedBy: null,
+      inUse: false,
+      ...fields,
+    });
+
+    it("deletes a token that can no longer call", () =>
+      run(
+        {
+          states: clientState("a client has a revoked token", {
+            clientId: "role-reader",
+          }),
+          uponReceiving: "a delete of a revoked API token",
+          withRequest: {
+            method: "DELETE",
+            path: `/actuators/clients/role-reader/tokens/${TOKEN_ID}`,
+            headers: operatorHeaders,
+          },
+          willRespondWith: { status: 204 },
+        },
+        async () => {
+          await expect(
+            asOperator(() =>
+              deleteCwApiToken("role-reader", TOKEN_ID, { actor: ACTOR }),
+            ),
+          ).resolves.toBeUndefined();
+        },
+      ));
+
+    it.each([
+      ["an active token", CLIENT, 409, "API_TOKEN_ACTIVE"],
+      [
+        "a token not under that name",
+        "role-reader",
+        404,
+        "API_TOKEN_NOT_FOUND",
+      ],
+    ])("refuses a delete of %s", (description, clientId, status, errorCode) =>
+      run(
+        {
+          states: callsWithItsToken,
+          uponReceiving: `a delete of ${description}`,
+          withRequest: {
+            method: "DELETE",
+            path: `/actuators/clients/${clientId}/tokens/${TOKEN_ID}`,
+            headers: operatorHeaders,
+          },
+          willRespondWith: refusal(status, errorCode),
+        },
+        async () => {
+          const error = await errorOf(() =>
+            deleteCwApiToken(clientId, TOKEN_ID, { actor: ACTOR }),
+          );
+
+          expect(error.output.statusCode).toBe(status);
+          expect(error.output.payload.errorCode).toBe(errorCode);
+        },
+      ),
+    );
+
+    it("sets a revoked token's expiry, reviving it", () =>
+      run(
+        {
+          states: clientState("a client has a revoked token", {
+            clientId: "role-reader",
+          }),
+          uponReceiving: "a change of a revoked API token's expiry",
+          withRequest: {
+            method: "PUT",
+            path: `/actuators/clients/role-reader/tokens/${TOKEN_ID}/expiry`,
+            headers: operatorHeaders,
+            body: { expiresAt: null },
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              token: tokenRow({ expiresAt: null }),
+              previousExpiresAt: regex(ISO, "2026-11-03T10:00:00.000Z"),
+              revived: true,
+            },
+          },
+        },
+        async () => {
+          const { token, revived } = await asOperator(() =>
+            changeCwApiTokenExpiry(
+              "role-reader",
+              TOKEN_ID,
+              { expiresAt: null },
+              { actor: ACTOR },
+            ),
+          );
+
+          expect(token).toMatchObject({ status: "ACTIVE", revokedAt: null });
+          expect(revived).toBe(true);
+        },
+      ));
+
+    it("refuses to set the token GAS calls with to stop", () =>
+      run(
+        {
+          states: callsWithItsToken,
+          uponReceiving: "a change of the GAS token's expiry to the past",
+          withRequest: {
+            method: "PUT",
+            path: `/actuators/clients/${CLIENT}/tokens/${TOKEN_ID}/expiry`,
+            headers: operatorHeaders,
+            body: { expiresAt: regex(ISO, "2000-01-01T00:00:00.000Z") },
+          },
+          willRespondWith: refusal(409, "API_TOKEN_IN_USE"),
+        },
+        async () => {
+          const error = await errorOf(() =>
+            changeCwApiTokenExpiry(
+              CLIENT,
+              TOKEN_ID,
+              { expiresAt: new Date("2000-01-01T00:00:00.000Z") },
+              { actor: ACTOR },
+            ),
+          );
+
+          expect(error.output.payload.errorCode).toBe("API_TOKEN_IN_USE");
+        },
+      ));
+
+    it("rotates an active token, the new one taking its expiry", () =>
+      run(
+        {
+          states: clientState(
+            "a client has an active token GAS does not call with",
+            { clientId: "role-reader" },
+          ),
+          uponReceiving: "a rotate of an active API token",
+          withRequest: {
+            method: "POST",
+            path: `/actuators/clients/role-reader/tokens/${TOKEN_ID}/rotate`,
+            headers: operatorHeaders,
+            body: { tokenHash, tokenHint, keepOld: "24h" },
+          },
+          willRespondWith: {
+            status: 201,
+            body: {
+              token: tokenRow({ expiresAt: null }),
+              oldExpiresAt: regex(ISO, "2026-11-05T23:59:59.000Z"),
+            },
+          },
+        },
+        async () => {
+          const { token, oldExpiresAt } = await asOperator(() =>
+            rotateCwApiToken(
+              "role-reader",
+              TOKEN_ID,
+              { tokenHash: HASH, tokenHint: HINT, keepOld: "24h" },
+              { actor: ACTOR },
+            ),
+          );
+
+          expect(token).toMatchObject({ status: "ACTIVE", tokenHint: HINT });
+          expect(oldExpiresAt).toBeInstanceOf(Date);
+        },
+      ));
+
+    it("refuses to end the token GAS calls with at once", () =>
+      run(
+        {
+          states: callsWithItsToken,
+          uponReceiving: "a rotate of the GAS token with no overlap",
+          withRequest: {
+            method: "POST",
+            path: `/actuators/clients/${CLIENT}/tokens/${TOKEN_ID}/rotate`,
+            headers: operatorHeaders,
+            body: { tokenHash, tokenHint, keepOld: "none" },
+          },
+          willRespondWith: refusal(409, "API_TOKEN_IN_USE"),
+        },
+        async () => {
+          const error = await errorOf(() =>
+            rotateCwApiToken(
+              CLIENT,
+              TOKEN_ID,
+              { tokenHash: HASH, tokenHint: HINT, keepOld: "none" },
+              { actor: ACTOR },
+            ),
+          );
+
+          expect(error.output.payload.errorCode).toBe("API_TOKEN_IN_USE");
         },
       ));
   });

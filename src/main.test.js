@@ -33,9 +33,6 @@ describe("main", () => {
     vi.doMock("./common/config-broker/definition-checks.js", () => ({
       assertDefinitionCheckRegistered: vi.fn(),
     }));
-    vi.doMock("./auth/seed-access-token.js", () => ({
-      seedAccessToken: vi.fn().mockResolvedValue(undefined),
-    }));
     vi.doMock("./auth/access-token-identity.js", () => ({
       reportAccessTokenIdentity: vi.fn().mockResolvedValue(undefined),
     }));
@@ -80,7 +77,7 @@ describe("main", () => {
     expect(mockServer.start).toHaveBeenCalled();
   });
 
-  it("waits for registration, which runs the migrations, before seeding", async () => {
+  it("waits for registration, which runs the migrations, before reporting", async () => {
     let finishRegistering;
     mockServer.register.mockReturnValue(
       new Promise((resolve) => {
@@ -88,41 +85,26 @@ describe("main", () => {
       }),
     );
 
-    const { seedAccessToken } = await import("./auth/seed-access-token.js");
+    const { reportAccessTokenIdentity } =
+      await import("./auth/access-token-identity.js");
     const booting = import("./main.js");
 
     await new Promise((resolve) => setImmediate(resolve));
 
-    // The initial migration drops access_tokens, so seeding while registration
-    // is still in flight would wipe the credential it just wrote.
-    expect(seedAccessToken).not.toHaveBeenCalled();
+    expect(reportAccessTokenIdentity).not.toHaveBeenCalled();
 
     finishRegistering();
     await booting;
 
-    expect(seedAccessToken).toHaveBeenCalled();
+    expect(reportAccessTokenIdentity).toHaveBeenCalled();
   });
 
-  it("seeds before the server starts serving", async () => {
+  it("reports access token identity before serving", async () => {
     await import("./main.js");
 
-    const { seedAccessToken } = await import("./auth/seed-access-token.js");
-
-    expect(seedAccessToken.mock.invocationCallOrder[0]).toBeLessThan(
-      mockServer.start.mock.invocationCallOrder[0],
-    );
-  });
-
-  it("reports access token identity after seeding and before serving", async () => {
-    await import("./main.js");
-
-    const { seedAccessToken } = await import("./auth/seed-access-token.js");
     const { reportAccessTokenIdentity } =
       await import("./auth/access-token-identity.js");
 
-    expect(
-      reportAccessTokenIdentity.mock.invocationCallOrder[0],
-    ).toBeGreaterThan(seedAccessToken.mock.invocationCallOrder[0]);
     expect(reportAccessTokenIdentity.mock.invocationCallOrder[0]).toBeLessThan(
       mockServer.start.mock.invocationCallOrder[0],
     );
