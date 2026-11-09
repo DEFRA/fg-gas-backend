@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import { grantDefinition } from "../schemas/grant/grant-definition.js";
 import { storedLifecycle } from "../schemas/grant/stored-lifecycle.js";
+import { assertEntitlementAnswerDecimalsCapped } from "./entitlement-answer-decimals.js";
 import { EntitlementTemplate } from "./entitlement-template.js";
 import { ExternalStatusMap } from "./external-status-map.js";
 import { ExternalStatusMapping } from "./external-status-mapping.js";
@@ -99,6 +100,10 @@ export class Grant {
         lifecycle,
       );
       this.#assertAmendablePositionsExistIn(lifecycle);
+      assertEntitlementAnswerDecimalsCapped(
+        this.phases,
+        this.entitlementTemplates,
+      );
     } catch (error) {
       if (!error.isBoom) {
         throw error;
