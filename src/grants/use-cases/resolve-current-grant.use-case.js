@@ -7,7 +7,7 @@ import { updateCurrentConfigVersion } from "../repositories/application.reposito
 import { findLatestForMajor } from "../repositories/config-version.repository.js";
 import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 
-// Process-level cache of immutable grant definitions keyed by `${code}@${version}`.
+// Process-level cache of immutable grant definitions, keyed by `${code}@${version}`.
 // Safe to cache indefinitely: a (code, version) definition never changes.
 // Disabled via config.grantDefinitionCacheEnabled for integration tests
 // that mutate grant documents in MongoDB between test cases.
