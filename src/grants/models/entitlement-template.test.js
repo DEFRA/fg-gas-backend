@@ -296,15 +296,25 @@ describe("EntitlementTemplate", () => {
       ).toThrow(/"fields.totalHectares.label" is required/);
     });
 
-    it("rejects a label on a field the definition fixes", () => {
-      expect(() =>
-        withField("actionCode", {
-          input: false,
-          value: "PA3",
-          label: "Action code",
-          unitType: "string",
-        }),
-      ).toThrow(/"fields.actionCode.label" is not allowed/);
+    it("accepts a label on a field the definition fixes", () => {
+      const template = withField("actionCode", {
+        input: false,
+        value: "PA3",
+        label: "Action code",
+        unitType: "string",
+      });
+
+      expect(template.fields.actionCode.label).toBe("Action code");
+    });
+
+    it("accepts a field the definition fixes without a label", () => {
+      const template = withField("actionCode", {
+        input: false,
+        value: "PA3",
+        unitType: "string",
+      });
+
+      expect(template.fields.actionCode.label).toBeUndefined();
     });
 
     it("requires a value on a field the definition fixes", () => {
