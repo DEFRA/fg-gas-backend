@@ -104,9 +104,7 @@ describe("allow-list routes", () => {
 
   it.each([
     ["test-grants-ui-token", "grants-ui", true],
-    ["test-legacy-grants-ui-token", "grants-ui", true],
     ["test-mixed-token", "grants-ui", true],
-    ["test-blank-client-id-token", "grants-ui", true],
     ["test-sfd-token", "single-front-door", false],
   ])(
     "accepts %s and derives caller from authentication",
@@ -171,7 +169,13 @@ describe("allow-list routes", () => {
     });
   });
 
-  it.each(["test-unidentified-token", "test-unusable-identity-token"])(
+  // A service named only in the legacy `client` field is not an identity.
+  it.each([
+    "test-unidentified-token",
+    "test-unusable-identity-token",
+    "test-legacy-grants-ui-token",
+    "test-blank-client-id-token",
+  ])(
     "refuses to release a decision without an authenticated caller identity: %s",
     async (token) => {
       const response = await server.inject({
@@ -193,7 +197,7 @@ describe("allow-list routes", () => {
     [{ service: "grants-ui", tokenHash: "synthetic" }, 200],
     [{ tokenHash: "synthetic" }, 401],
   ])(
-    "handles credentials without artifacts: %j",
+    "derives caller from credentials alone: %j",
     async (credentials, status) => {
       const response = await server.inject({
         url: uri,

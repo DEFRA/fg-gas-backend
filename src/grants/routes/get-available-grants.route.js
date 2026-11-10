@@ -29,12 +29,8 @@ export const getAvailableGrantsRoute = {
     response: { schema: getAvailableGrantsResponseSchema },
   },
   async handler(request, h) {
-    // FGP-1534: retain the single-grant API's caller fallback during migration.
-    const caller = [
-      request.auth.credentials.service,
-      request.auth.artifacts?.client,
-    ].find((value) => typeof value === "string" && value.trim() !== "");
-    if (!caller) {
+    const caller = request.auth.credentials.service;
+    if (typeof caller !== "string" || caller.trim() === "") {
       throw Boom.unauthorized("Service identity required");
     }
     return h.response(

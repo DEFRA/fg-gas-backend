@@ -31,7 +31,6 @@ async function seedAccessToken() {
       {
         $set: {
           id: HASHED_TOKEN,
-          client: "fg-grants-platform-admin",
           clientId: "fg-grants-platform-admin",
         },
       },
@@ -43,7 +42,6 @@ async function seedAccessToken() {
       {
         $set: {
           id: OTHER_CLIENT_HASHED_TOKEN,
-          client: "some-other-service",
           clientId: "some-other-service",
         },
       },

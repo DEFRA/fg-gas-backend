@@ -30,12 +30,8 @@ export const checkAllowListRoute = {
     response: { schema: checkAllowListResponseSchema },
   },
   async handler(request, h) {
-    // FGP-1534: remove this legacy caller fallback after identity migration.
-    const caller = [
-      request.auth.credentials.service,
-      request.auth.artifacts?.client,
-    ].find((value) => typeof value === "string" && value.trim() !== "");
-    if (!caller) {
+    const caller = request.auth.credentials.service;
+    if (typeof caller !== "string" || caller.trim() === "") {
       throw Boom.unauthorized("Service identity required");
     }
     const result = await checkGrantAllowListUseCase({

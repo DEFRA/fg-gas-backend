@@ -162,7 +162,7 @@ describe("available grants authentication and validation", () => {
     expect(response.statusCode).toBe(401);
     expect(response.result).not.toHaveProperty("grants");
   });
-  it("accepts the existing legacy service identity during migration", async () => {
+  it("does not take the caller from the legacy client field", async () => {
     await db
       .collection("access_tokens")
       .updateMany(
@@ -170,11 +170,8 @@ describe("available grants authentication and validation", () => {
         { $unset: { clientId: "" }, $set: { client: "legacy-grants-ui" } },
       );
     const response = await inject();
-    expect(response.statusCode).toBe(200);
-    const audit = await db
-      .collection("outbox")
-      .findOne({ "event.audit.entities.action": "GET_AVAILABLE_GRANTS" });
-    expect(audit.event.audit.details.caller).toBe("legacy-grants-ui");
+    expect(response.statusCode).toBe(401);
+    expect(response.result).not.toHaveProperty("grants");
   });
   it.each([
     `${base}/sbi/90000001`,
