@@ -128,16 +128,30 @@ describe("s3-client", () => {
         ).toBe("woodland/1.2.3/gas/gas.next.json");
       });
 
-      it("falls back to unsuffixed when variant file is missing", () => {
-        expect(
+      it("rejects an unsuffixed file when the required variant is missing", () => {
+        expect(() =>
           findS3KeyInManifest(manifest, {
             dir: "gas",
             file: "agreement.json",
             variant: "next",
             required: true,
           }),
-        ).toBe("woodland/1.2.3/gas/agreement.json");
+        ).toThrow("gas/agreement.next.json");
       });
+
+      it.each(["gas.json", "agreement.json", "payment.json"])(
+        "ignores an unsuffixed %s when the optional variant is missing",
+        (file) => {
+          expect(
+            findS3KeyInManifest([`woodland/1.2.3/gas/${file}`], {
+              dir: "gas",
+              file,
+              variant: "next",
+              required: false,
+            }),
+          ).toBeNull();
+        },
+      );
 
       it("returns null for optional files when neither variant nor unsuffixed exist", () => {
         expect(

@@ -12,6 +12,15 @@ import { handleConfigVersionMessage } from "../handlers/handle-config-version-me
 import { upsert } from "../repositories/config-version.repository.js";
 import { validateConfigDefinitions } from "./validate-config-definitions.js";
 
+vi.mock("../../common/config.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    config: {
+      ...actual.config,
+      configBroker: { ...actual.config.configBroker, variant: "next" },
+    },
+  };
+});
 vi.mock("../../common/logger.js");
 vi.mock("../../events/repositories/inbox.repository.js");
 vi.mock("../repositories/config-version.repository.js");
@@ -29,38 +38,44 @@ beforeEach(() => {
 });
 
 describe("config updates without a GAS definition through the inbox", () => {
-  it("completes the inbox message without a retry or config-version write", async () => {
-    const message = new Inbox({
-      source: "CB",
-      type: CONFIG_VERSION_UPDATED_EVENT_TYPE,
-      messageId: "config-without-gas",
-      segregationRef: "woodland",
-      event: {
-        data: {
-          grantCode: "woodland",
-          version: "1.2.3",
-          status: "active",
-          s3Bucket: "configs-bucket",
-          manifest: ["woodland/1.2.3/cw/cw.json"],
+  it.each([
+    ["no GAS definition", "woodland/1.2.3/cw/cw.json"],
+    ["only an unsuffixed GAS definition", "woodland/1.2.3/gas/gas.json"],
+  ])(
+    "completes an update with %s without a retry or config-version write",
+    async (_, key) => {
+      const message = new Inbox({
+        source: "CB",
+        type: CONFIG_VERSION_UPDATED_EVENT_TYPE,
+        messageId: "config-without-gas",
+        segregationRef: "woodland",
+        event: {
+          data: {
+            grantCode: "woodland",
+            version: "1.2.3",
+            status: "active",
+            s3Bucket: "configs-bucket",
+            manifest: [key],
+          },
         },
-      },
-    });
+      });
 
-    await new InboxSubscriber().handleEvent(message);
+      await new InboxSubscriber().handleEvent(message);
 
-    expect(update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: InboxStatus.COMPLETED,
-        completionAttempts: 0,
-        attemptHistory: [],
-        lastError: null,
-      }),
-      undefined,
-    );
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Skipping config version: woodland@1.2.3"),
-    );
-    expect(validateConfigDefinitions).not.toHaveBeenCalled();
-    expect(upsert).not.toHaveBeenCalled();
-  });
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: InboxStatus.COMPLETED,
+          completionAttempts: 0,
+          attemptHistory: [],
+          lastError: null,
+        }),
+        undefined,
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Skipping config version: woodland@1.2.3"),
+      );
+      expect(validateConfigDefinitions).not.toHaveBeenCalled();
+      expect(upsert).not.toHaveBeenCalled();
+    },
+  );
 });

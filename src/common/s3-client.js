@@ -38,23 +38,14 @@ export class S3FetchError extends Error {
 
 /* eslint-disable complexity */
 // Aliased releases keep the publisher's paths in the manifest.
-// When a variant is configured, tries the variant filename first
-// (e.g. gas.next.json) then falls back to the unsuffixed file (gas.json).
+// A configured variant selects exactly one filename; unsuffixed definitions
+// belong to a different configuration set and must never be used as a fallback.
 export const findS3KeyInManifest = (
   manifest,
   { dir, file, variant = "", required = true },
 ) => {
-  if (variant) {
-    const variantTarget = variantFileName(file, variant);
-    const variantMatch = manifest.find((path) =>
-      path.endsWith(`/${dir}/${variantTarget}`),
-    );
-    if (variantMatch) {
-      return variantMatch;
-    }
-  }
-
-  const match = manifest.find((path) => path.endsWith(`/${dir}/${file}`));
+  const target = variantFileName(file, variant);
+  const match = manifest.find((path) => path.endsWith(`/${dir}/${target}`));
 
   if (match) {
     return match;
@@ -65,7 +56,7 @@ export const findS3KeyInManifest = (
   // any different and stop rather than retry.
   if (required) {
     throw Boom.badRequest(
-      `Manifest does not contain required config file ${dir}/${file} (manifest: ${manifest.join(", ")})`,
+      `Manifest does not contain required config file ${dir}/${target} (manifest: ${manifest.join(", ")})`,
     );
   }
 
