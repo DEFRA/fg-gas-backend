@@ -209,7 +209,7 @@ describe("naming access tokens", () => {
   });
 
   // Auth reads the hash and the expiry, and neither is touched.
-  it("leaves every row authenticating, and none conflicting", async () => {
+  it("leaves every row authenticating, with client matching clientId", async () => {
     await insert({ clientId: "Grants_UI", client: "Grants_UI" });
     await insert({ client: ADMIN });
     await insert({ clientId: "   ", client: "legacy-ui" });
@@ -227,8 +227,10 @@ describe("naming access tokens", () => {
     expect(
       after.every((row) => AccessToken.fromDocument(row).isActive(new Date())),
     ).toBe(true);
+    expect(after.every(({ client, clientId }) => client === clientId)).toBe(
+      true,
+    );
     expect(await countIdentityShapes(accessTokens)).toMatchObject({
-      conflicting: 0,
       unnamed: 0,
     });
   });

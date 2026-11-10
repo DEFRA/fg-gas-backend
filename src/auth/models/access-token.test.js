@@ -263,7 +263,6 @@ describe("AccessToken.rotate", () => {
       expect(successor.toDocument()).toEqual({
         id: HASH,
         clientId: "grants-ui",
-        client: "grants-ui",
         expiresAt: null,
         createdAt: NOW,
         createdBy: "Ann",

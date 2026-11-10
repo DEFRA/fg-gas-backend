@@ -114,7 +114,6 @@ describe("issueApiToken", () => {
       {
         id: HASH,
         clientId: "grants-ui",
-        client: "grants-ui",
         expiresAt: null,
         createdAt: NOW,
         createdBy: "Ann",
