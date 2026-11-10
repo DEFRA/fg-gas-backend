@@ -82,12 +82,9 @@ const applyConfigVersion = async (eventData) => {
   logger.info(`Processing config version: ${grantCode}@${version} (${status})`);
 
   const { variant } = config.configBroker;
-  const s3Key = findS3KeyInManifest(manifest, {
-    dir: "gas",
-    file: "gas.json",
-    variant,
-    required: false,
-  });
+  const findDefinitionKey = (file) =>
+    findS3KeyInManifest(manifest, { dir: "gas", file, variant });
+  const s3Key = findDefinitionKey("gas.json");
   if (!s3Key) {
     logger.warn(
       `Skipping config version: ${grantCode}@${version} (manifest has no matching GAS definition)`,
@@ -95,18 +92,8 @@ const applyConfigVersion = async (eventData) => {
     return;
   }
 
-  const agreementS3Key = findS3KeyInManifest(manifest, {
-    dir: "gas",
-    file: "agreement.json",
-    variant,
-    required: false,
-  });
-  const paymentS3Key = findS3KeyInManifest(manifest, {
-    dir: "gas",
-    file: "payment.json",
-    variant,
-    required: false,
-  });
+  const agreementS3Key = findDefinitionKey("agreement.json");
+  const paymentS3Key = findDefinitionKey("payment.json");
 
   // Checked before the version is recorded, so a definition nothing can use never becomes
   // something a grant, agreement or payment later resolves to.

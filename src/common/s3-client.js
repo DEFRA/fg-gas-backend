@@ -1,5 +1,4 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import Boom from "@hapi/boom";
 import { config } from "./config.js";
 import { variantFileName } from "./configuration-variant.js";
 import { logger } from "./logger.js";
@@ -36,33 +35,12 @@ export class S3FetchError extends Error {
   }
 }
 
-/* eslint-disable complexity */
 // Aliased releases keep the publisher's paths in the manifest.
-// A configured variant selects exactly one filename; unsuffixed definitions
-// belong to a different configuration set and must never be used as a fallback.
-export const findS3KeyInManifest = (
-  manifest,
-  { dir, file, variant = "", required = true },
-) => {
+// A configured variant selects exactly one filename; never fall back to the unsuffixed file.
+export const findS3KeyInManifest = (manifest, { dir, file, variant = "" }) => {
   const target = variantFileName(file, variant);
-  const match = manifest.find((path) => path.endsWith(`/${dir}/${target}`));
-
-  if (match) {
-    return match;
-  }
-
-  // Boom, not a plain Error: a manifest missing a file it must have is a defect in an
-  // immutable published version, so the caller has to be able to tell it will never be
-  // any different and stop rather than retry.
-  if (required) {
-    throw Boom.badRequest(
-      `Manifest does not contain required config file ${dir}/${target} (manifest: ${manifest.join(", ")})`,
-    );
-  }
-
-  return null;
+  return manifest.find((path) => path.endsWith(`/${dir}/${target}`)) ?? null;
 };
-/* eslint-enable complexity */
 
 // eslint-disable-next-line complexity
 const classifyS3Error = (err, key, bucket) => {
