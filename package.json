@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "AWS_EMF_ENVIRONMENT=Local nodemon --env-file=.env src/main.js",
-    "lint": "eslint --cache --cache-strategy content",
+    "lint": "eslint",
     "format:check": "prettier --check --ignore-unknown .",
     "test": "npm run test:unit -- --run && npm run test:integration -- --run",
     "test:unit": "vitest --config vitest.config.js --dir src",
