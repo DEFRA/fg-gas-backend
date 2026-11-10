@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   S3FetchError,
   fetchConfigFile,
-  findS3KeyInManifest,
+  findDefinitionKey,
 } from "./s3-client.js";
 
 const { mockSend } = vi.hoisted(() => {
@@ -35,134 +35,49 @@ describe("s3-client", () => {
     vi.clearAllMocks();
   });
 
-  describe("findS3KeyInManifest", () => {
-    it("should return the matching path from the manifest", () => {
-      const manifest = [
-        "woodland/1.2.3/grants-ui/allowlist.yaml",
-        "woodland/1.2.3/gas/gas.json",
-        "woodland/1.2.3/metadata.json",
-      ];
-      expect(
-        findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" }),
-      ).toBe("woodland/1.2.3/gas/gas.json");
-    });
+  describe("findDefinitionKey", () => {
+    const defaultKey = "woodland/1.2.3/gas/gas.json";
+    const variantKey = "woodland/1.2.3/gas/gas.next.json";
 
-    it("should handle manifests with many entries", () => {
-      const manifest = [
-        "frps-private-beta/2.0.0/cw/cw.json",
-        "frps-private-beta/2.0.0/gas/gas.json",
-        "frps-private-beta/2.0.0/grants-ui/allowlist.yaml",
-        "frps-private-beta/2.0.0/metadata.json",
-      ];
-      expect(
-        findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" }),
-      ).toBe("frps-private-beta/2.0.0/gas/gas.json");
-    });
-
-    it("returns null for a missing optional exact path", () => {
-      const manifest = ["woodland/1.2.3/gas/gas.json"];
-
-      expect(
-        findS3KeyInManifest(manifest, {
-          dir: "gas",
-          file: "agreement.json",
-          required: false,
-        }),
-      ).toBeNull();
-    });
-
-    it("resolves an aliased release against the publishing grant's paths", () => {
-      const manifest = [
+    it.each([
+      [
+        "selects the unsuffixed file without a variant",
+        "",
+        [variantKey, defaultKey],
+        defaultKey,
+      ],
+      [
+        "selects the configured variant when both files exist",
+        "next",
+        [defaultKey, variantKey],
+        variantKey,
+      ],
+      [
+        "does not fall back when the configured variant is absent",
+        "next",
+        [defaultKey],
+        null,
+      ],
+      [
+        "returns null when no file matches",
+        "",
+        ["woodland/1.2.3/metadata.json"],
+        null,
+      ],
+      [
+        "ignores a matching filename in another directory",
+        "",
+        ["woodland/1.2.3/cw/gas.json"],
+        null,
+      ],
+      [
+        "preserves the publisher's paths for aliased releases",
+        "",
+        ["farm-payments/1.2.3/gas/gas.json"],
         "farm-payments/1.2.3/gas/gas.json",
-        "farm-payments/1.2.3/gas/agreement.json",
-        "farm-payments/1.2.3/metadata.json",
-      ];
-
-      expect(
-        findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" }),
-      ).toBe("farm-payments/1.2.3/gas/gas.json");
-      expect(
-        findS3KeyInManifest(manifest, {
-          dir: "gas",
-          file: "agreement.json",
-          required: false,
-        }),
-      ).toBe("farm-payments/1.2.3/gas/agreement.json");
-    });
-
-    it("should throw when the manifest does not contain a matching path", () => {
-      const manifest = [
-        "woodland/1.2.3/cw/cw.json",
-        "woodland/1.2.3/metadata.json",
-      ];
-      expect(() =>
-        findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" }),
-      ).toThrow("Manifest does not contain required config file");
-    });
-
-    describe("variant parameter", () => {
-      const manifest = [
-        "woodland/1.2.3/gas/gas.json",
-        "woodland/1.2.3/gas/gas.next.json",
-        "woodland/1.2.3/gas/agreement.json",
-        "woodland/1.2.3/metadata.json",
-      ];
-
-      it('matches the unsuffixed file when variant is ""', () => {
-        expect(
-          findS3KeyInManifest(manifest, {
-            dir: "gas",
-            file: "gas.json",
-            variant: "",
-          }),
-        ).toBe("woodland/1.2.3/gas/gas.json");
-      });
-
-      it('matches gas.next.json when variant is "next"', () => {
-        expect(
-          findS3KeyInManifest(manifest, {
-            dir: "gas",
-            file: "gas.json",
-            variant: "next",
-          }),
-        ).toBe("woodland/1.2.3/gas/gas.next.json");
-      });
-
-      it("falls back to unsuffixed when variant file is missing", () => {
-        expect(
-          findS3KeyInManifest(manifest, {
-            dir: "gas",
-            file: "agreement.json",
-            variant: "next",
-            required: true,
-          }),
-        ).toBe("woodland/1.2.3/gas/agreement.json");
-      });
-
-      it("returns null for optional files when neither variant nor unsuffixed exist", () => {
-        expect(
-          findS3KeyInManifest(manifest, {
-            dir: "gas",
-            file: "payment.json",
-            variant: "next",
-            required: false,
-          }),
-        ).toBeNull();
-      });
-
-      it("prefers the variant file over the unsuffixed file when both exist", () => {
-        const extendedManifest = [
-          ...manifest,
-          "woodland/1.2.3/gas/agreement.next.json",
-        ];
-        expect(
-          findS3KeyInManifest(extendedManifest, {
-            dir: "gas",
-            file: "agreement.json",
-            variant: "next",
-          }),
-        ).toBe("woodland/1.2.3/gas/agreement.next.json");
-      });
+      ],
+    ])("%s", (_, variant, manifest, expected) => {
+      expect(findDefinitionKey(manifest, "gas.json", variant)).toBe(expected);
     });
   });
 

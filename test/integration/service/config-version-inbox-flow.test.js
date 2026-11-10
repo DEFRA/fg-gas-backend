@@ -146,17 +146,14 @@ describe("config broker inbox flow", () => {
     });
   });
 
-  // Scenario 3: an incompatible version is refused, recorded, and not retried.
-  it("gives up on a manifest missing the grant definition and applies nothing", async () => {
+  // A broker update can legitimately contain no GAS definition.
+  it("completes a manifest missing the grant definition and applies nothing", async () => {
     await saveEvent("msg-3", [`${GRANT}/${VERSION}/metadata.json`]);
 
     const doc = await handleOne();
 
-    expect(doc.status).toBe(InboxStatus.DEAD_LETTER);
-    expect(doc.retryable).toBe(false);
-    expect(doc.lastError.message).toContain(
-      "does not contain required config file",
-    );
+    expect(doc.status).toBe(InboxStatus.COMPLETED);
+    expect(doc.completionAttempts).toBe(0);
     await expect(configVersions.countDocuments({})).resolves.toBe(0);
   });
 
