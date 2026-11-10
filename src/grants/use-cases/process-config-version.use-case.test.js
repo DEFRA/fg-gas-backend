@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "../../common/logger.js";
 import { S3FetchError } from "../../common/s3-client.js";
 import { processConfigVersionUseCase } from "./process-config-version.use-case.js";
 
@@ -242,6 +243,23 @@ describe("processConfigVersionUseCase", () => {
       });
     });
 
+    it("falls back to gas.json when the configured variant is absent", async () => {
+      mockConfig.configBroker.variant = "next";
+
+      await processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        s3Bucket: "configs-bucket",
+        manifest: ["woodland/1.2.3/gas/gas.json"],
+      });
+
+      expect(mockUpsert.mock.calls[0][0].s3Key).toBe(
+        "woodland/1.2.3/gas/gas.json",
+      );
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("passes empty variant to findS3KeyInManifest when variant is empty", async () => {
       mockConfig.configBroker.variant = "";
 
@@ -339,6 +357,38 @@ describe("processConfigVersionUseCase", () => {
     });
   });
 
+  describe("manifests without a GAS definition", () => {
+    it.each([
+      ["metadata only", "", ["woodland/1.2.3/metadata.json"]],
+      ["workflow only", "", ["woodland/1.2.3/cw/workflow.json"]],
+      ["agreement only", "", ["woodland/1.2.3/gas/agreement.json"]],
+      ["another variant only", "", ["woodland/1.2.3/gas/gas.next.json"]],
+      [
+        "missing configured variant and default",
+        "next",
+        ["woodland/1.2.3/metadata.json"],
+      ],
+    ])("warns and skips a manifest with %s", async (_, variant, manifest) => {
+      mockConfig.configBroker.variant = variant;
+
+      await expect(
+        processConfigVersionUseCase({
+          grantCode: "woodland",
+          version: "1.2.3",
+          status: "active",
+          s3Bucket: "configs-bucket",
+          manifest,
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Skipping config version: woodland@1.2.3"),
+      );
+      expect(mockValidateConfigDefinitions).not.toHaveBeenCalled();
+      expect(mockUpsert).not.toHaveBeenCalled();
+    });
+  });
+
   describe("failures that retrying cannot fix", () => {
     const process = () =>
       processConfigVersionUseCase({
@@ -361,22 +411,6 @@ describe("processConfigVersionUseCase", () => {
       );
 
       expect(thrown.retryable).toBe(false);
-    });
-
-    // The published version is immutable, so a manifest missing the file it must have will
-    // be missing it every time.
-    it("gives up on a manifest with no gas.json", async () => {
-      const thrown = await processConfigVersionUseCase({
-        grantCode: "woodland",
-        version: "1.2.3",
-        status: "active",
-        s3Bucket: "configs-bucket",
-        manifest: ["woodland/1.2.3/metadata.json"],
-      }).catch((error) => error);
-
-      expect(thrown.message).toContain("does not contain required config file");
-      expect(thrown.retryable).toBe(false);
-      expect(mockUpsert).not.toHaveBeenCalled();
     });
 
     it("gives up on a message it cannot read", async () => {

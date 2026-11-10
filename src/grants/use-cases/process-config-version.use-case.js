@@ -86,7 +86,15 @@ const applyConfigVersion = async (eventData) => {
     dir: "gas",
     file: "gas.json",
     variant,
+    required: false,
   });
+  if (!s3Key) {
+    logger.warn(
+      `Skipping config version: ${grantCode}@${version} (manifest has no matching GAS definition)`,
+    );
+    return;
+  }
+
   const agreementS3Key = findS3KeyInManifest(manifest, {
     dir: "gas",
     file: "agreement.json",
