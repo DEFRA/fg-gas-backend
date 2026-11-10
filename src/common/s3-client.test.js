@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   S3FetchError,
   fetchConfigFile,
-  findS3KeyInManifest,
+  findDefinitionKey,
 } from "./s3-client.js";
 
 const { mockSend } = vi.hoisted(() => {
@@ -35,7 +35,7 @@ describe("s3-client", () => {
     vi.clearAllMocks();
   });
 
-  describe("findS3KeyInManifest", () => {
+  describe("findDefinitionKey", () => {
     const defaultKey = "woodland/1.2.3/gas/gas.json";
     const variantKey = "woodland/1.2.3/gas/gas.next.json";
 
@@ -77,13 +77,7 @@ describe("s3-client", () => {
         "farm-payments/1.2.3/gas/gas.json",
       ],
     ])("%s", (_, variant, manifest, expected) => {
-      expect(
-        findS3KeyInManifest(manifest, {
-          dir: "gas",
-          file: "gas.json",
-          variant,
-        }),
-      ).toBe(expected);
+      expect(findDefinitionKey(manifest, "gas.json", variant)).toBe(expected);
     });
   });
 

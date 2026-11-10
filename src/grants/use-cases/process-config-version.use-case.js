@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { findS3KeyInManifest, S3FetchError } from "../../common/s3-client.js";
+import { findDefinitionKey, S3FetchError } from "../../common/s3-client.js";
 import { markPermanentFailure } from "../../events/retryable.js";
 import { parseSemver } from "../../common/semver.js";
 import {
@@ -82,9 +82,7 @@ const applyConfigVersion = async (eventData) => {
   logger.info(`Processing config version: ${grantCode}@${version} (${status})`);
 
   const { variant } = config.configBroker;
-  const findDefinitionKey = (file) =>
-    findS3KeyInManifest(manifest, { dir: "gas", file, variant });
-  const s3Key = findDefinitionKey("gas.json");
+  const s3Key = findDefinitionKey(manifest, "gas.json", variant);
   if (!s3Key) {
     logger.warn(
       `Skipping config version: ${grantCode}@${version} (manifest has no matching GAS definition)`,
@@ -92,8 +90,8 @@ const applyConfigVersion = async (eventData) => {
     return;
   }
 
-  const agreementS3Key = findDefinitionKey("agreement.json");
-  const paymentS3Key = findDefinitionKey("payment.json");
+  const agreementS3Key = findDefinitionKey(manifest, "agreement.json", variant);
+  const paymentS3Key = findDefinitionKey(manifest, "payment.json", variant);
 
   // Checked before the version is recorded, so a definition nothing can use never becomes
   // something a grant, agreement or payment later resolves to.
