@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "AWS_EMF_ENVIRONMENT=Local nodemon --env-file=.env src/main.js",
-    "lint": "eslint --cache --cache-strategy content",
+    "lint": "eslint",
     "format:check": "prettier --check --ignore-unknown .",
     "test": "npm run test:unit -- --run && npm run test:integration -- --run",
     "test:unit": "vitest --config vitest.config.js --dir src",
@@ -41,8 +41,8 @@
   "license": "OGL-UK-3.0",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1146.0",
-    "@aws-sdk/client-sns": "^3.1147.0",
-    "@aws-sdk/client-sqs": "^3.1147.0",
+    "@aws-sdk/client-sns": "^3.1161.0",
+    "@aws-sdk/client-sqs": "^3.1161.0",
     "@aws-sdk/credential-providers": "^3.1147.0",
     "@defra/cdp-metrics": "0.6.1",
     "@defra/fcp-audit-publisher": "^1.0.9",
@@ -50,7 +50,7 @@
     "@defra/hapi-tracing": "^1.28.0",
     "@elastic/ecs-pino-format": "^1.5.0",
     "@hapi/boom": "^10.0.1",
-    "@hapi/hapi": "^21.4.10",
+    "@hapi/hapi": "^21.4.12",
     "@hapi/inert": "^7.1.2",
     "@hapi/jwt": "^3.2.4",
     "@hapi/vision": "^7.0.3",
@@ -65,13 +65,13 @@
     "jsonata": "2.2.2",
     "migrate-mongo": "^14.0.7",
     "mongodb": "^7.6.0",
-    "pino": "^10.3.0",
-    "pino-pretty": "^13.1.1"
+    "pino": "^10.4.0",
+    "pino-pretty": "^13.2.0"
   },
   "devDependencies": {
     "@pact-foundation/pact": "^17.1.4",
     "@vitest/coverage-v8": "5.0.1",
-    "eslint": "^10.12.0",
+    "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import-x": "4.17.1",
     "husky": "^9.1.7",
