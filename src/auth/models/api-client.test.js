@@ -42,7 +42,6 @@ describe("ApiClient.issueToken", () => {
     expect(issue([row()]).toDocument()).toEqual({
       id: HASH,
       clientId: "grants-ui",
-      client: "grants-ui",
       expiresAt: null,
       createdAt: NOW,
       createdBy: "Ann Operator",

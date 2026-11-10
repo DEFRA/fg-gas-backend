@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
+import { decimalPlaces } from "../../common/decimal-places.js";
 import { logger } from "../../common/logger.js";
 import {
   resolveRefs,
@@ -215,7 +216,32 @@ const unresolvedField = (name, claimCode, reference) => {
   );
 };
 
-const resolveFixedField = async (name, field, context, claimCode) => {
+const unstorableDecimal = (name, claimCode, field) =>
+  withErrorCode(
+    Boom.badData(
+      `Entitlement data for claim code '${claimCode}' could not be resolved: field '${name}' is not a number with at most ${field.decimalPlaces} decimal places.`,
+    ),
+    errorCodes.ENTITLEMENT_DATA_UNRESOLVED,
+  );
+
+// Decimals are stored as scaled integers, the form an input field is submitted
+// in, so a fixed decimal taken from the application is scaled to match. One
+// with more decimal places than the template allows is refused rather than
+// rounded, so a capping value is never quietly changed.
+const toStoredDecimal = (name, field, value, claimCode) => {
+  if (!Number.isFinite(value) || decimalPlaces(value) > field.decimalPlaces) {
+    throw unstorableDecimal(name, claimCode, field);
+  }
+
+  return Math.round(value * 10 ** field.decimalPlaces);
+};
+
+const toStoredValue = (name, field, value, claimCode) =>
+  field.unitType === "decimal"
+    ? toStoredDecimal(name, field, value, claimCode)
+    : value;
+
+const resolveFixedValue = async (name, field, context, claimCode) => {
   if (!needsResolution(field.value)) {
     return field.value;
   }
@@ -230,6 +256,14 @@ const resolveFixedField = async (name, field, context, claimCode) => {
     throw error;
   }
 };
+
+const resolveFixedField = async (name, field, context, claimCode) =>
+  toStoredValue(
+    name,
+    field,
+    await resolveFixedValue(name, field, context, claimCode),
+    claimCode,
+  );
 
 const resolveFixedData = async ({
   template,
@@ -261,9 +295,7 @@ const resolveFixedData = async ({
     await Promise.all(
       fields.map(async ([name, field]) => [
         name,
-        valuesNeedResolution
-          ? await resolveFixedField(name, field, context, template.claimCode)
-          : field.value,
+        await resolveFixedField(name, field, context, template.claimCode),
       ]),
     ),
   );

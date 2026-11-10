@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
+import { decimalPlaces } from "../../common/decimal-places.js";
 
 const createAnswersValidator = () => {
   const ajv = new Ajv2020({
@@ -62,6 +63,18 @@ const createAnswersValidator = () => {
         const { schema: keywordSchema } = cxt;
         return `fgSumMax validation failed: sum of fields ${keywordSchema.fields.join(", ")} must be less than or equal to ${keywordSchema.targetField}`;
       },
+    },
+  });
+
+  // Custom keyword to cap decimal places; multipleOf is unreliable with floats
+  ajv.addKeyword({
+    keyword: "fgMaxDecimalPlaces",
+    type: "number",
+    schemaType: "number",
+    metaSchema: { type: "integer", minimum: 0 },
+    validate: (maximum, data) => decimalPlaces(data) <= maximum,
+    error: {
+      message: (cxt) => `must have at most ${cxt.schema} decimal places`,
     },
   });
 

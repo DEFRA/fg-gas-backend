@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { validateAnswersAgainstSchema } from "./schema-validation.service.js";
+import {
+  compileAnswersSchema,
+  validateAnswersAgainstSchema,
+} from "./schema-validation.service.js";
 
 const baseSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -197,6 +200,59 @@ describe("validateAnswersAgainstSchema", () => {
 
       expect(result).toMatchObject({ total: 12.7 });
     });
+  });
+
+  describe("fgMaxDecimalPlaces", () => {
+    const schema = {
+      ...baseSchema,
+      properties: {
+        hectares: { type: "number", fgMaxDecimalPlaces: 4 },
+      },
+    };
+
+    const compileWith = (hectares) =>
+      compileAnswersSchema({ ...baseSchema, properties: { hectares } });
+
+    it.each([270, 0.5, 1.2345, 270.5473, 0.3])(
+      "passes %d, which has no more than the decimal places allowed",
+      (hectares) => {
+        expect(
+          validateAnswersAgainstSchema("ref-1", schema, { hectares }),
+        ).toEqual({ hectares });
+      },
+    );
+
+    it.each([4.12345, 270.54729999999995, 0.1 + 0.2])(
+      "throws for %d, which has more decimal places than allowed",
+      (hectares) => {
+        expect(() =>
+          validateAnswersAgainstSchema("ref-1", schema, { hectares }),
+        ).toThrow(
+          'Application with clientRef "ref-1" has invalid answers: hectares must have at most 4 decimal places',
+        );
+      },
+    );
+
+    it("caps an integer question too", () => {
+      expect(() =>
+        compileWith({ type: "integer", fgMaxDecimalPlaces: 0 }),
+      ).not.toThrow();
+    });
+
+    it("refuses to compile the cap on a question that is not a number", () => {
+      expect(() =>
+        compileWith({ type: "string", fgMaxDecimalPlaces: 4 }),
+      ).toThrow(/fgMaxDecimalPlaces/);
+    });
+
+    it.each([-1, 1.5, "4"])(
+      "refuses to compile a cap of %j decimal places",
+      (maximum) => {
+        expect(() =>
+          compileWith({ type: "number", fgMaxDecimalPlaces: maximum }),
+        ).toThrow();
+      },
+    );
   });
 
   describe("standard schema validation", () => {
