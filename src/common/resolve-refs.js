@@ -37,6 +37,11 @@ const evaluate = async (expression, { context, row }) => {
   return compiled.evaluate(context);
 };
 
+// Whether a definition value points at data rather than being the data itself.
+export const needsResolution = (value) =>
+  typeof value === "string" &&
+  (isJsonataExpression(value) || /[$@]\./.test(value));
+
 // Distinguishable so a caller can tell a reference the data does not answer
 // from a definition that is wrong. Everything else out of here is the latter.
 export class UnresolvedReferenceError extends Error {

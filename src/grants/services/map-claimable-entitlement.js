@@ -1,7 +1,14 @@
+import { needsResolution } from "../../common/resolve-refs.js";
+
 // A claimable entitlement as the API answers it: the template's fields filled
 // in from the entitlement that exists, with decimals back in the units a case
 // officer entered rather than the scaled integers they are stored as.
-const dataValue = (field, value) => value ?? field.value ?? null;
+
+// A reference only resolves at creation, so older entitlements may lack it.
+const templateValue = (field) =>
+  needsResolution(field.value) ? null : field.value;
+
+const dataValue = (field, value) => value ?? templateValue(field) ?? null;
 
 const unscaleDecimalAsText = (value, decimalPlaces) => {
   const sign = value < 0 ? "-" : "";

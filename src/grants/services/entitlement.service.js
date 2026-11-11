@@ -3,6 +3,7 @@ import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load
 import { decimalPlaces } from "../../common/decimal-places.js";
 import { logger } from "../../common/logger.js";
 import {
+  needsResolution,
   resolveRefs,
   UnresolvedReferenceError,
 } from "../../common/resolve-refs.js";
@@ -197,10 +198,6 @@ const flattenData = (data) =>
 
 const fixedFields = (template) =>
   Object.entries(template.fields ?? {}).filter(([, field]) => !field.input);
-
-const needsResolution = (value) =>
-  typeof value === "string" &&
-  (value.startsWith("jsonata:") || /[$@]\./.test(value));
 
 const unresolvedField = (name, claimCode, reference) => {
   logger.warn(
