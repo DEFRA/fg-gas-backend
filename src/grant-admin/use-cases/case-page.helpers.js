@@ -37,6 +37,8 @@ export const readCaseHeader = async (args) => {
       caseRef: summary.caseRef,
       workflowCode: summary.workflowCode,
       position: summary.position,
+      version: summary.currentConfigVersion,
+      names: summary.names,
       closed: summary.closed,
       closedAt: summary.closedAt,
       counterpart: link.counterpart,

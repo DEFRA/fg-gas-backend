@@ -1,3 +1,4 @@
+import { describePhases } from "../models/lifecycle-phases.js";
 import { Position } from "../models/position.js";
 import {
   findLatestActive,
@@ -141,6 +142,14 @@ export const findGrantLifecycle = async ({ code, version }) => {
   }
 
   return grant && lifecycleOf(grant);
+};
+
+// The version's phases, stages and statuses, codes and names alone. Null when
+// not stored, or stored as a grant the model refuses.
+export const findGrantPhaseNames = async ({ code, version }) => {
+  const { grant } = await storedGrantOf(code, version);
+
+  return grant?.phases ? describePhases(grant.phases) : null;
 };
 
 const namedStatusesOf = (phase, stage) =>

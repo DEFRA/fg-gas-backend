@@ -19,6 +19,7 @@ import {
   findConfigVersions,
   findGrantDefinitionSummary,
   findGrantLifecycle,
+  findGrantPhaseNames,
   findGrantVersionEntitlements,
   findStoredGrantDefinition,
   grantVersionExists,
@@ -449,6 +450,63 @@ describe("findGrantLifecycle", () => {
     findByCode.mockRejectedValue(error);
 
     await expect(findGrantLifecycle(ref)).rejects.toBe(error);
+  });
+});
+
+describe("findGrantPhaseNames", () => {
+  const ref = { code: "woodland", version: "2.0.0" };
+
+  it("answers the stored grant's phases, stages and statuses by code and name alone", async () => {
+    findByCode.mockResolvedValue(
+      createTestGrant({
+        phases: [
+          {
+            code: "P",
+            name: "Pre award",
+            stages: [
+              {
+                code: "S",
+                statuses: [{ code: "A", name: "Received", validFrom: [] }],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(await findGrantPhaseNames(ref)).toEqual([
+      {
+        code: "P",
+        name: "Pre award",
+        stages: [
+          {
+            code: "S",
+            name: null,
+            statuses: [{ code: "A", name: "Received" }],
+          },
+        ],
+      },
+    ]);
+    expect(findByCode).toHaveBeenCalledWith("woodland", "2.0.0");
+  });
+
+  it("answers null when the grant file is not stored", async () => {
+    findByCode.mockResolvedValue(null);
+
+    expect(await findGrantPhaseNames(ref)).toBeNull();
+  });
+
+  it("answers null for a stored grant the model refuses", async () => {
+    findByCode.mockRejectedValue(Boom.badImplementation("invalid"));
+
+    expect(await findGrantPhaseNames(ref)).toBeNull();
+  });
+
+  it("fails on anything that is not a defect of the stored grant", async () => {
+    const error = new Error("connection lost");
+    findByCode.mockRejectedValue(error);
+
+    await expect(findGrantPhaseNames(ref)).rejects.toBe(error);
   });
 });
 

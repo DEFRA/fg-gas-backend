@@ -134,6 +134,19 @@ describe("findCwApiTokens", () => {
     expect(JSON.stringify(failure)).not.toContain(HASH);
   });
 
+  it("is a 503 CW_UNREACHABLE when Caseworking cannot be reached", async () => {
+    wreck.get.mockRejectedValue(
+      Object.assign(new Error("Client request error"), {
+        code: "ECONNREFUSED",
+        output: { statusCode: 502 },
+      }),
+    );
+
+    expect(
+      await failureOf(() => findCwApiTokens({ actor: ACTOR })),
+    ).toMatchObject({ statusCode: 503, errorCode: "CW_UNREACHABLE" });
+  });
+
   it("passes Caseworking's inUse through unchanged", async () => {
     wreck.get.mockResolvedValue({ payload: { tokens: [listed] } });
 
@@ -150,14 +163,14 @@ describe("findCwApiTokens", () => {
 });
 
 describe("issueCwApiToken", () => {
-  it("sends only the hash, the hint and whether the client is new", async () => {
+  it("sends only the hash, the hint and whether an issue beside active tokens is confirmed", async () => {
     wreck.post.mockResolvedValue({
       payload: { token: { ...cwToken, clientId: "role-reader", inUse: false } },
     });
 
     await issueCwApiToken(
       "role-reader",
-      { tokenHash: HASH, tokenHint: "x9Q_", expiresAt: null, newClient: true },
+      { tokenHash: HASH, tokenHint: "x9Q_", expiresAt: null, confirmed: false },
       { actor: ACTOR },
     );
 
@@ -168,11 +181,52 @@ describe("issueCwApiToken", () => {
           tokenHash: HASH,
           tokenHint: "x9Q_",
           expiresAt: null,
-          newClient: true,
+          confirmed: false,
         },
         headers: expect.objectContaining({ "x-actor": ACTOR }),
       }),
     );
+  });
+
+  it.each([
+    ["created", true],
+    ["did not create", false],
+  ])("answers that Caseworking %s the client", async (_, newClient) => {
+    wreck.post.mockResolvedValue({
+      payload: {
+        token: { ...cwToken, clientId: "role-reader", inUse: false },
+        newClient,
+      },
+    });
+
+    const issued = await issueCwApiToken(
+      "role-reader",
+      { tokenHash: HASH, tokenHint: "x9Q_", expiresAt: null, confirmed: true },
+      { actor: ACTOR },
+    );
+
+    expect(issued.newClient).toBe(newClient);
+  });
+
+  it.each([
+    ["how many are active", 2, 2],
+    ["no count it cannot read", "two", null],
+  ])("passes on HAS_ACTIVE with %s", async (_, active, passed) => {
+    wreck.post.mockRejectedValue(
+      httpError(409, { errorCode: "HAS_ACTIVE", active }),
+    );
+
+    const failure = await issueCwApiToken(
+      "role-reader",
+      { tokenHash: HASH, tokenHint: "x9Q_", expiresAt: null, confirmed: false },
+      { actor: ACTOR },
+    ).catch((e) => e);
+
+    expect(failure.output.statusCode).toBe(409);
+    expect(failure.output.payload).toMatchObject({
+      errorCode: "HAS_ACTIVE",
+      active: passed,
+    });
   });
 });
 

@@ -34,6 +34,7 @@ import { resolveAndFetchGrant } from "../../src/grants/services/resolve-config-v
 import { loadPaymentDefinition } from "../../src/payments/use-cases/load-payment-definition.js";
 import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
 import { wreck } from "../helpers/wreck.js";
+import { withoutShell } from "../helpers/shell.js";
 
 const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 const OPERATOR = { "x-actor": "Jo Operator", "x-actor-id": OID };
@@ -242,7 +243,8 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
 
     expect(res.headers["cache-control"]).toBe("no-store");
     expect(
-      grantVersionPageSchemas.definition.validate(definition).error,
+      grantVersionPageSchemas.definition.validate(withoutShell(definition))
+        .error,
     ).toBeUndefined();
     expect(definition.header).toEqual({
       code: CODE,
@@ -296,8 +298,9 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
     );
 
     expect(
-      grantVersionPageSchemas.overview.validate(overview).error,
+      grantVersionPageSchemas.overview.validate(withoutShell(overview)).error,
     ).toBeUndefined();
+    expect(overview.shell.catalogue.buckets).toEqual(expect.any(Array));
     expect(overview.header.files).toMatchObject({
       grant: { stored: true, fetchStatus: "pending" },
       agreement: { stored: true, fetchStatus: "pending" },
@@ -341,7 +344,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
       const { payload } = await get(`${CODE}/versions/2.0.0/${tab}`);
 
       expect(
-        grantVersionPageSchemas[tab].validate(payload).error,
+        grantVersionPageSchemas[tab].validate(withoutShell(payload)).error,
       ).toBeUndefined();
       expect(payload.header.counterpart).toEqual({ exists: true });
       expect(await workflowRequests()).toEqual([
@@ -437,7 +440,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
     const { payload } = await get(`${CODE}/versions/2.0.0/phases`);
 
     expect(
-      grantVersionPageSchemas.phases.validate(payload).error,
+      grantVersionPageSchemas.phases.validate(withoutShell(payload)).error,
     ).toBeUndefined();
     expect(payload.problem).toBeNull();
     expect(payload.lifecycle).toMatchObject({
@@ -582,7 +585,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/payment", () => {
 
     expect(res.headers["cache-control"]).toBe("no-store");
     expect(
-      grantVersionPageSchemas.payment.validate(payload).error,
+      grantVersionPageSchemas.payment.validate(withoutShell(payload)).error,
     ).toBeUndefined();
     expect(payload.header.files.payment).toMatchObject({
       stored: true,
@@ -745,7 +748,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/agreement", () => {
 
     expect(res.statusCode).toBe(200);
     expect(
-      grantVersionPageSchemas.agreement.validate(payload).error,
+      grantVersionPageSchemas.agreement.validate(withoutShell(payload)).error,
     ).toBeUndefined();
     expect(payload.agreement.definition).toStrictEqual(agreementDefinition);
     expect(payload.agreement.problem).toBeNull();
@@ -918,7 +921,8 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/entitlements", () =>
 
     expect(res.headers["cache-control"]).toBe("no-store");
     expect(
-      grantVersionPageSchemas.entitlements.validate(payload).error,
+      grantVersionPageSchemas.entitlements.validate(withoutShell(payload))
+        .error,
     ).toBeUndefined();
     expect(payload.entitlements).toStrictEqual({
       entitlementTemplates: [
@@ -1083,7 +1087,9 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/events", () => {
     const { payload: nextPage } = await get(`${CODE}/versions/1.1.0/events`);
 
     expect(res.headers["cache-control"]).toBe("no-store");
-    expect(grantVersionPageSchemas.events.validate(page).error).toBeUndefined();
+    expect(
+      grantVersionPageSchemas.events.validate(withoutShell(page)).error,
+    ).toBeUndefined();
     expect(page.events.rows.map(({ id }) => id)).toEqual([
       deadLettered._id.toHexString(),
       stored._id.toHexString(),
@@ -1108,6 +1114,32 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/events", () => {
         expect.objectContaining({ version: "1.1.0", tab: "events" }),
       ]),
     );
+  });
+
+  it("overview: the version's own events, read beside it in the one call", async () => {
+    await configVersions.insertOne(
+      aConfigVersion("1.0.0", "active", "2026-10-10T09:00:00.000Z"),
+    );
+    const stored = aConfigVersionEvent(
+      CODE,
+      "1.0.0",
+      "2026-10-10T09:00:00.000Z",
+    );
+    await inbox.insertOne(stored);
+
+    const { payload: page } = await get(`${CODE}/versions/1.0.0/overview`);
+
+    expect(
+      grantVersionPageSchemas.overview.validate(withoutShell(page)).error,
+    ).toBeUndefined();
+    expect(page.versionEvents).toMatchObject({
+      outcome: "read",
+      events: { more: false },
+      sourceErrors: [],
+    });
+    expect(page.versionEvents.events.rows.map(({ id }) => id)).toEqual([
+      stored._id.toHexString(),
+    ]);
   });
 
   it("answers no events for a code none were stamped for", async () => {

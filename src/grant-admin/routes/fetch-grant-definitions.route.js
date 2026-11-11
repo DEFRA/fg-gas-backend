@@ -9,6 +9,7 @@ import {
   safeFailAction,
   safeResponseFailAction,
 } from "../services/safe-fail-action.js";
+import { SHELL_ERRORS, answersShell } from "../services/shell-tag.js";
 
 const LABEL = "Fetch grant definitions";
 
@@ -16,6 +17,7 @@ export const fetchGrantDefinitionsRoute = {
   method: "POST",
   path: "/grant-admin/grants/{code}/versions/{version}/fetch",
   options: {
+    ...answersShell(SHELL_ERRORS),
     description:
       "Admin: store each of a grant version's definition files GAS has not stored",
     tags: ["api"],

@@ -5,6 +5,11 @@ import { purgeEventRequestSchema } from "../schemas/purge-event-request.schema.j
 import { decodeActor } from "../services/actor-header.js";
 import { callerOf } from "../services/request-caller.js";
 import { purgeEventUseCase } from "../use-cases/purge-event.use-case.js";
+import {
+  SHELL_ERRORS,
+  SHELL_NOTES,
+  shellPlugins,
+} from "../services/shell-tag.js";
 
 // Encoded by the caller when the name has characters a header cannot carry.
 // The header is required here, so there is always one to decode.
@@ -15,14 +20,16 @@ export const purgeEventRoute = {
   path: "/grant-admin/events/{service}/{box}/{id}/purge",
   options: {
     description:
-      "Admin: set one DEAD_LETTER event aside with a reason. It leaves the dead-letter list, keeps its payload, and is deleted on its new deletion date.",
+      "Admin: set one DEAD_LETTER event that has a deletion date aside with a reason. It leaves the dead-letter list, keeps its payload, and is deleted on its new deletion date. Any other event is refused 409 NOT_PURGEABLE.",
     tags: ["api"],
     validate: {
       params: eventParamsSchema,
       headers: requiredActorHeaderSchema,
       payload: purgeEventRequestSchema,
     },
+    notes: SHELL_NOTES[SHELL_ERRORS],
     plugins: {
+      ...shellPlugins(SHELL_ERRORS),
       "hapi-swagger": {
         responses: {
           [constants.HTTP_STATUS_NO_CONTENT]: { description: "Purged" },
@@ -32,7 +39,8 @@ export const purgeEventRoute = {
           },
           [constants.HTTP_STATUS_NOT_FOUND]: { description: "No such event" },
           [constants.HTTP_STATUS_CONFLICT]: {
-            description: "Not DEAD_LETTER; the body names its status",
+            description:
+              "Not purgeable (not DEAD_LETTER with a deletion date): `code` is NOT_PURGEABLE, and `status` and `statusLabel` name its status, or are null when Caseworking does not say",
           },
           [constants.HTTP_STATUS_GATEWAY_TIMEOUT]: {
             description:

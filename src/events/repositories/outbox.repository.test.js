@@ -1,3 +1,4 @@
+import { NO_ERROR_KEY } from "../../common/buckets/error-key.js";
 import { ObjectId } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -49,14 +50,17 @@ describe("outbox.repository", () => {
         {
           _id: record._id,
         },
-        {
-          $set: {
-            status: OutboxStatus.DEAD_LETTER,
-            claimedAt: null,
-            claimExpiresAt: null,
-            claimedBy: null,
+        [
+          {
+            $set: {
+              status: OutboxStatus.DEAD_LETTER,
+              errorKey: { $ifNull: ["$errorKey", "No error recorded"] },
+              claimedAt: null,
+              claimExpiresAt: null,
+              claimedBy: null,
+            },
           },
-        },
+        ],
       );
     });
   });
@@ -361,14 +365,17 @@ describe("outbox.repository", () => {
             ],
           },
         },
-        {
-          $set: {
-            status: OutboxStatus.DEAD_LETTER,
-            claimedAt: null,
-            claimExpiresAt: null,
-            claimedBy: null,
+        [
+          {
+            $set: {
+              status: OutboxStatus.DEAD_LETTER,
+              errorKey: { $ifNull: ["$errorKey", "No error recorded"] },
+              claimedAt: null,
+              claimExpiresAt: null,
+              claimedBy: null,
+            },
           },
-        },
+        ],
       );
     });
   });
@@ -427,20 +434,27 @@ describe("outbox.repository detail and redrive", () => {
         _id: new ObjectId(ID),
         status: { $in: [OutboxStatus.DEAD_LETTER, OutboxStatus.PURGED] },
       },
-      {
-        $set: {
-          status: OutboxStatus.RESUBMITTED,
-          retryable: true,
-          completionAttempts: 0,
-          attemptHistory: [],
-          lastRedrive: { at: expect.any(String), by: null },
-          expireAt: null,
-          claimedBy: null,
-          claimedAt: null,
-          claimExpiresAt: null,
+      [
+        {
+          $set: {
+            status: OutboxStatus.RESUBMITTED,
+            retryable: true,
+            completionAttempts: 0,
+            attemptHistory: [],
+            lastRedrive: { $literal: { at: expect.any(String), by: null } },
+            expireAt: null,
+            claimedBy: null,
+            claimedAt: null,
+            claimExpiresAt: null,
+            errorKey: {
+              $cond: [{ $eq: ["$errorKey", NO_ERROR_KEY] }, null, "$errorKey"],
+            },
+            payloadRevision: {
+              $add: [{ $ifNull: ["$payloadRevision", 0] }, 1],
+            },
+          },
         },
-        $inc: { payloadRevision: 1 },
-      },
+      ],
       {},
     );
   });

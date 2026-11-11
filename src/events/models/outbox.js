@@ -121,7 +121,7 @@ export class Outbox {
       target: this.target,
       event: this.event,
       lastResubmissionDate: this.lastResubmissionDate,
-      ...withErrorKey(this.lastError),
+      ...withErrorKey(this.lastError, this.status),
       attemptHistory: this.attemptHistory,
       completionAttempts: this.completionAttempts,
       status: this.status,

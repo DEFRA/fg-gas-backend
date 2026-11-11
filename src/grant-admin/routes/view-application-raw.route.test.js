@@ -21,6 +21,8 @@ const HEADER = {
   clientRef: "ref-1",
   code: "woodland",
   position: { phase: null, stage: null, status: null },
+  version: "1.0.0",
+  names: null,
   counterpart: null,
   fetchedAt: "2026-06-16T10:00:00.000Z",
 };

@@ -7,6 +7,8 @@ import {
 import { auditedRead } from "../../events/audited-read.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
 import { composeRecordPage } from "../services/compose-record-page.js";
+import { readVersionEvents } from "../services/version-events.js";
+import { readGrantStatusMap } from "./read-grant-status-map.js";
 import { readWorkflowVersionEventsUseCase } from "./read-record-events.use-case.js";
 import {
   readWorkflowVersionHeader,
@@ -15,11 +17,22 @@ import {
 
 const NOT_STORED = { schemeName: null, requiredRoles: null };
 
-const readOverview = async ({ workflowVersionRead }) => {
-  const { summary, storedBytes } = await workflowVersionRead;
+const readEvents = ({ code, version, actor }) =>
+  readWorkflowVersionEventsUseCase({ code, version, actor });
+
+const readOverview = async (args) => {
+  const [{ summary, storedBytes }, versionEvents] = await Promise.all([
+    args.workflowVersionRead,
+    readVersionEvents("Workflow version overview", () => readEvents(args)),
+  ]);
   const { schemeName, requiredRoles } = summary ?? NOT_STORED;
 
-  return { content: { overview: { schemeName, requiredRoles, storedBytes } } };
+  return {
+    content: {
+      overview: { schemeName, requiredRoles, storedBytes },
+      versionEvents,
+    },
+  };
 };
 
 const readDefinition = async ({ workflowVersionRead }) => {
@@ -39,18 +52,30 @@ const readRaw = async ({ workflowVersionRead }) => {
   return { content: { raw: document, storedBytes }, tooLarge };
 };
 
-const readEvents = ({ code, version, actor }) =>
-  readWorkflowVersionEventsUseCase({ code, version, actor });
+// The grant's lifecycle is read only beside a definition to show.
+const readPhases = async (args) => {
+  const read = await readDefinition(args);
+  const grantStatusMap =
+    read.content.definition === null ? null : await readGrantStatusMap(args);
+
+  return { ...read, content: { ...read.content, grantStatusMap } };
+};
 
 const WORKFLOW_VERSION_TABS = {
   overview: {
     readTab: readOverview,
-    empty: { overview: null },
+    empty: { overview: null, versionEvents: { outcome: "failed" } },
     withCounterpart: true,
   },
   definition: {
     readTab: readDefinition,
     empty: { definition: null },
+    capped: "definition",
+    include: "document",
+  },
+  phases: {
+    readTab: readPhases,
+    empty: { definition: null, grantStatusMap: null },
     capped: "definition",
     include: "document",
   },

@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import {
   apiTokensSchema,
   changedApiTokenExpirySchema,
-  issuedApiTokenSchema,
+  cwIssuedApiTokenSchema,
   rotatedApiTokenSchema,
 } from "../schemas/api-client.schema.js";
 import {
@@ -12,7 +12,6 @@ import {
   bodyOf,
   cwRequest,
   describeError,
-  isUnsent,
   operatorHeaders,
   readCwAnswer,
 } from "./cw-http.js";
@@ -35,6 +34,7 @@ const CONFLICT_CODES = [
   "API_TOKEN_NOT_ACTIVE",
   "API_TOKEN_IN_USE",
   "API_TOKEN_DUPLICATE",
+  "HAS_ACTIVE",
 ];
 
 // The errorCode is the only value read from a Caseworking refusal.
@@ -49,17 +49,8 @@ const withErrorCode = (refusal, errorCode) => {
   return refusal;
 };
 
-// Unlike any other failure, this one certainly changed nothing.
-const unreachable = () =>
-  withErrorCode(
-    Boom.serverUnavailable("CW-BE could not be reached"),
-    "CW_UNREACHABLE",
-  );
-
 const unavailable = (error) =>
-  isUnsent(error)
-    ? unreachable()
-    : Boom.badGateway(`CW-BE clients unavailable: ${describeError(error)}`);
+  Boom.badGateway(`CW-BE clients unavailable: ${describeError(error)}`);
 
 // Caseworking owns its clients' rules, so its refusal of a name, hash or hint
 // is passed on; a 400 without one of its codes is a request GAS got wrong.
@@ -71,11 +62,26 @@ const badRequest = (error) => {
     : unavailable(error);
 };
 
-const conflict = (error) =>
-  withErrorCode(
+const activeOf = (error) => {
+  const active = bodyOf(error)?.active;
+
+  return Number.isInteger(active) && active > 0 ? active : null;
+};
+
+// HAS_ACTIVE says how many tokens are active, and that count is passed on.
+const conflict = (error) => {
+  const errorCode = errorCodeOf(error, CONFLICT_CODES) ?? "UNEXPECTED_FAILURE";
+  const refusal = withErrorCode(
     Boom.conflict("CW-BE refused the change"),
-    errorCodeOf(error, CONFLICT_CODES) ?? "UNEXPECTED_FAILURE",
+    errorCode,
   );
+
+  if (errorCode === "HAS_ACTIVE") {
+    refusal.output.payload.active = activeOf(error);
+  }
+
+  return refusal;
+};
 
 // A 404 without one of Caseworking's codes is a route it does not have yet.
 const notFound = (error) => {
@@ -125,16 +131,17 @@ export const findCwApiTokens = async ({ actor }) =>
     "clients",
   );
 
+// Caseworking decides whether the client is new, as GAS does for its own.
 export const issueCwApiToken = async (
   clientId,
-  { tokenHash, tokenHint, expiresAt, newClient },
+  { tokenHash, tokenHint, expiresAt, confirmed },
   { actor },
 ) =>
   readCwAnswer(
-    issuedApiTokenSchema,
+    cwIssuedApiTokenSchema,
     await request("post", tokensPath(clientId), {
       actor,
-      body: { tokenHash, tokenHint, expiresAt, newClient },
+      body: { tokenHash, tokenHint, expiresAt, confirmed },
     }),
     "clients",
   );

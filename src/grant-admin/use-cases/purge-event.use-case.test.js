@@ -87,18 +87,19 @@ describe("purgeEventUseCase gas", () => {
     });
   });
 
-  it("409s with the current status when the row is no longer DEAD_LETTER", async () => {
+  it("409s NOT_PURGEABLE with the current status when the row is no longer DEAD_LETTER", async () => {
     purgeGasInbox.mockResolvedValue(false);
     gasInboxStatus.mockResolvedValue("COMPLETED");
 
-    await expect(call()).rejects.toMatchObject({
-      output: {
-        payload: {
-          statusCode: 409,
-          status: "COMPLETED",
-          statusLabel: "Completed",
-        },
-      },
+    const error = await call().catch((e) => e);
+
+    expect(error.output.payload).toEqual({
+      statusCode: 409,
+      error: "Conflict",
+      message: "The event is not purgeable",
+      code: "NOT_PURGEABLE",
+      status: "COMPLETED",
+      statusLabel: "Completed",
     });
   });
 
@@ -138,7 +139,7 @@ describe("purgeEventUseCase caseworking", () => {
     expect(await call({ service: "caseworking" })).toBeUndefined();
   });
 
-  it("passes a caseworking 409 through, with the words its status is spelled in", async () => {
+  it("answers a caseworking 409 as NOT_PURGEABLE, with the words its status is spelled in", async () => {
     purgeCwEvent.mockRejectedValue(
       Object.assign(new Error("nope"), {
         output: { statusCode: 409, payload: { status: "COMPLETED" } },
@@ -148,7 +149,25 @@ describe("purgeEventUseCase caseworking", () => {
     await expect(call({ service: "caseworking" })).rejects.toMatchObject({
       output: {
         statusCode: 409,
-        payload: { status: "COMPLETED", statusLabel: "Completed" },
+        payload: {
+          code: "NOT_PURGEABLE",
+          status: "COMPLETED",
+          statusLabel: "Completed",
+        },
+      },
+    });
+  });
+
+  it("answers a caseworking 409 that names no status as NOT_PURGEABLE", async () => {
+    purgeCwEvent.mockRejectedValue(
+      Object.assign(new Error("nope"), {
+        output: { statusCode: 409, payload: {} },
+      }),
+    );
+
+    await expect(call({ service: "caseworking" })).rejects.toMatchObject({
+      output: {
+        payload: { code: "NOT_PURGEABLE", status: null, statusLabel: null },
       },
     });
   });
@@ -162,16 +181,6 @@ describe("purgeEventUseCase caseworking", () => {
 
     await expect(call({ service: "caseworking" })).rejects.toMatchObject({
       output: { payload: { statusLabel: "QUARANTINED" } },
-    });
-  });
-
-  it("passes a caseworking 404 through untouched", async () => {
-    purgeCwEvent.mockRejectedValue(
-      Object.assign(new Error("gone"), { output: { statusCode: 404 } }),
-    );
-
-    await expect(call({ service: "caseworking" })).rejects.toMatchObject({
-      output: { statusCode: 404 },
     });
   });
 

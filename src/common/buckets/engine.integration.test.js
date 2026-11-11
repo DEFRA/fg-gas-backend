@@ -1,6 +1,14 @@
 import { Collection } from "mongodb";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { ledBucket, testBucket } from "./test-bucket.js";
 
 vi.mock("../logger.js");
@@ -146,6 +154,28 @@ describe("the bucket engine on MongoDB", () => {
     );
   });
 
+  it("pages several values of a fact as one list, newest first, and totals them", async () => {
+    const where = { status: ["DEAD_LETTER", "FAILED", "COMPLETED"] };
+    const whole = await query({ where, limit: 100 });
+    const first = await query({ where, limit: 10, count: true });
+    const second = await query({ where, limit: 10, cursor: first.page.next });
+    const expected = await db
+      .collection(bucket.collection)
+      .countDocuments({ status: { $in: where.status } });
+
+    expect(first.plan).toMatchObject({ kind: "exact", bound: ["status"] });
+    expect([...idsOf(first), ...idsOf(second)]).toEqual(
+      idsOf(whole).slice(0, 20),
+    );
+    expect(whole.rows.map(({ time }) => time)).toEqual(
+      whole.rows.map(({ time }) => time).toSorted((a, b) => b.localeCompare(a)),
+    );
+    expect(first.total).toEqual({
+      count: Math.min(expected, 10_000),
+      capped: expected > 10_000,
+    });
+  });
+
   it.each([
     ["the time-only line", {}],
     [
@@ -242,6 +272,24 @@ describe("the bucket engine on MongoDB", () => {
     expect(result.groups[1].total).toEqual(deadLetters);
   });
 
+  it("totals the list with every filter, and caps a large one", async () => {
+    const collection = db.collection(bucket.collection);
+    const deadLetters = await query({
+      where: { status: "DEAD_LETTER", eventType: "case.create" },
+      count: true,
+    });
+    const everything = await query({ count: true });
+
+    expect(deadLetters.total).toEqual({
+      count: await collection.countDocuments({
+        status: "DEAD_LETTER",
+        eventType: "case.create",
+      }),
+      capped: false,
+    });
+    expect(everything.total).toEqual({ count: 10_000, capped: true });
+  });
+
   it("reads stored values with a scan of the fact's own line", async () => {
     const entry = await engine.describeBucket(bucket);
 
@@ -265,13 +313,30 @@ describe("the bucket engine on MongoDB", () => {
     expect(record.page.complete).toBe(true);
   });
 
-  it("tests a fact on a ref's own rows and is complete", async () => {
+  it("totals a ref with a type exactly, tested on the ref's rows", async () => {
+    const where = { eventType: "case.create" };
+    const result = await query({ ref: "ref:record-42", where, count: true });
+
+    expect(result.plan).toMatchObject({
+      kind: "exact",
+      bound: ["ref"],
+      residual: ["eventType"],
+    });
+    expect(result.total).toEqual({
+      count: await db
+        .collection(bucket.collection)
+        .countDocuments({ refs: "ref:record-42", ...where }),
+      capped: false,
+    });
+  });
+
+  it("tests a fact on a ref's own rows exactly, and is complete", async () => {
     const result = await query({
       ref: "ref:record-42",
       where: { status: "PURGED" },
     });
 
-    expect(result.plan).toMatchObject({ kind: "bounded", bound: ["ref"] });
+    expect(result.plan).toMatchObject({ kind: "exact", bound: ["ref"] });
     expect(result.rows).toEqual([]);
     expect(result.page.complete).toBe(true);
   });
@@ -335,24 +400,15 @@ describe("the bucket engine on MongoDB", () => {
     expect(result.rows).toEqual([]);
   });
 
-  describe("a bucket led by a fact that hides a value", () => {
-    const shown = { show: ["eventType"] };
-
+  describe("a bucket led by a fact", () => {
     it.each([
-      ["the lead filled with the values shown", {}],
-      ["the lead filled with every value", shown],
+      ["the lead filled", {}],
       ["the lead bound", { where: { eventType: "case.create" } }],
-      ["a hidden value asked for by name", { where: { eventType: "audit" } }],
+      ["audit asked for by name", { where: { eventType: "audit" } }],
       ["a line behind the filled lead", { where: { status: "DEAD_LETTER" } }],
-      [
-        "a line behind the lead, every value",
-        { ...shown, where: { status: "COMPLETED" } },
-      ],
+      ["another line behind it", { where: { status: "COMPLETED" } }],
       ["a ref behind the filled lead", { ref: "ref:record-41" }],
-      [
-        "a ref behind the lead, every value",
-        { ...shown, ref: "ref:record-40" },
-      ],
+      ["another ref behind it", { ref: "ref:record-40" }],
     ])(
       "reads %s in order from its index, first page and next",
       async (_, body) => {
@@ -377,73 +433,87 @@ describe("the bucket engine on MongoDB", () => {
       },
     );
 
-    it("leaves the hidden rows out until the fact is shown, and counts both exactly", async () => {
+    it("reads every row, audit ones too, on the filled lead, and counts them exactly", async () => {
       const collection = db.collection(led.collection);
       const from = new Date(START + 19_900 * 1000).toISOString();
       const where = { status: "COMPLETED" };
       const stored = { ...where, publicationDate: { $gte: new Date(from) } };
-      const hidden = await collection.countDocuments({
-        ...stored,
-        eventType: "audit",
-      });
-      const body = { where, from, groupBy: ["eventType"], limit: 100 };
-      const off = await query(body, led);
-      const on = await query({ ...shown, ...body }, led);
-
-      expect(hidden).toBeGreaterThan(0);
-      expect(off.plan).toMatchObject({
-        index: ["eventType", "status", "publicationDate", "_id"],
-        bound: ["status"],
-        filled: ["eventType"],
-        scans: 3,
-      });
-      expect(on.plan).toMatchObject({ filled: ["eventType"], scans: 4 });
-      expect(off.rows.some(({ title }) => title === "audit")).toBe(false);
-      expect(on.rows.some(({ title }) => title === "audit")).toBe(true);
-      expect(on.groups[0].total.count).toBe(
-        await collection.countDocuments(stored),
-      );
-      expect(off.groups[0].total.count).toBe(on.groups[0].total.count - hidden);
-    });
-
-    it("counts the tiles over the rows shown", async () => {
-      const collection = db.collection(led.collection);
-      const from = new Date(START + 19_000 * 1000).toISOString();
-      const range = { publicationDate: { $gte: new Date(from) } };
-      const off = await query({ from, groupBy: ["status"] }, led);
-      const on = await query({ ...shown, from, groupBy: ["status"] }, led);
-      const sum = ({ groups: [{ values }] }) =>
-        values.reduce((total, { count }) => total + count, 0);
-
-      expect(sum(on)).toBe(await collection.countDocuments(range));
-      expect(sum(off)).toBe(
-        await collection.countDocuments({
-          ...range,
-          eventType: { $ne: "audit" },
-        }),
-      );
-      expect(off.groups[0].total.count).toBe(sum(off));
-      expect(on.groups[0].total.count).toBe(sum(on));
-    });
-
-    it("finds a ref's hidden rows only once the fact is shown", async () => {
-      const collection = db.collection(led.collection);
-      const off = await query({ ref: "ref:record-40", limit: 100 }, led);
-      const on = await query(
-        { ...shown, ref: "ref:record-40", limit: 100 },
+      const result = await query(
+        { where, from, groupBy: ["eventType"], limit: 100 },
         led,
       );
 
-      expect(off.plan).toMatchObject({
+      expect(
+        await collection.countDocuments({ ...stored, eventType: "audit" }),
+      ).toBeGreaterThan(0);
+      expect(result.plan).toMatchObject({
+        index: ["eventType", "status", "publicationDate", "_id"],
+        bound: ["status"],
+        filled: ["eventType"],
+        scans: 4,
+      });
+      expect(result.rows.some(({ title }) => title === "audit")).toBe(true);
+      expect(result.groups[0].total.count).toBe(
+        await collection.countDocuments(stored),
+      );
+    });
+
+    it("counts the tiles over every row", async () => {
+      const collection = db.collection(led.collection);
+      const from = new Date(START + 19_000 * 1000).toISOString();
+      const result = await query({ from, groupBy: ["status"] }, led);
+      const sum = result.groups[0].values.reduce(
+        (total, { count }) => total + count,
+        0,
+      );
+
+      expect(sum).toBe(
+        await collection.countDocuments({
+          publicationDate: { $gte: new Date(from) },
+        }),
+      );
+      expect(result.groups[0].total.count).toBe(sum);
+    });
+
+    it("totals a ref search exactly, with a status too, tested on the ref's rows", async () => {
+      const collection = db.collection(led.collection);
+      const alone = await query({ ref: "ref:record-40", count: true }, led);
+      const withStatus = await query(
+        { ref: "ref:record-40", where: { status: "COMPLETED" }, count: true },
+        led,
+      );
+
+      expect(alone.total).toEqual({
+        count: await collection.countDocuments({ refs: "ref:record-40" }),
+        capped: false,
+      });
+      expect(withStatus.plan).toMatchObject({
+        kind: "exact",
+        residual: ["status"],
+      });
+      expect(withStatus.total).toEqual({
+        count: await collection.countDocuments({
+          refs: "ref:record-40",
+          status: "COMPLETED",
+        }),
+        capped: false,
+      });
+      expect(withStatus.rows).toHaveLength(withStatus.total.count);
+    });
+
+    it("finds every row of a ref, audit ones too", async () => {
+      const collection = db.collection(led.collection);
+      const result = await query({ ref: "ref:record-40", limit: 100 }, led);
+
+      expect(result.plan).toMatchObject({
         kind: "exact",
         bound: ["ref"],
-        scans: 3,
+        scans: 4,
       });
-      expect(off.rows).toEqual([]);
-      expect(on.rows).toHaveLength(
+      expect(result.rows).toHaveLength(
         await collection.countDocuments({ refs: "ref:record-40" }),
       );
-      expect(on.page.complete).toBe(true);
+      expect(result.page.complete).toBe(true);
     });
   });
 });
@@ -476,13 +546,12 @@ describe("a summary on MongoDB", () => {
     await engine.ensureIndexes(db, summarised);
   });
 
-  it("counts what a direct count finds once hidden rows are shown, most frequent first", async () => {
+  it("counts what a direct count finds, audit rows too, most frequent first", async () => {
     const collection = db.collection(summarised.collection);
     const count = (grantCode) =>
       collection.countDocuments({ status: "DEAD_LETTER", grantCode });
 
-    const result = await summarise({ show: ["eventType"] });
-    const hiding = await summarise();
+    const result = await summarise();
 
     expect(
       result.entries.map(({ values, count: n }) => [values.grantCode, n]),
@@ -490,13 +559,6 @@ describe("a summary on MongoDB", () => {
       ["common-grant", await count("common-grant")],
       ["rare-grant", await count("rare-grant")],
     ]);
-    expect(hiding.entries[0].count).toBe(
-      await collection.countDocuments({
-        status: "DEAD_LETTER",
-        grantCode: "common-grant",
-        eventType: { $ne: "audit" },
-      }),
-    );
     expect(result.entries.every(({ capped }) => !capped)).toBe(true);
     expect(result).toMatchObject({ more: false, complete: true });
   });
@@ -573,5 +635,236 @@ describe("a summary on MongoDB", () => {
       expect(read.stages).not.toContain("SORT");
       expect(read.returned).toBe(1);
     }
+  });
+});
+
+describe("a fact read as a value where it holds none, on MongoDB", () => {
+  const NONE = "None recorded";
+  const keyed = testBucket({
+    collection: "keyed",
+    facts: {
+      ...testBucket().facts,
+      errorKey: {
+        label: "Error",
+        param: "error",
+        nullAs: { value: NONE, among: { status: ["DEAD_LETTER", "PURGED"] } },
+      },
+    },
+    indexes: [["status"], ["code"], ["status", "errorKey", "eventType"]],
+    groupings: ["status"],
+    summaries: [
+      {
+        id: "errors",
+        label: "Errors",
+        by: ["errorKey", "eventType"],
+        among: { status: "DEAD_LETTER" },
+        top: 20,
+        none: NONE,
+      },
+    ],
+  });
+  const rowsOf = (count, fields) =>
+    Array.from({ length: count }, (_, n) => ({
+      publicationDate: new Date(START + n * 1000),
+      eventType: "case.create",
+      ...fields,
+    }));
+  const queryKeyed = (body) => query(body, keyed);
+
+  beforeAll(async () => {
+    const { errorKey, ...missing } = rowsOf(1, {
+      status: "DEAD_LETTER",
+      errorKey: null,
+    })[0];
+
+    await db.collection(keyed.collection).insertMany([
+      ...rowsOf(3, { status: "DEAD_LETTER", errorKey: NONE }),
+      ...rowsOf(2, { status: "DEAD_LETTER", errorKey: null }),
+      missing,
+      ...rowsOf(2, {
+        status: "DEAD_LETTER",
+        errorKey: "Boom",
+        eventType: "case.update.status",
+      }),
+      ...rowsOf(4, { status: "COMPLETED", errorKey: null }),
+      ...rowsOf(1, { status: "PURGED", errorKey: null }),
+      // As the last release's redrive left it.
+      ...rowsOf(1, { status: "RESUBMITTED", errorKey: NONE }),
+    ]);
+    await engine.ensureIndexes(db, keyed);
+  });
+
+  it("counts a dead letter holding no key under the value, in one entry", async () => {
+    const { entries } = await engine.runSummary(
+      keyed,
+      engine.parseSummary(keyed, "errors", {}),
+    );
+
+    expect(
+      entries.map(({ values, count }) => [values.errorKey, count]),
+    ).toEqual([
+      [NONE, 6],
+      ["Boom", 2],
+    ]);
+  });
+
+  it("lists and totals a dead letter holding no key when the value is asked for, exactly", async () => {
+    reads.length = 0;
+    const result = await queryKeyed({
+      where: { status: "DEAD_LETTER", errorKey: NONE },
+      count: true,
+      limit: 50,
+    });
+    const [filter, options] = reads[0];
+    const { executionStats } = await db
+      .collection(keyed.collection)
+      .find(filter, options)
+      .explain("executionStats");
+
+    expect(result.rows).toHaveLength(6);
+    expect(result.total).toEqual({ count: 6, capped: false });
+    expect(result.plan).toMatchObject({
+      kind: "exact",
+      bound: ["status", "errorKey"],
+      scans: 6,
+    });
+    expect(executionStats.totalDocsExamined).toBe(executionStats.nReturned);
+  });
+
+  it("reads a purged row holding no key as the value too", async () => {
+    const result = await queryKeyed({
+      where: { status: ["DEAD_LETTER", "PURGED"], errorKey: NONE },
+      count: true,
+    });
+
+    expect(result.total).toEqual({ count: 7, capped: false });
+  });
+
+  it("reads no key as the value only among the rows named, and the value itself at any status", async () => {
+    const [completed, unasked] = await Promise.all([
+      queryKeyed({
+        where: { status: "COMPLETED", errorKey: NONE },
+        count: true,
+      }),
+      queryKeyed({ where: { errorKey: NONE }, count: true }),
+    ]);
+
+    expect(completed.total).toEqual({ count: 0, capped: false });
+    expect(unasked.total).toEqual({ count: 8, capped: false });
+  });
+
+  it.each([
+    ["a status", { status: "DEAD_LETTER", errorKey: NONE }],
+    ["no status", { errorKey: NONE }],
+    ["a status outside its own", { status: "COMPLETED", errorKey: NONE }],
+  ])(
+    "groups by status with %s asked, All and every tile on the list's own match",
+    async (_, where) => {
+      const { groups } = await queryKeyed({ where, groupBy: ["status"] });
+      const countOf = (status) =>
+        groups[0].values.find(({ value }) => value === status).count;
+      const listed = await Promise.all(
+        ["DEAD_LETTER", "PURGED", "RESUBMITTED", "COMPLETED"].map(
+          async (status) => {
+            const { rows, total } = await queryKeyed({
+              where: { status, errorKey: NONE },
+              count: true,
+              limit: 50,
+            });
+
+            return [rows.length, total.count];
+          },
+        ),
+      );
+
+      expect([
+        countOf("DEAD_LETTER"),
+        countOf("PURGED"),
+        countOf("RESUBMITTED"),
+        countOf("COMPLETED"),
+      ]).toEqual([6, 1, 1, 0]);
+      expect(listed).toEqual([
+        [6, 6],
+        [1, 1],
+        [1, 1],
+        [0, 0],
+      ]);
+      expect(groups[0].total).toEqual({ count: 8, capped: false });
+    },
+  );
+
+  it("lists every row of All, each branch of the match read on the error index", async () => {
+    reads.length = 0;
+    const result = await queryKeyed({
+      where: { errorKey: NONE },
+      count: true,
+      limit: 50,
+    });
+    const [filter, options] = reads[0];
+    const { queryPlanner } = await db
+      .collection(keyed.collection)
+      .find(filter, options)
+      .explain("queryPlanner");
+    const plan = JSON.stringify(queryPlanner.winningPlan);
+
+    expect(result.rows).toHaveLength(8);
+    expect(filter.$or).toHaveLength(2);
+    expect(plan).not.toContain("COLLSCAN");
+    expect(plan).toContain('"indexName":"status_1_errorKey_1_eventType_1');
+  });
+  describe("seen first and last in a summary as it is counted", () => {
+    const timed = { ...keyed, collection: "keyed_times" };
+    const at = (minute) => new Date(START + minute * 60_000);
+    const aDeadLetter = (minute, fields) => ({
+      publicationDate: at(minute),
+      eventType: "case.create",
+      status: "DEAD_LETTER",
+      ...fields,
+    });
+    const errorsOf = async () =>
+      (await engine.runSummary(timed, engine.parseSummary(timed, "errors", {})))
+        .entries;
+
+    beforeEach(async () => {
+      await db.collection(timed.collection).deleteMany({});
+      await engine.ensureIndexes(db, timed);
+    });
+
+    it("dates the value by rows holding it and rows holding none, a newer one too", async () => {
+      const { errorKey, ...missing } = aDeadLetter(10, { errorKey: null });
+      await db
+        .collection(timed.collection)
+        .insertMany([
+          missing,
+          aDeadLetter(30, { errorKey: NONE }),
+          aDeadLetter(50, { errorKey: null }),
+        ]);
+
+      expect(await errorsOf()).toEqual([
+        expect.objectContaining({
+          count: 3,
+          firstAt: at(10).toISOString(),
+          lastAt: at(50).toISOString(),
+        }),
+      ]);
+    });
+
+    it("dates the value when no row holds it", async () => {
+      await db
+        .collection(timed.collection)
+        .insertMany([
+          aDeadLetter(20, { errorKey: null }),
+          aDeadLetter(40, { errorKey: null }),
+        ]);
+
+      expect(await errorsOf()).toEqual([
+        expect.objectContaining({
+          values: { errorKey: NONE, eventType: "case.create" },
+          count: 2,
+          firstAt: at(20).toISOString(),
+          lastAt: at(40).toISOString(),
+        }),
+      ]);
+    });
   });
 });

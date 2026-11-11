@@ -1,3 +1,4 @@
+import { config } from "../../common/config.js";
 import { BUCKET_ID } from "../../common/buckets/bucket.js";
 import { parseQuery, runQuery } from "../../common/buckets/engine.js";
 import { refuse } from "../../common/buckets/refusal.js";
@@ -37,12 +38,18 @@ export const buildQueryBucketAudit = (
   });
 
 const auditedQuery = auditedRead(
-  ({ bucket, query }) => runQuery(bucket, query),
+  ({ bucket, query, deadline }) => runQuery(bucket, query, deadline),
   buildQueryBucketAudit,
+  { deadlineOf: ({ deadline }) => deadline ?? Infinity },
 );
 
+// An audit still writing at the deadline times the read out, as a slow read does.
+const timedOut = (error) => {
+  throw error.outOfTime ? refuse("TIMED_OUT") : error;
+};
+
 // Parsed before the read, so a refused request writes no audit.
-const queryOwnBucket = ({ bucketId, body, caller, repeat }) => {
+const queryOwnBucket = ({ bucketId, body, caller, repeat, deadline }) => {
   const bucket = findBucket(bucketId);
 
   if (!bucket) {
@@ -52,13 +59,24 @@ const queryOwnBucket = ({ bucketId, body, caller, repeat }) => {
   const query = parseQuery(bucket, body);
 
   return bucket.audited
-    ? auditedQuery({ bucket, query, caller, repeat })
-    : runQuery(bucket, query);
+    ? auditedQuery({ bucket, query, caller, repeat, deadline }).catch(timedOut)
+    : runQuery(bucket, query, deadline);
 };
 
 // Caseworking audits its own buckets, so a forwarded read writes none here.
-const forwardToCw = ({ bucketId, body, actor, repeat }) =>
-  queryCwBucket(bucketId, body, { actor, repeat });
+const forwardToCw = ({ bucketId, body, actor, repeat, deadline }) =>
+  queryCwBucket(bucketId, body, { actor, repeat, ...cwTimeoutBy(deadline) });
+
+// A read given a deadline gives Caseworking no longer than it has left.
+const cwTimeoutBy = (deadline) =>
+  deadline === undefined
+    ? {}
+    : {
+        timeout: Math.max(
+          1,
+          Math.min(config.cwBackend.timeoutMs, deadline - Date.now()),
+        ),
+      };
 
 const owners = new Map([
   ["gas", queryOwnBucket],

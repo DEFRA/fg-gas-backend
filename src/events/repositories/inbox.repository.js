@@ -11,6 +11,7 @@ import {
 import {
   claimExpiredAttempt,
   claimExpiredError,
+  deadLetterErrorKey,
   withErrorKey,
   pushAttemptUpdate,
 } from "../last-error.js";
@@ -28,14 +29,17 @@ export const deadLetterEvent = async (event) => {
     {
       _id: event._id,
     },
-    {
-      $set: {
-        status: InboxStatus.DEAD_LETTER,
-        claimedAt: null,
-        claimExpiresAt: null,
-        claimedBy: null,
+    [
+      {
+        $set: {
+          status: InboxStatus.DEAD_LETTER,
+          errorKey: deadLetterErrorKey,
+          claimedAt: null,
+          claimExpiresAt: null,
+          claimedBy: null,
+        },
       },
-    },
+    ],
   );
   return results;
 };
@@ -135,14 +139,17 @@ export const updateDeadEvents = async () => {
         ],
       },
     },
-    {
-      $set: {
-        status: InboxStatus.DEAD_LETTER,
-        claimedAt: null,
-        claimExpiresAt: null,
-        claimedBy: null,
+    [
+      {
+        $set: {
+          status: InboxStatus.DEAD_LETTER,
+          errorKey: deadLetterErrorKey,
+          claimedAt: null,
+          claimExpiresAt: null,
+          claimedBy: null,
+        },
       },
-    },
+    ],
   );
   return results;
 };

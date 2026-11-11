@@ -13,6 +13,7 @@ import { withRequestContext } from "../../src/common/get-request-context.js";
 import { MASKED_HASH } from "../../src/auth/models/masked-hash.js";
 import {
   CASE_NOT_FOUND,
+  countCwDeadLetters,
   findCwBuckets,
   findCwCase,
   findCwCaseExistence,
@@ -37,8 +38,16 @@ import {
   findCwWorkflowVersions,
 } from "../../src/grant-admin/repositories/cw-workflows.repository.js";
 
-const { atLeastLike, boolean, eachLike, integer, like, regex, string } =
-  MatchersV3;
+const {
+  atLeastLike,
+  boolean,
+  constrainedArrayLike,
+  eachLike,
+  integer,
+  like,
+  regex,
+  string,
+} = MatchersV3;
 
 const { cwBackend } = vi.hoisted(() => ({
   cwBackend: { url: undefined, token: "gas-token", timeoutMs: 5000 },
@@ -385,6 +394,96 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
       ));
   });
 
+  describe("the dead letters actuator", () => {
+    const WINDOW = {
+      from: "2026-06-15T10:00:00.000Z",
+      to: "2026-06-16T10:00:00.000Z",
+    };
+
+    const bin = {
+      from: regex(ISO, "2026-06-15T10:00:00.000Z"),
+      to: regex(ISO, "2026-06-15T12:00:00.000Z"),
+      count: integer(2),
+      capped: boolean(false),
+    };
+
+    it("counts each box's dead letters in two-hour bins over the window", () =>
+      run(
+        {
+          states: [{ description: "dead letters exist" }],
+          uponReceiving: "a count of the dead letters of a day",
+          withRequest: {
+            method: "GET",
+            path: "/actuators/dead-letters",
+            query: WINDOW,
+            headers: operatorHeaders,
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              from: WINDOW.from,
+              to: WINDOW.to,
+              countCap: integer(10_000),
+              buckets: eachLike({
+                id: regex("^cw\\.[a-z][a-z0-9-]*$", "cw.outbox"),
+                list: {
+                  path: string("events/cw/outbox"),
+                  query: { status: "DEAD_LETTER" },
+                },
+                bins: constrainedArrayLike(bin, 12, 12, 12),
+              }),
+            },
+          },
+        },
+        async () => {
+          const answer = await asOperator(() =>
+            countCwDeadLetters(
+              { ...WINDOW, binMs: 2 * 60 * 60 * 1000 },
+              { actor: ACTOR },
+            ),
+          );
+
+          expect(answer.buckets[0].bins).toHaveLength(12);
+          expect(answer.buckets[0].list.query).toEqual({
+            status: "DEAD_LETTER",
+          });
+        },
+      ));
+
+    // What an older Caseworking answers, without the route: GAS reads it as
+    // a part Caseworking does not offer yet.
+    it("answers a bare 404 when it has no dead letters actuator", () =>
+      run(
+        {
+          states: [
+            { description: "the dead letters actuator is not deployed" },
+          ],
+          uponReceiving:
+            "a count of dead letters from a Caseworking without it",
+          withRequest: {
+            method: "GET",
+            path: "/actuators/dead-letters",
+            query: WINDOW,
+            headers: operatorHeaders,
+          },
+          willRespondWith: {
+            status: 404,
+            body: { statusCode: 404, error: "Not Found", message: "Not Found" },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            countCwDeadLetters(
+              { ...WINDOW, binMs: 2 * 60 * 60 * 1000 },
+              { actor: ACTOR },
+            ),
+          ).catch((e) => e);
+
+          expect(error.cwReason).toBe("NOT_OFFERED");
+        },
+      ));
+  });
+
   describe("C2: GET /actuators/cases/{workflowCode}/{caseRef}", () => {
     // The seeded case is a series of one, which lists no members.
     const summary = {
@@ -399,6 +498,12 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           0,
           0,
         ),
+      },
+      // Where the case is, as its workflow version's definition names it.
+      names: {
+        phases: eachLike({ code: like("PRE_AWARD"), name: like("Pre award") }),
+        stage: like("Review"),
+        status: like("Received"),
       },
     };
 
@@ -431,7 +536,11 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           );
 
           expect(answer.summary.caseRef).toBe("ref-1");
+          expect(answer.summary.currentConfigVersion).toBe("1.1.0");
           expect(answer.summary.series.members).toBeInstanceOf(Array);
+          expect(answer.summary.names.phases).toEqual([
+            { code: "PRE_AWARD", name: "Pre award" },
+          ]);
           expect(answer.document).toBeNull();
         },
       ));
@@ -926,7 +1035,7 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
             method: "POST",
             path: "/actuators/clients/role-reader/tokens",
             headers: operatorHeaders,
-            body: { tokenHash, tokenHint, expiresAt: null, newClient: true },
+            body: { tokenHash, tokenHint, expiresAt: null, confirmed: false },
           },
           willRespondWith: {
             status: 201,
@@ -943,18 +1052,19 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
                 revokedBy: null,
                 inUse: false,
               },
+              newClient: true,
             },
           },
         },
         async () => {
-          const { token } = await asOperator(() =>
+          const { token, newClient } = await asOperator(() =>
             issueCwApiToken(
               "role-reader",
               {
                 tokenHash: HASH,
                 tokenHint: HINT,
                 expiresAt: null,
-                newClient: true,
+                confirmed: false,
               },
               { actor: ACTOR },
             ),
@@ -966,58 +1076,51 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
             inUse: false,
           });
           expect(token.createdAt).toBeInstanceOf(Date);
+          expect(newClient).toBe(true);
         },
       ));
 
-    it.each([
-      [
-        "a new client whose name is taken",
-        CLIENT,
-        true,
-        409,
-        "API_CLIENT_EXISTS",
-      ],
-      [
-        "a client that does not exist",
-        "no-such-client",
-        false,
-        404,
-        "API_CLIENT_NOT_FOUND",
-      ],
-    ])(
-      "refuses an issue to %s",
-      (description, clientId, newClient, status, errorCode) =>
-        run(
-          {
-            states: callsWithItsToken,
-            uponReceiving: `an issue to ${description}`,
-            withRequest: {
-              method: "POST",
-              path: `/actuators/clients/${clientId}/tokens`,
-              headers: operatorHeaders,
-              body: { tokenHash, tokenHint, expiresAt: null, newClient },
+    it("refuses an unconfirmed issue to a client with an active token", () =>
+      run(
+        {
+          states: callsWithItsToken,
+          uponReceiving: "an unconfirmed issue to a client with active tokens",
+          withRequest: {
+            method: "POST",
+            path: `/actuators/clients/${CLIENT}/tokens`,
+            headers: operatorHeaders,
+            body: { tokenHash, tokenHint, expiresAt: null, confirmed: false },
+          },
+          willRespondWith: {
+            status: 409,
+            body: {
+              statusCode: 409,
+              errorCode: "HAS_ACTIVE",
+              active: integer(1),
             },
-            willRespondWith: refusal(status, errorCode),
           },
-          async () => {
-            const error = await errorOf(() =>
-              issueCwApiToken(
-                clientId,
-                {
-                  tokenHash: HASH,
-                  tokenHint: HINT,
-                  expiresAt: null,
-                  newClient,
-                },
-                { actor: ACTOR },
-              ),
-            );
+        },
+        async () => {
+          const error = await errorOf(() =>
+            issueCwApiToken(
+              CLIENT,
+              {
+                tokenHash: HASH,
+                tokenHint: HINT,
+                expiresAt: null,
+                confirmed: false,
+              },
+              { actor: ACTOR },
+            ),
+          );
 
-            expect(error.output.statusCode).toBe(status);
-            expect(error.output.payload.errorCode).toBe(errorCode);
-          },
-        ),
-    );
+          expect(error.output.statusCode).toBe(409);
+          expect(error.output.payload).toMatchObject({
+            errorCode: "HAS_ACTIVE",
+            active: 1,
+          });
+        },
+      ));
 
     it("revokes another active token of a client", () =>
       run(

@@ -37,6 +37,11 @@ const HEADER = {
 const PAGE = {
   header: HEADER,
   overview: { schemeName: null, requiredRoles: null, storedBytes: null },
+  versionEvents: {
+    outcome: "read",
+    events: { rows: [], more: false },
+    sourceErrors: [{ hop: "CW-BE" }],
+  },
   sourceErrors: [],
   sectionErrors: [],
 };

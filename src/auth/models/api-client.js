@@ -12,17 +12,19 @@ const assertClientName = (clientId) => {
   }
 };
 
-const clientExists = () =>
-  refusal(
-    Boom.conflict("A client with this name already exists"),
-    "API_CLIENT_EXISTS",
+const hasActive = (active) => {
+  const error = refusal(
+    Boom.conflict("The client already has active tokens"),
+    "HAS_ACTIVE",
   );
 
-const clientNotFound = () =>
-  refusal(Boom.notFound("No such client"), "API_CLIENT_NOT_FOUND");
+  error.output.payload.active = active;
+
+  return error;
+};
 
 // A view over the token rows that share a name. It is never stored, so a rule
-// across rows (an existing name) is checked, not guaranteed.
+// across rows (an existing name, an active token) is checked, not guaranteed.
 export class ApiClient {
   constructor(clientId, tokens) {
     this.clientId = clientId;
@@ -39,25 +41,31 @@ export class ApiClient {
     );
   }
 
-  issueToken({ tokenHash, tokenHint, expiresAt, newClient, by, now }) {
+  // Any row names a client, a revoked one included, so a name with none is a
+  // new client. Issuing beside an active token is a choice the operator
+  // confirms.
+  issueToken({ tokenHash, tokenHint, expiresAt, confirmed = true, by, now }) {
     assertClientName(this.clientId);
-    this.assertExistence(newClient);
+    this.assertNoneActive(confirmed, now);
 
-    return AccessToken.issue({
-      clientId: this.clientId,
-      tokenHash,
-      tokenHint,
-      expiresAt,
-      by,
-      now,
-    });
+    return {
+      newClient: this.tokens.length === 0,
+      token: AccessToken.issue({
+        clientId: this.clientId,
+        tokenHash,
+        tokenHint,
+        expiresAt,
+        by,
+        now,
+      }),
+    };
   }
 
-  // Any row names a client, a revoked one included. Issuing to an existing
-  // client needs one, and creating a client needs none.
-  assertExistence(newClient) {
-    if (Boolean(newClient) === this.tokens.length > 0) {
-      throw newClient ? clientExists() : clientNotFound();
+  assertNoneActive(confirmed, now) {
+    const active = this.tokens.filter((token) => token.isActive(now)).length;
+
+    if (active > 0 && !confirmed) {
+      throw hasActive(active);
     }
   }
 }

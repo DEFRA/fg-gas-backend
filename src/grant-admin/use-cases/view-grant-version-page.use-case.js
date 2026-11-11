@@ -26,6 +26,7 @@ import {
   grantVersionNotFound,
   noDefinitionFile,
 } from "../services/grant-not-found.js";
+import { readVersionEvents } from "../services/version-events.js";
 import { readCounterpart } from "./read-counterpart.js";
 import { readGrantVersionEventsUseCase } from "./read-record-events.use-case.js";
 
@@ -67,9 +68,16 @@ const readGrantVersionHeader = async ({
   };
 };
 
-const readOverview = async ({ code, version }) => ({
-  content: { overview: await findGrantDefinitionSummary({ code, version }) },
-});
+const readOverview = async ({ code, version }) => {
+  const [overview, versionEvents] = await Promise.all([
+    findGrantDefinitionSummary({ code, version }),
+    readVersionEvents("Grant version overview", () =>
+      readGrantVersionEventsUseCase({ code, version }),
+    ),
+  ]);
+
+  return { content: { overview, versionEvents } };
+};
 
 // Too large only when stored: a file not stored has no size.
 const toCappedRead = (key, { definition, storedBytes }) => ({
@@ -143,7 +151,7 @@ const readEvents = ({ code, version }) =>
 const GRANT_VERSION_TABS = {
   overview: {
     readTab: readOverview,
-    empty: { overview: null },
+    empty: { overview: null, versionEvents: { outcome: "failed" } },
     withCounterpart: true,
   },
   definition: {

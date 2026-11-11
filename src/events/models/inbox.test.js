@@ -312,6 +312,13 @@ describe("inbox model lastError", () => {
     expect(inbox().lastError).toBeNull();
   });
 
+  it("stores a dead letter that recorded no error under the no-error key", () => {
+    const obj = inbox({ status: InboxStatus.DEAD_LETTER });
+
+    expect(obj.toDocument().errorKey).toBe("No error recorded");
+    expect(inbox().toDocument().errorKey).toBeNull();
+  });
+
   it("records the caught error's name and message on markAsFailed", () => {
     const obj = inbox();
 

@@ -4,12 +4,18 @@ import {
   EDIT_PAYLOAD_BODY_MAX_BYTES,
   editPayloadRequestSchema,
   editPayloadResponseSchema,
+  staleRevisionResponseSchema,
 } from "../schemas/edit-payload-request.schema.js";
 import { eventParamsSchema } from "../schemas/event-params.schema.js";
 import { decodeActor } from "../services/actor-header.js";
 import { callerOf } from "../services/request-caller.js";
 import { safeFailAction } from "../services/safe-fail-action.js";
-import { editPayloadUseCase } from "../use-cases/edit-payload.use-case.js";
+import { saveEventPayloadUseCase } from "../use-cases/save-event-payload.use-case.js";
+import {
+  SHELL_ERRORS,
+  SHELL_NOTES,
+  shellPlugins,
+} from "../services/shell-tag.js";
 
 const actorOf = (request) => decodeActor(request.headers["x-actor"]);
 
@@ -18,7 +24,7 @@ export const editPayloadRoute = {
   path: "/grant-admin/events/{service}/{box}/{id}/payload",
   options: {
     description:
-      "Admin: replace one redrivable event's payload. The event keeps its status; nothing is retried until it is redriven.",
+      "Admin: replace one redrivable event's payload. The event keeps its status and nothing is retried until it is redriven, unless `redrive` asks for that too; a refused or failed redrive leaves the save standing and says so in `redrive`.",
     tags: ["api"],
     validate: {
       params: eventParamsSchema,
@@ -28,11 +34,14 @@ export const editPayloadRoute = {
     },
     payload: { maxBytes: EDIT_PAYLOAD_BODY_MAX_BYTES },
     response: { schema: editPayloadResponseSchema },
+    notes: SHELL_NOTES[SHELL_ERRORS],
     plugins: {
+      ...shellPlugins(SHELL_ERRORS),
       "hapi-swagger": {
         responses: {
           [constants.HTTP_STATUS_OK]: {
-            description: "Saved; the paths that changed, never their values",
+            description:
+              "Saved; the paths that changed, never their values, and what came of a redrive asked for",
           },
           [constants.HTTP_STATUS_BAD_REQUEST]: {
             description:
@@ -44,7 +53,9 @@ export const editPayloadRoute = {
               "Not redrivable (DEAD_LETTER or PURGED); the body names its status",
           },
           [constants.HTTP_STATUS_PRECONDITION_FAILED]: {
-            description: "The payload was edited since the revision given",
+            description:
+              "The payload was edited since the revision given; `code` is STALE_REVISION and `event` the event as GET /grant-admin/events/{service}/{box}/{id} answers it, or null when it cannot be read",
+            schema: staleRevisionResponseSchema,
           },
           [constants.HTTP_STATUS_PAYLOAD_TOO_LARGE]: {
             description: "The request body is over the route's limit",
@@ -63,20 +74,25 @@ export const editPayloadRoute = {
   },
   async handler(request) {
     const { service, box, id } = request.params;
-    const { payload, note, revision } = request.payload;
+    const { payload, note, revision, redrive } = request.payload;
 
-    const { payloadRevision, changedPaths, changedPathsTruncated } =
-      await editPayloadUseCase({
-        service,
-        box,
-        id,
-        payload,
-        note,
-        revision,
-        caller: callerOf(request),
-        actor: actorOf(request),
-      });
+    const saved = await saveEventPayloadUseCase({
+      service,
+      box,
+      id,
+      payload,
+      note,
+      revision,
+      redrive,
+      caller: callerOf(request),
+      actor: actorOf(request),
+    });
 
-    return { payloadRevision, changedPaths, changedPathsTruncated };
+    return {
+      payloadRevision: saved.payloadRevision,
+      changedPaths: saved.changedPaths,
+      changedPathsTruncated: saved.changedPathsTruncated,
+      redrive: saved.redrive,
+    };
   },
 };

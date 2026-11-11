@@ -10,6 +10,7 @@ import {
   safeResponseFailAction,
 } from "../services/safe-fail-action.js";
 import { fetchWorkflowDefinitionUseCase } from "../use-cases/fetch-workflow-definition.use-case.js";
+import { SHELL_ERRORS, answersShell } from "../services/shell-tag.js";
 
 const LABEL = "Fetch workflow definition";
 
@@ -17,6 +18,7 @@ export const fetchWorkflowDefinitionRoute = {
   method: "POST",
   path: "/grant-admin/workflows/{code}/versions/{version}/fetch",
   options: {
+    ...answersShell(SHELL_ERRORS),
     description:
       "Admin: ask Caseworking to store a workflow version's definition it has not stored",
     tags: ["api"],
