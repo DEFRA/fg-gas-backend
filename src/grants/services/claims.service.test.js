@@ -390,6 +390,76 @@ describe("claims.service", () => {
     expect(claimable.data.area.value).toBe(expected);
   });
 
+  it.each([
+    [
+      "a lone reference",
+      "$.application.answers.totalHectaresForSelectedParcels",
+    ],
+    ["a jsonata expression", "jsonata: $.agreement.items[code='PA3'].version"],
+  ])(
+    "returns null, not %s, for a fixed field the entitlement predates",
+    async (_, reference) => {
+      const added = grant(false);
+      added.entitlementTemplates[0].fields.originalArea = {
+        input: false,
+        value: reference,
+        unitType: "decimal",
+        decimalPlaces: 4,
+      };
+      resolveCurrentGrantUseCase.mockResolvedValue({ grant: added });
+      findExistingEntitlements.mockResolvedValue([
+        { ...persistedEntitlement, data: { area: 100000 } },
+      ]);
+
+      const [claimable] = await listClaimableEntitlements({ code, clientRef });
+
+      expect(claimable.data.originalArea).toEqual({
+        value: null,
+        decimalPlaces: 4,
+        minValue: null,
+        maxValue: null,
+      });
+    },
+  );
+
+  it("returns a fixed field's stored value rather than its reference", async () => {
+    const added = grant(false);
+    added.entitlementTemplates[0].fields.originalArea = {
+      input: false,
+      value: "$.application.answers.totalHectaresForSelectedParcels",
+      unitType: "decimal",
+      decimalPlaces: 4,
+    };
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: added });
+    findExistingEntitlements.mockResolvedValue([
+      {
+        ...persistedEntitlement,
+        data: { area: 100000, originalArea: 2705473 },
+      },
+    ]);
+
+    const [claimable] = await listClaimableEntitlements({ code, clientRef });
+
+    expect(claimable.data.originalArea.value).toBe(270.5473);
+  });
+
+  it("falls back to a fixed field's literal value when the entitlement predates it", async () => {
+    const added = grant(false);
+    added.entitlementTemplates[0].fields.actionCode = {
+      input: false,
+      value: "PA3",
+      unitType: "string",
+    };
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: added });
+    findExistingEntitlements.mockResolvedValue([
+      { ...persistedEntitlement, data: { area: 100000 } },
+    ]);
+
+    const [claimable] = await listClaimableEntitlements({ code, clientRef });
+
+    expect(claimable.data.actionCode).toEqual({ value: "PA3" });
+  });
+
   it("refuses a claim whose template configures no claim block", async () => {
     const noClaim = grant(false);
     delete noClaim.entitlementTemplates[0].claim;
