@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveCondition, resolveRefs } from "./resolve-refs.js";
+import {
+  needsResolution,
+  resolveCondition,
+  resolveRefs,
+} from "./resolve-refs.js";
 
 const scope = (context, row) => ({ context, row });
 
@@ -210,5 +214,20 @@ describe("resolveCondition", () => {
     expect(
       await resolveCondition("$.parcels", scope({ parcels: [{ id: 1 }] })),
     ).toBe(true);
+  });
+});
+
+describe("needsResolution", () => {
+  it.each([
+    ["a lone reference", "$.application.answers.total", true],
+    ["a row reference", "@.code", true],
+    ["a jsonata expression", "jsonata: 1 + 1", true],
+    ["text with a reference", "Agreement $.agreement.number", true],
+    ["a literal", "PA3", false],
+    ["a number", 4, false],
+    ["null", null, false],
+    ["undefined", undefined, false],
+  ])("is %s: %s", (_, value, expected) => {
+    expect(needsResolution(value)).toBe(expected);
   });
 });
