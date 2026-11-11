@@ -1,4 +1,5 @@
 import { toErrorKey } from "../common/buckets/error-key.js";
+import { DEAD_LETTER } from "./event-redrive.js";
 
 // Why the last attempt at an inbox/outbox event failed, recorded on the
 // document so the events admin list can show it without anyone reading the
@@ -75,10 +76,19 @@ export const toLastError = (error) => {
 
 // Every write of a `lastError` carries the key Top errors groups it by, so
 // the two can never disagree.
-export const withErrorKey = (lastError) => ({
+export const withErrorKey = (lastError, status) => ({
   lastError,
-  errorKey: toErrorKey(lastError),
+  errorKey:
+    toErrorKey(lastError) ?? (status === DEAD_LETTER ? NO_ERROR_KEY : null),
 });
+
+// The key of a dead letter that recorded no error, so Top errors and the Error
+// filter can ask for exactly those rows rather than for a missing value.
+export const NO_ERROR_KEY = "No error recorded";
+
+// The same rule for a sweep that dead-letters rows it never loads; every row
+// written since keys were stamped holds its own key, or null for none.
+export const deadLetterErrorKey = { $ifNull: ["$errorKey", NO_ERROR_KEY] };
 
 // The claim-expiry sweep has no exception to record: nothing threw, the worker
 // simply stopped answering, so the sweep names itself.

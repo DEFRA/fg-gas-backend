@@ -34,7 +34,6 @@ describe("defineBucket", () => {
     expect(bucket.facts.grantCode).toEqual({
       label: "Grant",
       values: null,
-      toggle: null,
       within: null,
       param: "grant",
     });
@@ -92,7 +91,7 @@ describe("defineBucket", () => {
     expect(() =>
       testBucket({ facts: { ...testBucket().facts, ...facts } }),
     ).toThrow(
-      "has a fact or toggle without a URL key of its own, or with a reserved one",
+      "has a fact without a URL key of its own, or with a reserved one",
     );
   });
 
@@ -181,44 +180,6 @@ describe("defineBucket", () => {
       );
     },
   );
-
-  it("keeps a fact's toggle and the values it hides", () => {
-    const { toggle, values } = ledBucket().facts.eventType;
-
-    expect(toggle).toEqual({ label: "Show audit events", param: "audit" });
-    expect(values.filter(({ hidden }) => hidden)).toEqual([
-      { value: "audit", label: "audit", hidden: true },
-    ]);
-  });
-
-  it.each([
-    ["an open fact", { values: undefined }],
-    ["a stored fact", { values: STORED }],
-  ])("refuses a toggle on %s", (_, overrides) => {
-    expect(() =>
-      testBucket({
-        facts: {
-          shown: {
-            label: "Shown",
-            param: "shown",
-            toggle: { label: "Show hidden", param: "hidden" },
-            ...overrides,
-          },
-        },
-        indexes: [],
-        groupings: [],
-        columns: [],
-      }),
-    ).toThrow("has a toggle on a fact without closed values");
-  });
-
-  it("refuses a hidden value on a fact with no toggle to show it", () => {
-    const { toggle: _, ...eventType } = ledBucket().facts.eventType;
-
-    expect(() =>
-      ledBucket({ facts: { ...ledBucket().facts, eventType } }),
-    ).toThrow("hides a value of a fact that has no toggle to show it");
-  });
 
   it("refuses a fact named show", () => {
     expect(() =>
@@ -324,29 +285,6 @@ describe("defineBucket", () => {
           summaries: [{ ...summary, among: { code: "x" } }],
         }),
       ).toThrow("has a summary among a fact without closed values");
-    });
-
-    it("is refused on a bucket that hides values of a fact it does not lead with", () => {
-      expect(() =>
-        testBucket({
-          indexes,
-          facts: {
-            ...testBucket().facts,
-            status: {
-              label: "Status",
-              param: "status",
-              values: [
-                { value: "DEAD_LETTER", label: "Dead letter" },
-                { value: "HIDDEN", label: "Hidden", hidden: true },
-              ],
-              toggle: { label: "Show hidden", param: "hidden" },
-            },
-          },
-          summaries: [summary],
-        }),
-      ).toThrow(
-        "has a summary, and hides values of a fact it does not lead with",
-      );
     });
 
     it("is refused counting by no fact", () => {

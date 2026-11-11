@@ -4,6 +4,7 @@ import { withRequestContext } from "../../common/get-request-context.js";
 import { wreck } from "../../common/wreck.js";
 import {
   CASE_NOT_FOUND,
+  countCwDeadLetters,
   editCwPayload,
   findCwCase,
   findCwCaseExistence,
@@ -1256,6 +1257,89 @@ describe("Caseworking buckets", () => {
 
       expect(error.output.statusCode).toBe(502);
       expect(wreck.post).not.toHaveBeenCalled();
+    });
+  });
+  describe("countCwDeadLetters", () => {
+    const WINDOW = {
+      from: "2026-10-12T15:00:00.000Z",
+      to: "2026-10-13T15:00:00.000Z",
+    };
+    const ANSWER = {
+      ...WINDOW,
+      countCap: 10_000,
+      buckets: [
+        {
+          id: "cw.outbox",
+          list: { path: "events/cw/outbox", query: { status: "DEAD_LETTER" } },
+          bins: [{ ...WINDOW, count: 2, capped: false }],
+        },
+      ],
+    };
+
+    it("reads the window's bins as the operator", async () => {
+      wreck.get.mockResolvedValue({ payload: ANSWER });
+
+      const answer = await inRequest(() =>
+        countCwDeadLetters(WINDOW, { actor: ACTOR }),
+      );
+
+      const [url, options] = wreck.get.mock.calls[0];
+      expect(answer).toEqual(ANSWER);
+      expect(new URL(url).pathname).toBe("/actuators/dead-letters");
+      expect(Object.fromEntries(new URL(url).searchParams)).toEqual(WINDOW);
+      expect(options.headers).toEqual({
+        authorization: `Bearer ${TOKEN}`,
+        "x-actor-id": OID,
+        "x-actor": ACTOR,
+      });
+    });
+
+    it.each([
+      ["no buckets", { ...ANSWER, buckets: [] }],
+      [
+        "a bin without its count",
+        { ...ANSWER, buckets: [{ ...ANSWER.buckets[0], bins: [WINDOW] }] },
+      ],
+      ["no body", null],
+    ])("answers 502 for %s", async (_, payload) => {
+      wreck.get.mockResolvedValue({ payload });
+
+      const error = await countCwDeadLetters(WINDOW).catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+    });
+
+    it.each([
+      ["a bare 404", failure(404, { message: "Not Found" }), "NOT_OFFERED"],
+      [
+        "a 404 with a reason",
+        failure(404, { reason: "UNKNOWN_BUCKET" }),
+        "ERRORED",
+      ],
+      ["a 504", failure(504, {}), "TIMED_OUT"],
+      ["its own client timeout", Boom.gatewayTimeout(), "TIMED_OUT"],
+      ["a 500", failure(500, {}), "ERRORED"],
+      [
+        "no connection",
+        Object.assign(new Error("connect"), { code: "ECONNREFUSED" }),
+        "UNREACHABLE",
+      ],
+    ])("says why for %s", async (_, error, reason) => {
+      wreck.get.mockRejectedValue(error);
+
+      const thrown = await countCwDeadLetters(WINDOW).catch((e) => e);
+
+      expect(thrown.cwReason).toBe(reason);
+    });
+
+    it("says Caseworking cannot be reached when it is not configured", async () => {
+      cwBackend.url = undefined;
+
+      const thrown = await countCwDeadLetters(WINDOW).catch((e) => e);
+
+      expect(thrown.output.statusCode).toBe(502);
+      expect(thrown.cwReason).toBe("UNREACHABLE");
+      expect(wreck.get).not.toHaveBeenCalled();
     });
   });
 });

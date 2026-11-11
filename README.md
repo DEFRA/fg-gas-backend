@@ -273,6 +273,10 @@ To run the application in `development` mode run:
 npm run dev
 ```
 
+### Migrations
+
+migrate-mongo runs the files in `migrations/` at startup. A file in `migrations/next/` is not run: it belongs to the next release, which moves it up into `migrations/` (its imports lose one `../`). They are kept back so that instances of the release before keep working while this one rolls out.
+
 ### Testing
 
 #### Unit tests

@@ -47,15 +47,20 @@ const emptyCases = () => ({
   records: {},
 });
 
-// The bucket routes: `entries` is the catalogue and `answers` each bucket's
-// query answer by id. A `refusal` reason answers every query 400, as does a
-// query Caseworking's schema refuses; a bucket with no answer is a 404
-// UNKNOWN_BUCKET.
+// The bucket routes: `entries` is the catalogue, `answers` each bucket's
+// query answer by id and `summaries` each bucket's summary answer by id. A
+// `refusal` reason answers every query 400, as does a query Caseworking's
+// schema refuses; a bucket with no answer is a 404 UNKNOWN_BUCKET.
+// `deadLetters` is the dead letters actuator's answer, a bare 404 when null;
+// `deadLettersStatus` fails it with that status instead.
 const emptyBuckets = () => ({
   mode: "ok",
   missingRoute: false,
   entries: [],
   answers: {},
+  summaries: {},
+  deadLetters: null,
+  deadLettersStatus: null,
   timeline: { buckets: [] },
   refusal: null,
 });
@@ -451,6 +456,29 @@ const handleWorkflows = async (pathname, request, response) => {
 const BUCKETS_PATH = "/actuators/buckets";
 const BUCKET_QUERY_PATH = /^\/actuators\/buckets\/([^/]+)\/query$/;
 const TIMELINE_PATH = "/actuators/timeline";
+const BUCKET_SUMMARY_PATH = /^\/actuators\/buckets\/([^/]+)\/summaries\/[^/]+$/;
+const DEAD_LETTERS_PATH = "/actuators/dead-letters";
+
+const answerSummary = (pathname, response) => {
+  const [, bucketId] = BUCKET_SUMMARY_PATH.exec(pathname);
+  const answer = state.buckets.summaries[decodeURIComponent(bucketId)];
+
+  return answer
+    ? send(response, OK, answer)
+    : send(response, NOT_FOUND, { reason: "UNKNOWN_BUCKET" });
+};
+
+const answerDeadLetters = (response) => {
+  const { deadLetters, deadLettersStatus } = state.buckets;
+
+  if (deadLettersStatus) {
+    return send(response, deadLettersStatus, { message: "SECRET-CW-BODY" });
+  }
+
+  return deadLetters
+    ? send(response, OK, deadLetters)
+    : send(response, NOT_FOUND, { message: "Not Found" });
+};
 
 const answerBucketQuery = (pathname, body, response) => {
   const { answers, refusal } = state.buckets;
@@ -473,12 +501,22 @@ const answerBucketQuery = (pathname, body, response) => {
     : send(response, NOT_FOUND, { reason: "UNKNOWN_BUCKET" });
 };
 
-const answerBuckets = (pathname, { body }, buckets, response) =>
-  pathname === BUCKETS_PATH
-    ? send(response, OK, { buckets: buckets.entries })
+const answerBuckets = (pathname, { body }, buckets, response) => {
+  if (pathname === BUCKETS_PATH) {
+    return send(response, OK, { buckets: buckets.entries });
+  }
+
+  if (pathname === DEAD_LETTERS_PATH) {
+    return answerDeadLetters(response);
+  }
+
+  return BUCKET_SUMMARY_PATH.test(pathname)
+    ? answerSummary(pathname, response)
     : answerBucketQuery(pathname, body, response);
+};
 
 // GET /actuators/buckets, POST /actuators/buckets/{bucketId}/query and
+// .../summaries/{summaryId}, GET /actuators/dead-letters and
 // POST /actuators/timeline.
 const handleBuckets = async (pathname, request, response) => {
   const recorded = await record("buckets", request);
@@ -503,8 +541,9 @@ const handleBuckets = async (pathname, request, response) => {
 };
 
 const isBucketPath = (pathname) =>
-  [BUCKETS_PATH, TIMELINE_PATH].includes(pathname) ||
-  BUCKET_QUERY_PATH.test(pathname);
+  [BUCKETS_PATH, TIMELINE_PATH, DEAD_LETTERS_PATH].includes(pathname) ||
+  BUCKET_QUERY_PATH.test(pathname) ||
+  BUCKET_SUMMARY_PATH.test(pathname);
 
 const CLIENTS_PATH =
   /^\/actuators\/clients(?:\/[^/]+\/tokens(?:\/[^/]+(?:\/(revoke|rotate|expiry))?)?)?$/;

@@ -7,6 +7,11 @@ describe("refuse", () => {
     ["UNKNOWN_BUCKET", 404, "No such bucket"],
     ["UNKNOWN_FACT", 400, "A filter names a fact this bucket does not declare"],
     [
+      "SINGLE_VALUE_FACT",
+      400,
+      "A filter gives several values for a fact that takes one",
+    ],
+    [
       "UNKNOWN_REF_KIND",
       400,
       "The search names an identifier kind this bucket does not declare",
@@ -40,6 +45,7 @@ describe("refuse", () => {
       "UNKNOWN_BUCKET",
       "UNKNOWN_SUMMARY",
       "UNKNOWN_FACT",
+      "SINGLE_VALUE_FACT",
       "UNKNOWN_REF_KIND",
       "UNKNOWN_GROUPING",
       "INVALID_CURSOR",

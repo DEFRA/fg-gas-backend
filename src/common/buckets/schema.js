@@ -19,8 +19,16 @@ export const MAX_LINK_LENGTH = 4096;
 
 const value = Joi.string().min(1).max(MAX_VALUE_LENGTH);
 
+export const MAX_FILTER_VALUES = 20;
+
+// A fact is one value, or several for a fact whose values are offered.
+const filter = Joi.alternatives(
+  value,
+  Joi.array().items(value).min(1).max(MAX_FILTER_VALUES),
+);
+
 export const queryRequestSchema = Joi.object({
-  where: Joi.object().pattern(Joi.string().max(100), value).max(8).default({}),
+  where: Joi.object().pattern(Joi.string().max(100), filter).max(8).default({}),
   show: Joi.array().items(Joi.string().max(100)).max(8).default([]),
   ref: Joi.string().max(MAX_LINK_LENGTH),
   from: Joi.string().isoDate(),
@@ -31,6 +39,9 @@ export const queryRequestSchema = Joi.object({
     .items(Joi.string().max(100))
     .max(MAX_GROUPINGS)
     .default([]),
+  // One count of the list with every filter, for its total. No default, so a
+  // body forwarded to a Caseworking that doesn't count yet carries none.
+  count: Joi.boolean(),
 })
   .empty(null)
   .default(emptyQuery);
@@ -45,6 +56,13 @@ const count = {
   count: Joi.number().integer().min(0).required(),
   capped: Joi.boolean().required(),
 };
+
+// One bin of a count over time: the rows from `from` to `to`.
+export const binSchema = Joi.object({
+  from: Joi.string().isoDate().required(),
+  to: Joi.string().isoDate().required(),
+  ...count,
+});
 
 const row = Joi.object({
   id: Joi.string().required(),
@@ -85,6 +103,9 @@ export const queryResponseSchema = Joi.object({
     complete: Joi.boolean().required(),
   }).required(),
   groups: Joi.array().items(group).required(),
+  // Null when not asked for, or on a plan that isn't exact;
+  // absent from a service that doesn't count yet.
+  total: Joi.object(count).allow(null),
 });
 
 export const TIMELINE_LIMIT = 50;
@@ -151,21 +172,21 @@ const factValue = Joi.object({
   label: Joi.string().allow("").required(),
   tone: Joi.string().valid("neutral", "info", "warning", "success", "error"),
   hint: Joi.string(),
+  // From a service that still hides values by default; nothing is hidden now.
   hidden: Joi.boolean(),
 });
 
-// `param` and `toggle.param` are the keys the admin's URLs carry them under.
+// `param` is the key the admin's URLs carry it under.
 const fact = Joi.object({
   name: Joi.string().required(),
   param: Joi.string().required(),
   label: Joi.string().required(),
   values: Joi.array().items(factValue).allow(null).required(),
+  // From a service that still offers a switch for hidden values.
   toggle: Joi.object({
     label: Joi.string().required(),
     param: Joi.string().required(),
-  })
-    .allow(null)
-    .required(),
+  }).allow(null),
   // Optional, so a catalogue from a release before `within` still reads.
   within: Joi.string().allow(null),
 });

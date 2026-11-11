@@ -44,6 +44,7 @@ import { viewWorkflowVersionDefinitionRoute } from "./routes/view-workflow-versi
 import { viewWorkflowVersionEventsRoute } from "./routes/view-workflow-version-events.route.js";
 import { viewWorkflowVersionOverviewRoute } from "./routes/view-workflow-version-overview.route.js";
 import { viewWorkflowVersionRawRoute } from "./routes/view-workflow-version-raw.route.js";
+import { viewOverviewRoute } from "./routes/view-overview.route.js";
 import { viewWorkflowVersionsRoute } from "./routes/view-workflow-versions.route.js";
 import { updateEntitlementRoute } from "./routes/update-entitlement.route.js";
 import { setAuditActor } from "./set-audit-actor.js";
@@ -61,6 +62,7 @@ export const grantAdmin = {
       getEntitlementRoute,
       createEntitlementRoute,
       updateEntitlementRoute,
+      viewOverviewRoute,
       listBucketsRoute,
       queryBucketRoute,
       summariseBucketRoute,

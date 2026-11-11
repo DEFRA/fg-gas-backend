@@ -31,9 +31,11 @@ export const inboxBucket = () =>
     },
     refs: { ref: "Reference", trace: "Trace ID", id: "Event ID" },
     links: ["application", "config"],
+    // One list index per filter shape, then the error lines and Top errors'.
     indexes: [
       ["status"],
-      ["status", "eventType"],
+      ["eventType"],
+      ["eventType", "status"],
       ["status", "lastError.name"],
       ["status", "errorKey", "eventType"],
     ],

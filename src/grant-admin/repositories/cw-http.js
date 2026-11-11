@@ -86,16 +86,41 @@ export const bodyOf = (error) => {
 const unavailable = (error) =>
   Boom.badGateway(`CW-BE is unavailable: ${describeError(error)}`);
 
+// A 404 that names no reason or error code is a route Caseworking does not have.
+const isBareNotFound = (error) => {
+  const body = bodyOf(error) ?? {};
+
+  return statusOf(error) === NOT_FOUND && !body.reason && !body.errorCode;
+};
+
+// Why Caseworking gave no answer, as a part of a page that shows the rest says it.
+const cwReasonOf = (error) => {
+  if (isUnsent(error)) {
+    return "UNREACHABLE";
+  }
+
+  if (TIMEOUT_STATUSES.has(statusOf(error))) {
+    return "TIMED_OUT";
+  }
+
+  return isBareNotFound(error) ? "NOT_OFFERED" : "ERRORED";
+};
+
 const toFailure = (error, label, expected, failures) =>
-  (failures[statusOf(error)] ?? failures.otherwise ?? unavailable)(
-    error,
-    label,
-    expected,
+  Object.assign(
+    (failures[statusOf(error)] ?? failures.otherwise ?? unavailable)(
+      error,
+      label,
+      expected,
+    ),
+    { cwReason: cwReasonOf(error) },
   );
 
 const assertCwConfigured = () => {
   if (!isCwConfigured()) {
-    throw Boom.badGateway("CW-BE is not configured");
+    throw Object.assign(Boom.badGateway("CW-BE is not configured"), {
+      cwReason: "UNREACHABLE",
+    });
   }
 };
 

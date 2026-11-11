@@ -139,7 +139,10 @@ describe("queryBucketRoute", () => {
   it.each([
     ["a free-text search", { payload: { q: "SECRET-TEXT" } }],
     ["a prefix search", { payload: { prefix: "SECRET-TEXT" } }],
-    ["a filter with a list of values", { payload: { where: { a: ["x"] } } }],
+    [
+      "a filter with an empty list of values",
+      { payload: { where: { a: [] } } },
+    ],
     ["a limit over the maximum", { payload: { limit: 101 } }],
     ["no operator name", { headers: { "x-actor-id": OID } }],
     ["no operator id", { headers: { "x-actor": "Jo Operator" } }],

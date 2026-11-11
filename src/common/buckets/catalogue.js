@@ -20,11 +20,6 @@ const readAllStoredValues = async (bucket) =>
 const toValueList = (values) =>
   values?.map((value) => ({ value, label: String(value) })) ?? null;
 
-const hidesValues = ({ values }) =>
-  Array.isArray(values) && values.some(({ hidden }) => hidden);
-
-// A toggle with nothing to show is not one: it is described only while one
-// of the fact's values is hidden.
 const describeFact =
   (stored) =>
   ([name, fact]) => ({
@@ -32,7 +27,8 @@ const describeFact =
     param: fact.param,
     label: fact.label,
     values: fact.values === STORED ? toValueList(stored[name]) : fact.values,
-    toggle: hidesValues(fact) ? fact.toggle : null,
+    // Still sent for one release: a GAS on the last one requires it.
+    toggle: null,
     within: fact.within,
   });
 

@@ -92,10 +92,10 @@ describe("parseQuery", () => {
     expect(query).toEqual({
       where: { status: "DEAD_LETTER", eventType: "case.create" },
       asked: ["status", "eventType"],
-      show: [],
       ref: null,
       refKind: null,
       groupBy: ["status"],
+      count: false,
       cursor: null,
       from: undefined,
       to: undefined,
@@ -391,7 +391,7 @@ describe("runQuery", () => {
       const run = (body) =>
         runQuery(led, parseQuery(led, queryRequestSchema.validate(body).value));
 
-      it("fills the unasked lead with the values it shows, and null", async () => {
+      it("fills the unasked lead with every value it lists, and null", async () => {
         const collection = makeCollection();
 
         const result = await run({ where: { status: "FAILED" } });
@@ -401,7 +401,9 @@ describe("runQuery", () => {
             $and: [
               { status: "FAILED" },
               {
-                eventType: { $in: ["case.create", "case.update.status", null] },
+                eventType: {
+                  $in: ["case.create", "case.update.status", "audit", null],
+                },
               },
             ],
           },
@@ -415,11 +417,11 @@ describe("runQuery", () => {
           bound: ["status"],
           filled: ["eventType"],
           residual: [],
-          scans: 3,
+          scans: 4,
         });
       });
 
-      it("fills it with every listed value once the fact is shown", async () => {
+      it("still takes `show`, which changes nothing now that no value is hidden", async () => {
         const collection = makeCollection();
 
         const result = await run({ show: ["eventType"] });
@@ -436,7 +438,7 @@ describe("runQuery", () => {
         expect(result.plan).toMatchObject({ kind: "exact", scans: 4 });
       });
 
-      it("reads a hidden value that is asked for by name", async () => {
+      it("reads audit asked for by name", async () => {
         const collection = makeCollection();
 
         const result = await run({ where: { eventType: "audit" } });
@@ -464,7 +466,9 @@ describe("runQuery", () => {
           {
             $and: [
               {
-                eventType: { $in: ["case.create", "case.update.status", null] },
+                eventType: {
+                  $in: ["case.create", "case.update.status", "audit", null],
+                },
               },
               { refs: "msg:abc" },
             ],
@@ -477,7 +481,7 @@ describe("runQuery", () => {
           kind: "exact",
           bound: ["ref"],
           filled: ["eventType"],
-          scans: 3,
+          scans: 4,
         });
         expect(bound.plan).toMatchObject({
           kind: "exact",
@@ -486,7 +490,7 @@ describe("runQuery", () => {
         });
       });
 
-      it("counts a group and its total over the values shown", async () => {
+      it("counts a group and its total over every value of the lead", async () => {
         const collection = makeCollection({ count: 2 });
 
         await run({ groupBy: ["status"] });
@@ -495,7 +499,7 @@ describe("runQuery", () => {
         expect(
           collection.countDocuments.mock.calls.every(([filter]) =>
             JSON.stringify(filter).includes(
-              '"eventType":{"$in":["case.create","case.update.status",null]}',
+              '"eventType":{"$in":["case.create","case.update.status","audit",null]}',
             ),
           ),
         ).toBe(true);
@@ -508,26 +512,6 @@ describe("runQuery", () => {
             queryRequestSchema.validate({ show: ["colour"] }).value,
           ),
         ).toThrow(reasonOf("UNKNOWN_FACT"));
-      });
-    });
-
-    it("tests a fact that hides a value on each row when no key holds it", async () => {
-      const loose = ledBucket({ lead: [], indexes: [["status"]] });
-      const collection = makeCollection();
-
-      const result = await runQuery(
-        loose,
-        parseQuery(loose, queryRequestSchema.validate({}).value),
-      );
-
-      expect(collection.find.mock.calls.at(-1)[0]).toEqual({
-        $and: [
-          { eventType: { $in: ["case.create", "case.update.status", null] } },
-        ],
-      });
-      expect(result.plan).toMatchObject({
-        kind: "bounded",
-        residual: ["eventType"],
       });
     });
 
@@ -680,7 +664,7 @@ describe("runQuery", () => {
       expect(filledOf(pageFilter)).toContain(null);
     });
 
-    it("tests the asked facts on rows behind a ref", async () => {
+    it("tests the asked facts on a ref's rows, exactly while they fit the scan budget", async () => {
       const collection = makeCollection();
 
       const result = await runQuery(
@@ -695,7 +679,7 @@ describe("runQuery", () => {
         $and: [{ refs: "msg:abc" }, { status: "PURGED" }],
       });
       expect(result.plan).toMatchObject({
-        kind: "bounded",
+        kind: "exact",
         bound: ["ref"],
         residual: ["status"],
         scans: 1,
@@ -704,7 +688,7 @@ describe("runQuery", () => {
     });
 
     it("logs the facts asked and the line that led, never a value", async () => {
-      makeCollection();
+      makeCollection({ finds: [[], [], [doc(1)]] });
 
       await runQuery(bucket, parse(body));
       await runQuery(bucket, parse({ ref: "msg:abc", where: { status: "X" } }));
@@ -717,6 +701,210 @@ describe("runQuery", () => {
         2,
         "Bucket test.outbox bounded read: asked [status], lead [refs]",
       );
+    });
+  });
+
+  describe("several values of a fact", () => {
+    it("reads them as one of, bound on the key that holds the fact", async () => {
+      const collection = makeCollection();
+
+      const result = await runQuery(
+        bucket,
+        parse({ where: { status: ["DEAD_LETTER", "FAILED"] } }),
+      );
+
+      expect(collection.find.mock.calls[0][0]).toEqual({
+        $and: [{ status: { $in: ["DEAD_LETTER", "FAILED"] } }],
+      });
+      expect(result.plan).toMatchObject({
+        kind: "exact",
+        index: ["status", "publicationDate", "_id"],
+        bound: ["status"],
+        scans: 2,
+      });
+    });
+
+    it("tests a residual fact as one of its values", async () => {
+      const collection = makeCollection();
+
+      const result = await runQuery(
+        bucket,
+        parse({ where: { status: "DEAD_LETTER", source: ["AS", "CW"] } }),
+      );
+
+      expect(result.plan).toMatchObject({
+        kind: "bounded",
+        residual: ["source"],
+      });
+      expect(JSON.stringify(collection.find.mock.calls.at(-1)[0])).toContain(
+        '"source":{"$in":["AS","CW"]}',
+      );
+    });
+
+    it("reads one value given as a list as that value", () => {
+      expect(parse({ where: { status: ["FAILED", "FAILED"] } }).where).toEqual({
+        status: "FAILED",
+      });
+    });
+
+    it("counts the total with every value", async () => {
+      const collection = makeCollection({ count: 5 });
+
+      const result = await runQuery(
+        bucket,
+        parse({ where: { status: ["DEAD_LETTER", "FAILED"] }, count: true }),
+      );
+
+      expect(collection.countDocuments.mock.calls[0][0]).toEqual({
+        $and: [{ status: { $in: ["DEAD_LETTER", "FAILED"] } }],
+      });
+      expect(result.total).toEqual({ count: 5, capped: false });
+    });
+
+    it("refuses several values of a fact whose values aren't offered", () => {
+      expect(() => parse({ where: { grantCode: ["a", "b"] } })).toThrow(
+        expect.objectContaining({
+          output: expect.objectContaining({
+            payload: expect.objectContaining({ reason: "SINGLE_VALUE_FACT" }),
+          }),
+        }),
+      );
+    });
+  });
+
+  describe("total", () => {
+    it("counts the list with every filter, up to the cap, when asked", async () => {
+      const collection = makeCollection({ count: COUNT_CAP + 1 });
+
+      const result = await runQuery(
+        bucket,
+        parse({
+          where: { status: "DEAD_LETTER", eventType: "case.create" },
+          count: true,
+        }),
+      );
+
+      expect(collection.countDocuments).toHaveBeenCalledExactlyOnceWith(
+        { $and: [{ status: "DEAD_LETTER", eventType: "case.create" }] },
+        {
+          hint: { status: 1, eventType: 1, publicationDate: -1, _id: -1 },
+          limit: COUNT_CAP + 1,
+          maxTimeMS: 5000,
+        },
+      );
+      expect(result.total).toEqual({ count: COUNT_CAP, capped: true });
+    });
+
+    it("counts within the time range", async () => {
+      const collection = makeCollection({ count: 4 });
+
+      const result = await runQuery(
+        bucket,
+        parse({
+          where: { status: "DEAD_LETTER" },
+          from: "2026-10-01T00:00:00.000Z",
+          to: "2026-10-02T00:00:00.000Z",
+          count: true,
+        }),
+      );
+
+      expect(
+        JSON.stringify(collection.countDocuments.mock.calls[0][0]),
+      ).toContain("2026-10-01T00:00:00.000Z");
+      expect(result.total).toEqual({ count: 4, capped: false });
+    });
+
+    it("answers no total when not asked, and null on a plan that isn't exact", async () => {
+      const collection = makeCollection({ count: 3 });
+
+      const results = await Promise.all([
+        runQuery(bucket, parse({ where: { status: "DEAD_LETTER" } })),
+        runQuery(
+          bucket,
+          parse({ where: { grantCode: "example-grant" }, count: true }),
+        ),
+      ]);
+
+      expect(results[0]).not.toHaveProperty("total");
+      expect(results[1].total).toBeNull();
+      expect(collection.countDocuments).not.toHaveBeenCalled();
+    });
+
+    it("reads a ref with a status or a type exactly, row by row, and counts it with them", async () => {
+      const collection = makeCollection({ count: 2 });
+
+      const result = await runQuery(
+        bucket,
+        parse({
+          ref: "msg:abc",
+          where: { status: "FAILED", eventType: "case.create" },
+          count: true,
+        }),
+      );
+      const ref = { refs: "msg:abc" };
+      const others = { status: "FAILED", eventType: "case.create" };
+
+      expect(collection.find.mock.calls[0][1]).toMatchObject({
+        skip: SCAN_BUDGET - 1,
+        limit: 1,
+      });
+      expect(result.plan).toMatchObject({
+        kind: "exact",
+        bound: ["ref"],
+        residual: ["status", "eventType"],
+      });
+      expect(collection.find.mock.calls[1][0]).toEqual({
+        $and: [ref, others],
+      });
+      expect(collection.countDocuments).toHaveBeenCalledExactlyOnceWith(
+        { $and: [ref, others] },
+        expect.objectContaining({ limit: COUNT_CAP + 1 }),
+      );
+      expect(result.total).toEqual({ count: 2, capped: false });
+      expect(result.page.complete).toBe(true);
+    });
+
+    it("reads a ref with a status as bounded, with no total, once the ref has more rows than the scan budget", async () => {
+      const collection = makeCollection({
+        finds: [[doc(1)], []],
+        count: 2,
+      });
+      const edgeReads = () =>
+        collection.find.mock.calls.filter(([, { skip }]) => skip).length;
+
+      const result = await runQuery(
+        bucket,
+        parse({ ref: "msg:abc", where: { status: "FAILED" }, count: true }),
+      );
+
+      expect(result.plan).toMatchObject({
+        kind: "bounded",
+        residual: ["status"],
+      });
+      expect(result.total).toBeNull();
+      expect(result.page).toMatchObject({ complete: false });
+      expect(edgeReads()).toBe(1);
+      expect(collection.countDocuments).not.toHaveBeenCalled();
+    });
+
+    it("counts a ref search on its own index, up to the cap", async () => {
+      const collection = makeCollection({ count: COUNT_CAP + 1 });
+
+      const result = await runQuery(
+        bucket,
+        parse({ ref: "msg:abc", count: true }),
+      );
+
+      expect(result.plan).toMatchObject({ kind: "exact", bound: ["ref"] });
+      expect(collection.countDocuments).toHaveBeenCalledExactlyOnceWith(
+        { $and: [{ refs: "msg:abc" }] },
+        {
+          hint: { refs: 1, publicationDate: -1, _id: -1 },
+          limit: COUNT_CAP + 1,
+          maxTimeMS: 5000,
+        },
+      );
+      expect(result.total).toEqual({ count: COUNT_CAP, capped: true });
     });
   });
 
@@ -1289,7 +1477,7 @@ describe("describeBucket", () => {
     });
   });
 
-  it("describes a toggle and its hidden values, and puts the lead in every index line", async () => {
+  it("puts the lead in every index line", async () => {
     const entry = await describeBucket(ledBucket());
 
     expect(entry.facts[0]).toEqual({
@@ -1299,28 +1487,13 @@ describe("describeBucket", () => {
       values: [
         { value: "case.create", label: "case.create" },
         { value: "case.update.status", label: "case.update.status" },
-        { value: "audit", label: "audit", hidden: true },
+        { value: "audit", label: "audit" },
       ],
-      toggle: { label: "Show audit events", param: "audit" },
+      toggle: null,
       within: null,
     });
     expect(entry.indexes).toEqual([["eventType"], ["eventType", "status"]]);
     expect(catalogueEntrySchema.validate(entry).error).toBeUndefined();
-  });
-
-  it("describes no toggle on a fact that hides nothing", async () => {
-    const { eventType, status, grantCode } = ledBucket().facts;
-    const open = ledBucket({
-      facts: {
-        eventType: { ...eventType, values: eventType.values.slice(0, 2) },
-        status,
-        grantCode,
-      },
-    });
-
-    const entry = await describeBucket(open);
-
-    expect(entry.facts[0].toggle).toBeNull();
   });
 
   it("describes the fact a fact is within", async () => {
@@ -1514,7 +1687,6 @@ describe("a summary", () => {
       summaryRequestSchema.validate(body).value,
     );
   const summarise = (body = {}) => runSummary(summarised, parseIt(body));
-  const shown = { show: ["eventType"] };
   const counting = (collection, counts) =>
     collection.countDocuments.mockImplementation(
       async ({ $and: [{ grantCode }] }) => counts[grantCode],
@@ -1552,7 +1724,7 @@ describe("a summary", () => {
     );
   });
 
-  it("leaves the hidden value out of its scans and counts until it is shown", async () => {
+  it("scans and counts every value of the lead", async () => {
     const collection = makeCollection({
       groups: [{ _id: "alpha" }],
       count: 1,
@@ -1561,20 +1733,20 @@ describe("a summary", () => {
     await summarise();
 
     expect(collection.aggregate.mock.calls.map(([[stage]]) => stage)).toEqual(
-      ["case.create", "case.update.status", null].map((eventType) => ({
+      ["case.create", "case.update.status", "audit", null].map((eventType) => ({
         $match: { eventType, status: "DEAD_LETTER" },
       })),
     );
     expect(collection.countDocuments.mock.calls[0][0].$and[1]).toEqual({
-      eventType: { $in: ["case.create", "case.update.status", null] },
+      eventType: { $in: ["case.create", "case.update.status", "audit", null] },
     });
   });
 
-  it("finds the distinct values with one stepping scan per filled value within the range, the hidden one too once shown", async () => {
+  it("finds the distinct values with one stepping scan per filled value within the range", async () => {
     const collection = makeCollection({ groups: [{ _id: "alpha" }] });
     const since = { $gte: new Date("2026-10-08T00:00:00.000Z") };
 
-    await summarise({ ...shown, from: "2026-10-08T00:00:00.000Z" });
+    await summarise({ from: "2026-10-08T00:00:00.000Z" });
 
     expect(collection.aggregate).toHaveBeenCalledTimes(4);
     expect(collection.aggregate.mock.calls.map(([[stage]]) => stage)).toEqual(
@@ -1615,10 +1787,7 @@ describe("a summary", () => {
       ],
     };
 
-    const result = await summarise({
-      ...shown,
-      from: "2026-10-08T00:00:00.000Z",
-    });
+    const result = await summarise({ from: "2026-10-08T00:00:00.000Z" });
 
     expect(collection.countDocuments).toHaveBeenCalledExactlyOnceWith(filter, {
       hint,
@@ -1746,12 +1915,15 @@ describe("a summary", () => {
       ],
       { hint, maxTimeMS: 5000 },
     );
-    expect(collection.countDocuments.mock.calls[0][0].$and[0]).toEqual({
+    expect(
+      collection.countDocuments.mock.calls.map(([filter]) => filter.$and[0]),
+    ).toContainEqual({
       status: "DEAD_LETTER",
       grantCode: "alpha",
       eventType: "case.create",
     });
     expect(result.entries.map(({ values }) => values)).toEqual([
+      { grantCode: "alpha", eventType: "audit" },
       { grantCode: "alpha", eventType: "case.create" },
       { grantCode: "alpha", eventType: "case.update.status" },
       { grantCode: "alpha", eventType: null },
