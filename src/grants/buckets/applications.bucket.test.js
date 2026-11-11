@@ -42,6 +42,13 @@ describe("gas.applications", () => {
     });
   });
 
+  it("is searched by the fields each grant declares", () => {
+    expect(bucket.search).toEqual({
+      collection: "application_search",
+      lead: "code",
+    });
+  });
+
   it("declares its ref kinds", () => {
     expect(bucket.refs).toEqual({
       ref: "Reference",

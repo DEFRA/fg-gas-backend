@@ -34,6 +34,7 @@ export const queryBucketRoute = {
       body: request.payload,
       caller: callerOf(request),
       actor: request.headers["x-actor"],
+      actorId: request.headers["x-actor-id"],
       repeat: request.headers["x-search-repeat"] === "1",
     }),
 };

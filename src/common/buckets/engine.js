@@ -1,11 +1,19 @@
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { db } from "../mongo-client.js";
-import { STORED, keyOf, toIso, toStoredTime } from "./bucket.js";
+import { MAX_VALUE_LENGTH } from "../search/keys.js";
+import { normalise } from "../search/normalise.js";
+import { STORED, keyOf, toIso } from "./bucket.js";
 import { decodeCursor, encodeCursor } from "./cursor.js";
+import {
+  declaredField,
+  describeFieldPlan,
+  readFieldSearch,
+} from "./field-search.js";
 import {
   BOUNDED,
   EXACT,
+  FIELD,
   REFS,
   SCAN_BUDGET,
   choosePlan,
@@ -13,19 +21,28 @@ import {
   fillOf,
   scansOf,
 } from "./plan.js";
+import {
+  COUNT_CAP,
+  cappedAt,
+  collectionOf,
+  endOfPage,
+  pageAfter,
+  positionOf,
+  rangeOf,
+  readOptions,
+  refuseTimedOut,
+  timeLeft,
+  toRow,
+} from "./read.js";
 import { toRef } from "./refs.js";
 import { refuse } from "./refusal.js";
 import { findBucket, listBuckets } from "./registry.js";
 import { TIMELINE_LIMIT, queryRequestSchema } from "./schema.js";
 
-export const COUNT_CAP = 10_000;
-
 // A summary counts one entry at a time, on an index line of its own, so it can
 // afford to count further than a tile does.
 export const SUMMARY_COUNT_CAP = 100_000;
 export const MAX_VALUES = 100;
-
-const MAX_TIME_MS_EXPIRED = 50;
 
 export const readTimeoutMs = () => config.adminReadTimeoutMs;
 
@@ -65,6 +82,49 @@ const parseRef = (bucket, text) => {
   return { ref, refKind };
 };
 
+const hasOthers = (where, ref) => Object.keys(where).length > 1 || ref !== null;
+
+const assertFieldAlone = (bucket, where, ref) => {
+  if (!bucket.search) {
+    throw refuse("UNKNOWN_FIELD");
+  }
+
+  if (!Object.hasOwn(where, bucket.search.lead)) {
+    throw refuse("FIELD_NEEDS_LEAD");
+  }
+
+  if (hasOthers(where, ref)) {
+    throw refuse("FIELD_WITH_FILTER");
+  }
+};
+
+const isSearchable = (raw, value) =>
+  raw.length <= MAX_VALUE_LENGTH && value !== "";
+
+// "<key>:<value>", split on the first colon. Its match is known only once the
+// declaration is read, in `prepareQuery`.
+const parseField = (bucket, text, where, ref) => {
+  if (text === undefined) {
+    return null;
+  }
+
+  assertFieldAlone(bucket, where, ref);
+
+  const colon = text.indexOf(":");
+  const raw = text.slice(colon + 1);
+  const value = normalise(raw);
+
+  if (colon < 1) {
+    throw refuse("UNKNOWN_FIELD");
+  }
+
+  if (!isSearchable(raw, value)) {
+    throw refuse("INVALID_FIELD_VALUE");
+  }
+
+  return { key: text.slice(0, colon), match: null, value };
+};
+
 export const parseShow = (bucket, show) => {
   if (!show.every((name) => Object.hasOwn(bucket.facts, name))) {
     throw refuse("UNKNOWN_FACT");
@@ -92,11 +152,14 @@ export const parseRange = ({ from, to }) => {
   return { from, to };
 };
 
+const FIELD_PLAN = { kind: EXACT, line: FIELD, filled: [], residual: [] };
+
 export const parseQuery = (bucket, body) => {
   const where = parseWhere(bucket, body.where);
   const asked = Object.keys(where);
   const { ref, refKind } = parseRef(bucket, body.ref);
   const show = parseShow(bucket, body.show);
+  const field = parseField(bucket, body.field, where, ref);
 
   return {
     where,
@@ -104,12 +167,22 @@ export const parseQuery = (bucket, body) => {
     show,
     ref,
     refKind,
+    field,
     groupBy: parseGroupBy(bucket, body.groupBy),
     cursor: parseCursor(bucket, body.cursor),
     ...parseRange(body),
     limit: body.limit,
-    plan: choosePlan(bucket, asked, ref !== null, show),
+    plan: field ? FIELD_PLAN : choosePlan(bucket, asked, ref !== null, show),
   };
+};
+
+// `parseQuery`, and a field search checked against its declaration.
+export const prepareQuery = async (bucket, body) => {
+  const query = parseQuery(bucket, body);
+
+  return query.field
+    ? { ...query, field: await declaredField(bucket, query) }
+    : query;
 };
 
 export const and = (parts) => {
@@ -139,20 +212,10 @@ const filledPart = (read, unset) =>
 
 const refPart = ({ query }) => (query.ref ? { refs: query.ref } : {});
 
-const bounds = (bucket, entries) =>
-  Object.fromEntries(
-    entries
-      .filter(([, value]) => value !== undefined)
-      .map(([operator, value]) => [operator, toStoredTime(bucket, value)]),
-  );
+export const rangePart = (read) => {
+  const range = rangeOf(read);
 
-export const rangePart = ({ bucket, query }) => {
-  const range = bounds(bucket, [
-    ["$gte", query.from],
-    ["$lte", query.to],
-  ]);
-
-  return Object.keys(range).length ? { [bucket.time.field]: range } : {};
+  return Object.keys(range).length ? { [read.bucket.time.field]: range } : {};
 };
 
 // A residual nothing asked for is a fact that hides values: it is tested
@@ -178,8 +241,6 @@ const keysetParts = ({ bucket, query: { cursor } }) =>
 const olderThanCursor = ({ bucket, query: { cursor } }) =>
   cursor ? { [bucket.time.field]: { $lt: cursor.t } } : {};
 
-const positionOf = (bucket, doc) => ({ t: doc[bucket.time.field], i: doc._id });
-
 const withinEdge = ({ bucket }, edge) => {
   if (!edge) {
     return [];
@@ -200,23 +261,10 @@ export const matchParts = (read) => [
   rangePart(read),
 ];
 
-export const collectionOf = ({ bucket }) => db.collection(bucket.collection);
-
-const timeLeft = ({ deadline }) => Math.max(1, deadline - Date.now());
-
-export const readOptions = (read) => ({
-  hint: keyOf(read.bucket, read.plan.line),
-  maxTimeMS: timeLeft(read),
-});
-
 const findOptions = (read) => ({
   ...readOptions(read),
   sort: { [read.bucket.time.field]: -1, _id: -1 },
 });
-
-export const refuseTimedOut = (error) => {
-  throw error.code === MAX_TIME_MS_EXPIRED ? refuse("TIMED_OUT") : error;
-};
 
 const readEdge = async (read) => {
   const [edge = null] = await collectionOf(read)
@@ -262,20 +310,6 @@ const readRows = (read, edge) =>
     .toArray()
     .catch(refuseTimedOut);
 
-const toRow = (bucket) => (doc) => ({
-  id: String(doc._id),
-  time: toIso(doc[bucket.time.field]),
-  ...bucket.row.present(doc),
-});
-
-const endOfPage = { next: null, keepLooking: null, searchedTo: null };
-
-const pageAfter = (bucket, last) => ({
-  ...endOfPage,
-  next: encodeCursor(positionOf(bucket, last)),
-  complete: false,
-});
-
 const pageWithin = (bucket, edge) =>
   edge
     ? {
@@ -311,7 +345,7 @@ export const readCount = async (read, cap = COUNT_CAP) => {
     })
     .catch(refuseTimedOut);
 
-  return { count: Math.min(found, cap), capped: found > cap };
+  return cappedAt(found, cap);
 };
 
 const leadLine = (bucket, fact) =>
@@ -389,7 +423,7 @@ const readGroup = (read) => async (fact) => {
   return { by: fact, values, total };
 };
 
-const describePlan = (read) => ({
+const describeLinePlan = (read) => ({
   kind: read.plan.kind,
   index: Object.keys(keyOf(read.bucket, read.plan.line)),
   bound: [...boundFacts(read), ...(leadsOnRefs(read.plan) ? ["ref"] : [])],
@@ -403,6 +437,9 @@ const describePlan = (read) => ({
   ),
 });
 
+const describePlan = (read) =>
+  read.plan.line === FIELD ? describeFieldPlan(read) : describeLinePlan(read);
+
 const logBounded = ({ bucket, query, plan }) => {
   if (plan.kind === BOUNDED) {
     logger.info(
@@ -411,7 +448,24 @@ const logBounded = ({ bucket, query, plan }) => {
   }
 };
 
+const readList = async (read) => {
+  const [{ rows, page }, groups] = await Promise.all([
+    readPage(read),
+    Promise.all(read.query.groupBy.map(readGroup(read))),
+  ]);
+
+  return { rows, page, groups };
+};
+
+const assertPrepared = ({ field }) => {
+  if (field && !field.match) {
+    throw new Error("A field search must be prepared before it runs");
+  }
+};
+
 export const runQuery = async (bucket, query) => {
+  assertPrepared(query);
+
   const read = {
     bucket,
     query,
@@ -421,18 +475,9 @@ export const runQuery = async (bucket, query) => {
 
   logBounded(read);
 
-  const [{ rows, page }, groups] = await Promise.all([
-    readPage(read),
-    Promise.all(query.groupBy.map(readGroup(read))),
-  ]);
+  const answer = await (query.field ? readFieldSearch(read) : readList(read));
 
-  return {
-    bucket: bucket.id,
-    plan: describePlan(read),
-    rows,
-    page,
-    groups,
-  };
+  return { bucket: bucket.id, plan: describePlan(read), ...answer };
 };
 
 const readTimelineOf = (ref) => async (bucket) => {

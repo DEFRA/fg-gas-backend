@@ -23,7 +23,11 @@ export const listBucketsUseCase = async () => {
   logger.info("List buckets");
 
   const [own, cw] = await Promise.all([
-    Promise.all(listBuckets().map(describeBucket)),
+    Promise.all(
+      listBuckets().map((bucket) =>
+        describeBucket(bucket, { withFields: true }),
+      ),
+    ),
     readCwBuckets(),
   ]);
   const buckets = [...own, ...cw.buckets].sort((a, b) => a.order - b.order);

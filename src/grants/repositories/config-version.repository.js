@@ -5,6 +5,8 @@ import {
 import { config } from "../../common/config.js";
 import { FetchStatus } from "../../common/fetch-status.js";
 import { db } from "../../common/mongo-client.js";
+import { recordConfigChange } from "../../common/search/current-searches.js";
+import { withTransaction } from "../../common/with-transaction.js";
 import {
   ConfigVersion,
   ConfigVersionStatus,
@@ -71,35 +73,44 @@ export const upsert = async (
     lastFetchAttemptAt: grant.lastFetchAttemptAt,
   };
 
-  // $literal preserves leading "$" in broker values.
-  return db.collection(collection).updateOne(
-    { grantCode: doc.grantCode, version: doc.version },
-    [
-      {
-        $set: {
-          major: doc.major,
-          minor: doc.minor,
-          patch: doc.patch,
-          status: doc.status,
-          s3Bucket: { $literal: doc.s3Bucket },
-          receivedAt: { $ifNull: ["$receivedAt", doc.receivedAt] },
-          "definitions.grant": {
-            $mergeObjects: [
-              fetchState,
-              { $ifNull: ["$definitions.grant", {}] },
-              { s3Key: { $literal: grant.s3Key } },
-            ],
+  // $literal preserves leading "$" in broker values. A version arriving or
+  // changing is counted with it, which orders a grant's search declarations.
+  return withTransaction(async (session) => {
+    const result = await db.collection(collection).updateOne(
+      { grantCode: doc.grantCode, version: doc.version },
+      [
+        {
+          $set: {
+            major: doc.major,
+            minor: doc.minor,
+            patch: doc.patch,
+            status: doc.status,
+            s3Bucket: { $literal: doc.s3Bucket },
+            receivedAt: { $ifNull: ["$receivedAt", doc.receivedAt] },
+            "definitions.grant": {
+              $mergeObjects: [
+                fetchState,
+                { $ifNull: ["$definitions.grant", {}] },
+                { s3Key: { $literal: grant.s3Key } },
+              ],
+            },
+            ...(agreementS3Key &&
+              definitionLocationUpdate("agreement", agreementS3Key)),
+            ...(paymentS3Key &&
+              definitionLocationUpdate("payment", paymentS3Key)),
           },
-          ...(agreementS3Key &&
-            definitionLocationUpdate("agreement", agreementS3Key)),
-          ...(paymentS3Key &&
-            definitionLocationUpdate("payment", paymentS3Key)),
         },
-      },
-      withWorstFetchStatus,
-    ],
-    { upsert: true },
-  );
+        withWorstFetchStatus,
+      ],
+      { upsert: true, session },
+    );
+
+    if (result.upsertedCount + result.modifiedCount > 0) {
+      await recordConfigChange(db, doc.grantCode, session);
+    }
+
+    return result;
+  });
 };
 
 // Resolves the highest active version within the same major (any minor/patch).

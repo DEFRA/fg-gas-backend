@@ -38,6 +38,7 @@ export class Grant {
     pages,
     claims,
     admin,
+    search,
   }) {
     this.code = code;
     this.version = version;
@@ -56,6 +57,7 @@ export class Grant {
     this.pages = pages;
     this.claims = claims;
     this.admin = admin;
+    this.search = search;
 
     this.#assertActionsIsArray();
     this.#assertEntitlementTemplateClaimCodesUnique();

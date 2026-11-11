@@ -882,18 +882,37 @@ describe("Caseworking buckets", () => {
   const inRequest = (call) => withRequestContext({ user: OID }, call);
 
   describe("findCwBuckets", () => {
-    it("reads Caseworking's catalogue", async () => {
-      wreck.get.mockResolvedValue({ payload: { buckets: [anEntry()] } });
+    it("reads Caseworking's catalogue, asking for the fields each bucket is searched by", async () => {
+      const fields = {
+        fact: "workflowCode",
+        byValue: {
+          "workflow-a": [
+            { key: "businessName", label: "Business name", match: "prefix" },
+          ],
+        },
+      };
+      wreck.get.mockResolvedValue({
+        payload: { buckets: [anEntry({ fields })] },
+      });
 
-      expect(await inRequest(() => findCwBuckets())).toEqual([anEntry()]);
+      expect(await inRequest(() => findCwBuckets())).toEqual([
+        anEntry({ fields }),
+      ]);
 
       const [url, options] = wreck.get.mock.calls[0];
-      expect(url).toBe(`${URL_BASE}/actuators/buckets`);
+      expect(url).toBe(`${URL_BASE}/actuators/buckets?include=fields`);
       expect(options.headers).toEqual({
         authorization: `Bearer ${TOKEN}`,
         "x-actor-id": OID,
       });
       expect(options.timeout).toBe(TIMEOUT_MS);
+    });
+
+    it("reads the catalogue of a Caseworking that ignores the ask, without fields", async () => {
+      wreck.get.mockResolvedValue({ payload: { buckets: [anEntry()] } });
+
+      expect(await findCwBuckets()).toEqual([anEntry()]);
+      expect(anEntry()).not.toHaveProperty("fields");
     });
 
     it("keeps only the entries whose id Caseworking owns", async () => {

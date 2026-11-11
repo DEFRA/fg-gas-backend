@@ -6,12 +6,14 @@ import {
   storedBytes,
 } from "../../common/mongo/capped-projection.js";
 import { db } from "../../common/mongo-client.js";
+import { indexRecord, searchProjectionOf } from "../../common/search/store.js";
 import { Agreement, AgreementHistoryEntry } from "../models/agreement.js";
 import {
   ApplicationDocument,
   seriesRefs,
 } from "../models/application-document.js";
 import { Application } from "../models/application.js";
+import { applicationSearch } from "../search/application-search.js";
 
 const orNull = (value) => value ?? null;
 
@@ -103,11 +105,10 @@ export const collection = "applications";
 export const save = async (application, session) => {
   const document = new ApplicationDocument(application);
 
+  let result;
+
   try {
-    const result = await db
-      .collection(collection)
-      .insertOne(document, { session });
-    return result;
+    result = await db.collection(collection).insertOne(document, { session });
   } catch (error) {
     if (error instanceof MongoServerError && error.code === 11000) {
       throw Boom.conflict(
@@ -117,23 +118,37 @@ export const save = async (application, session) => {
 
     throw error;
   }
+
+  await indexRecord(
+    applicationSearch,
+    { ...document, _id: result.insertedId },
+    session,
+  );
+
+  return result;
 };
 
 export const update = async (application, session) => {
   const { refs, ...document } = new ApplicationDocument(application);
-  const result = await db.collection(collection).updateOne(
+  const stored = await db.collection(collection).findOneAndUpdate(
     {
       clientRef: application.clientRef,
       code: application.code,
     },
     { $set: document, $addToSet: { refs: { $each: refs } } },
-    { session },
+    {
+      session,
+      projection: searchProjectionOf(applicationSearch),
+      returnDocument: "after",
+    },
   );
-  if (result.modifiedCount === 0) {
+  if (stored === null) {
     throw Boom.notFound(
       `Failed to update application with clientRef "${application.clientRef}" and code "${application.code}"`,
     );
   }
+
+  await indexRecord(applicationSearch, stored, session);
 };
 
 // Every member is found by any member's reference.

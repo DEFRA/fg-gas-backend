@@ -35,7 +35,10 @@ describe("listBucketsUseCase", () => {
       ],
       sourceErrors: [],
     });
-    expect(describeBucket).toHaveBeenCalledTimes(2);
+    expect(describeBucket.mock.calls).toEqual([
+      [{ id: "gas.one" }, { withFields: true }],
+      [{ id: "gas.two" }, { withFields: true }],
+    ]);
   });
 
   it("answers its own entries and names Caseworking when it cannot be read", async () => {

@@ -5,7 +5,6 @@ import { db } from "../mongo-client.js";
 import { describeBucket } from "./catalogue.js";
 import { encodeCursor } from "./cursor.js";
 import {
-  COUNT_CAP,
   MAX_VALUES,
   SUMMARY_COUNT_CAP,
   parseQuery,
@@ -15,6 +14,7 @@ import {
 } from "./engine.js";
 import { ensureIndexes } from "./indexes.js";
 import { SCAN_BUDGET } from "./plan.js";
+import { COUNT_CAP } from "./read.js";
 import { clearBuckets, registerBucket } from "./registry.js";
 import {
   catalogueEntrySchema,
@@ -95,6 +95,7 @@ describe("parseQuery", () => {
       show: [],
       ref: null,
       refKind: null,
+      field: null,
       groupBy: ["status"],
       cursor: null,
       from: undefined,
@@ -1004,15 +1005,25 @@ describe("runQuery", () => {
       ).rejects.toThrow(reasonOf("TIMED_OUT"));
     });
 
-    it("passes any other failure on", async () => {
+    it("passes any other failure on with its code alone, as it may quote the query", async () => {
       const collection = makeCollection();
-      const failure = new Error("connection closed");
+      const failure = Object.assign(
+        new Error('Error processing query: ref $eq "sbi:106000000"'),
+        { code: 2, codeName: "BadValue" },
+      );
 
       collection.find.mockReturnValue({
         toArray: () => Promise.reject(failure),
       });
 
-      await expect(runQuery(bucket, parse({}))).rejects.toBe(failure);
+      const error = await runQuery(bucket, parse({})).catch((e) => e);
+
+      expect(error).toMatchObject({
+        message: "Bucket read failed",
+        code: 2,
+        codeName: "BadValue",
+      });
+      expect(JSON.stringify(error)).not.toContain("106000000");
     });
   });
 });
@@ -1287,6 +1298,15 @@ describe("describeBucket", () => {
       page: null,
       tab: null,
     });
+  });
+
+  it("answers fields, null for a bucket searched by none, only when asked for them", async () => {
+    makeCollection({ groups: [] });
+
+    expect(await describeBucket(bucket, { withFields: true })).toMatchObject({
+      fields: null,
+    });
+    expect(await describeBucket(bucket)).not.toHaveProperty("fields");
   });
 
   it("describes a toggle and its hidden values, and puts the lead in every index line", async () => {

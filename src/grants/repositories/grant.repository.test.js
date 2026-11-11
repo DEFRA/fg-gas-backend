@@ -6,6 +6,7 @@ import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
 import {
   findByCode,
+  findCurrentSearches,
   findStoredGrantDocument,
   findStoredGrantSummary,
   findStoredVersions,
@@ -23,6 +24,7 @@ describe("save", () => {
 
     db.collection.mockReturnValue({
       insertOne,
+      updateOne: vi.fn(),
     });
 
     await save(
@@ -68,6 +70,37 @@ describe("save", () => {
         entitlementTemplates: [],
       }),
       { session: undefined },
+    );
+  });
+
+  it("counts a config change for its code, in the same session", async () => {
+    const collections = {
+      grants: { insertOne: vi.fn() },
+      config_changes: { updateOne: vi.fn() },
+    };
+    db.collection.mockImplementation((name) => collections[name]);
+
+    await save(
+      new Grant({
+        code: "grant-a",
+        version: "1.0.0",
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        questions: {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          type: "object",
+        },
+      }),
+      "session",
+    );
+
+    expect(collections.config_changes.updateOne).toHaveBeenCalledWith(
+      { _id: "grant-a" },
+      { $inc: { change: 1 } },
+      { upsert: true, session: "session" },
     );
   });
 
@@ -203,7 +236,7 @@ describe("findByCode", () => {
 describe("actions", () => {
   it("refuses to store a grant definition without actions", async () => {
     const insertOne = vi.fn();
-    db.collection.mockReturnValue({ insertOne });
+    db.collection.mockReturnValue({ insertOne, updateOne: vi.fn() });
 
     await expect(
       saveFromDefinition(
@@ -227,7 +260,7 @@ describe("metadata.startDate", () => {
     "refuses to store a grant definition whose start date %o is no instant",
     async (startDate) => {
       const insertOne = vi.fn();
-      db.collection.mockReturnValue({ insertOne });
+      db.collection.mockReturnValue({ insertOne, updateOne: vi.fn() });
 
       await expect(
         saveFromDefinition(
@@ -325,7 +358,7 @@ describe("entitlementTemplates", () => {
   it("persists entitlementTemplates on the stored document when saving a grant", async () => {
     const insertOne = vi.fn().mockResolvedValueOnce({ insertedId: "1" });
 
-    db.collection.mockReturnValue({ insertOne });
+    db.collection.mockReturnValue({ insertOne, updateOne: vi.fn() });
 
     await save(
       new Grant({
@@ -381,7 +414,7 @@ describe("entitlementTemplates", () => {
   it("round-trips entitlementTemplates from a grant definition via saveFromDefinition", async () => {
     const insertOne = vi.fn().mockResolvedValueOnce({ insertedId: "1" });
 
-    db.collection.mockReturnValue({ insertOne });
+    db.collection.mockReturnValue({ insertOne, updateOne: vi.fn() });
 
     const grantDefinition = {
       code: "woodland",
@@ -522,7 +555,7 @@ describe("pages", () => {
   it("round-trips pages from a grant definition via saveFromDefinition", async () => {
     const insertOne = vi.fn().mockResolvedValueOnce({ insertedId: "1" });
 
-    db.collection.mockReturnValue({ insertOne });
+    db.collection.mockReturnValue({ insertOne, updateOne: vi.fn() });
 
     const grant = await saveFromDefinition(definition, "1.1.0");
 
@@ -535,7 +568,7 @@ describe("pages", () => {
   it("persists and rehydrates the grant administration role", async () => {
     const admin = { role: "ROLE_WOODLAND_ADMIN" };
     const insertOne = vi.fn();
-    db.collection.mockReturnValue({ insertOne });
+    db.collection.mockReturnValue({ insertOne, updateOne: vi.fn() });
     await saveFromDefinition({ ...definition, admin }, "1.1.0");
     expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ admin }), {
       session: undefined,
@@ -546,6 +579,42 @@ describe("pages", () => {
         .mockResolvedValue({ ...definition, admin, version: "1.1.0" }),
     });
     expect((await findByCode("woodland", "1.1.0")).admin).toEqual(admin);
+  });
+
+  it("persists and rehydrates the search declaration", async () => {
+    const search = {
+      fields: [
+        {
+          key: "businessName",
+          label: "Business name",
+          path: "$.answers.business.name",
+          match: "prefix",
+        },
+      ],
+    };
+    const insertOne = vi.fn();
+    db.collection.mockReturnValue({ insertOne, updateOne: vi.fn() });
+    await saveFromDefinition({ ...definition, search }, "1.1.0");
+    expect(insertOne).toHaveBeenCalledWith(
+      expect.objectContaining({ search }),
+      { session: undefined },
+    );
+    db.collection.mockReturnValue({
+      findOne: vi
+        .fn()
+        .mockResolvedValue({ ...definition, search, version: "1.1.0" }),
+    });
+    expect((await findByCode("woodland", "1.1.0")).search).toEqual(search);
+  });
+
+  it("reads a grant stored without a search as declaring none", async () => {
+    db.collection.mockReturnValue({
+      findOne: vi
+        .fn()
+        .mockResolvedValue({ ...definition, search: null, version: "1.0.0" }),
+    });
+
+    expect((await findByCode("woodland", "1.0.0")).search).toBeUndefined();
   });
 
   it("rehydrates pages from a stored document via findByCode", async () => {
@@ -696,5 +765,40 @@ describe("findStoredGrantSummary", () => {
     aggregating([]);
 
     expect(await findStoredGrantSummary("woodland", "1.0.0")).toBeNull();
+  });
+});
+
+describe("findCurrentSearches", () => {
+  it("answers each code with its current version's search, read from the stored grant", async () => {
+    const search = {
+      fields: [{ key: "name", label: "Name", path: "$.answers.name" }],
+    };
+    const collections = {
+      config_changes: {
+        find: () => ({ toArray: async () => [{ _id: "grant-a", change: 5 }] }),
+      },
+      config_versions: {
+        aggregate: () => ({
+          toArray: async () => [{ _id: "grant-a", versions: ["1.10.0"] }],
+        }),
+      },
+      grants: {
+        find: vi.fn(() => ({
+          toArray: async () => [{ code: "grant-a", version: "1.10.0", search }],
+        })),
+      },
+    };
+    db.collection.mockImplementation((name) => collections[name]);
+
+    expect(await findCurrentSearches()).toEqual([
+      { value: "grant-a", search, change: 5 },
+    ]);
+    expect(collections.grants.find).toHaveBeenCalledWith(
+      { $or: [{ code: "grant-a", version: { $in: ["1.10.0"] } }] },
+      {
+        readPreference: "primary",
+        projection: { _id: 0, code: 1, version: 1, search: 1 },
+      },
+    );
   });
 });

@@ -1,3 +1,4 @@
+import { findSearchSource } from "../search/source.js";
 import { STORED } from "./bucket.js";
 import { readStoredValues, readTimeoutMs } from "./engine.js";
 import { factsOf } from "./plan.js";
@@ -36,8 +37,36 @@ const describeFact =
     within: fact.within,
   });
 
-export const describeBucket = async (bucket) => {
-  const stored = await readAllStoredValues(bucket);
+const describeSearchField = ({ key, label, match }) => ({ key, label, match });
+
+const declaredFields = (declarations) =>
+  Object.fromEntries(
+    [...declarations]
+      .filter(([, { fields }]) => fields.length > 0)
+      .map(([value, { fields }]) => [value, fields.map(describeSearchField)]),
+  );
+
+// The fields each value of the search's lead declares now.
+const describeFields = async ({ search }) =>
+  search
+    ? {
+        fact: search.lead,
+        byValue: declaredFields(
+          await findSearchSource(search.collection).declarations.current(),
+        ),
+      }
+    : null;
+
+const fieldsPart = async (bucket, withFields) =>
+  withFields ? { fields: await describeFields(bucket) } : {};
+
+// `fields` only when asked for: a release before field searches refuses an
+// entry that carries it.
+export const describeBucket = async (bucket, options) => {
+  const [stored, fields] = await Promise.all([
+    readAllStoredValues(bucket),
+    fieldsPart(bucket, options?.withFields),
+  ]);
 
   return {
     id: bucket.id,
@@ -60,5 +89,6 @@ export const describeBucket = async (bucket) => {
     summaries: bucket.summaries,
     page: bucket.page,
     tab: bucket.tab,
+    ...fields,
   };
 };

@@ -1,6 +1,7 @@
 export const EXACT = "exact";
 export const BOUNDED = "bounded";
 export const REFS = "refs";
+export const FIELD = "field";
 export const SCAN_BUDGET = 20_000;
 export const MAX_SCANS = 50;
 

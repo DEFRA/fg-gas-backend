@@ -19,10 +19,15 @@ export const MAX_LINK_LENGTH = 4096;
 
 const value = Joi.string().min(1).max(MAX_VALUE_LENGTH);
 
+// "<key>:<value>": a declared field's key, then the value searched for.
+const MAX_FIELD_KEY_LENGTH = 40;
+const MAX_FIELD_LENGTH = MAX_FIELD_KEY_LENGTH + ":".length + MAX_VALUE_LENGTH;
+
 export const queryRequestSchema = Joi.object({
   where: Joi.object().pattern(Joi.string().max(100), value).max(8).default({}),
   show: Joi.array().items(Joi.string().max(100)).max(8).default([]),
   ref: Joi.string().max(MAX_LINK_LENGTH),
+  field: Joi.string().max(MAX_FIELD_LENGTH),
   from: Joi.string().isoDate(),
   to: Joi.string().isoDate(),
   cursor: Joi.string().max(512),
@@ -85,6 +90,8 @@ export const queryResponseSchema = Joi.object({
     complete: Joi.boolean().required(),
   }).required(),
   groups: Joi.array().items(group).required(),
+  // A field search's matches; null on a later page or when out of time.
+  total: Joi.object(count).allow(null),
 });
 
 export const TIMELINE_LIMIT = 50;
@@ -177,6 +184,20 @@ const column = Joi.object({
   fact: Joi.string(),
 });
 
+const searchField = Joi.object({
+  key: Joi.string().required(),
+  label: Joi.string().required(),
+  match: Joi.string().valid("exact", "prefix").required(),
+});
+
+// The fields each value of `fact` declares, for a bucket searched by them.
+const fields = Joi.object({
+  fact: Joi.string().required(),
+  byValue: Joi.object()
+    .pattern(Joi.string(), Joi.array().items(searchField))
+    .required(),
+}).allow(null);
+
 export const catalogueEntrySchema = Joi.object({
   id: Joi.string().required(),
   path: Joi.string().required(),
@@ -218,4 +239,6 @@ export const catalogueEntrySchema = Joi.object({
     .allow(null)
     .required(),
   tab: Joi.string().allow(null).required(),
+  // Optional, so a catalogue from a release before field searches still reads.
+  fields,
 });

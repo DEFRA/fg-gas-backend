@@ -330,3 +330,60 @@ describe("config METRICS_ENABLED", () => {
     expect((await loadConfig()).metrics.enabled).toBe(true);
   });
 });
+
+describe("config search", () => {
+  const INVENTED_KEY = "an-invented-search-audit-key-0001";
+
+  const loadSearchConfig = async () => {
+    vi.resetModules();
+    const { config } = await import("./config.js");
+    return config.search;
+  };
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("writes no digest key, reindexes every 30 seconds and sweeps 200 records every 30 seconds by default", async () => {
+    vi.stubEnv("SEARCH_AUDIT_KEY", undefined);
+    vi.stubEnv("SEARCH_REINDEX_INTERVAL_MS", undefined);
+    vi.stubEnv("SEARCH_SWEEP_BATCH", undefined);
+    vi.stubEnv("SEARCH_SWEEP_INTERVAL_MS", undefined);
+
+    expect(await loadSearchConfig()).toEqual({
+      auditKey: undefined,
+      reindexIntervalMs: 30_000,
+      sweepBatch: 200,
+      sweepIntervalMs: 30_000,
+    });
+  });
+
+  it("reads the digest key, the intervals and the sweep batch", async () => {
+    vi.stubEnv("SEARCH_AUDIT_KEY", INVENTED_KEY);
+    vi.stubEnv("SEARCH_REINDEX_INTERVAL_MS", "5000");
+    vi.stubEnv("SEARCH_SWEEP_BATCH", "50");
+    vi.stubEnv("SEARCH_SWEEP_INTERVAL_MS", "7000");
+
+    expect(await loadSearchConfig()).toEqual({
+      auditKey: INVENTED_KEY,
+      reindexIntervalMs: 5000,
+      sweepBatch: 50,
+      sweepIntervalMs: 7000,
+    });
+  });
+
+  it("refuses a digest key shorter than 32 characters", async () => {
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit called");
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("SEARCH_AUDIT_KEY", "a".repeat(31));
+
+    await expect(loadSearchConfig()).rejects.toThrow("process.exit called");
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(errorSpy.mock.calls[0][0]).toMatch(/SEARCH_AUDIT_KEY/);
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+});

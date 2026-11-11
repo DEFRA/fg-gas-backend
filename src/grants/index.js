@@ -2,8 +2,12 @@ import { up } from "migrate-mongo";
 import { registerBucket } from "../common/buckets/registry.js";
 import { registerDefinitionStore } from "../common/config-broker/definition-stores.js";
 import { AGREEMENT_STATUS_UPDATED_EVENT_TYPE } from "../agreements/events/agreement-status-updated.event.js";
+import { config } from "../common/config.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
+import { SearchReindexer } from "../common/search/reindexer.js";
+import { SearchSweeper } from "../common/search/sweeper.js";
+import { registerSearchSource } from "../common/search/source.js";
 import { registerEventHandler } from "../events/index.js";
 import { messageSource } from "../events/services/message-source.js";
 import { applicationsBucket } from "./buckets/applications.bucket.js";
@@ -31,6 +35,7 @@ import {
 import { submitApplicationRoute } from "./routes/submit-application.route.js";
 import { submitClaimRoute } from "./routes/submit-claim.route.js";
 import { findStoredVersions } from "./repositories/grant.repository.js";
+import { applicationSearch } from "./search/application-search.js";
 import { configVersionUpdatedSubscriber } from "./subscribers/config-version-updated.subscriber.js";
 
 const grantStatusHandler = (source) => (message) =>
@@ -60,15 +65,30 @@ export const grants = {
     migrated.forEach((fileName) => logger.info(`Migrated: ${fileName}`));
     logger.info("Finished running migrations");
 
+    registerSearchSource(applicationSearch);
     registerBucket(applicationsBucket());
     registerBucket(grantsBucket());
 
+    const searchReindexer = new SearchReindexer({
+      source: applicationSearch,
+      intervalMs: config.search.reindexIntervalMs,
+    });
+    const searchSweeper = new SearchSweeper({
+      source: applicationSearch,
+      batchSize: config.search.sweepBatch,
+      intervalMs: config.search.sweepIntervalMs,
+    });
+
     server.events.on("start", async () => {
       configVersionUpdatedSubscriber.start();
+      searchReindexer.start();
+      searchSweeper.start();
     });
 
     server.events.on("stop", async () => {
       configVersionUpdatedSubscriber.stop();
+      searchReindexer.stop();
+      searchSweeper.stop();
     });
 
     server.route([

@@ -22,6 +22,27 @@ const refusals = {
     statusCode: BAD_REQUEST,
     message: "A grouping names a fact this bucket does not group by",
   },
+  UNKNOWN_FIELD: {
+    statusCode: BAD_REQUEST,
+    message: "The search names a field its definition does not declare",
+  },
+  FIELD_NEEDS_LEAD: {
+    statusCode: BAD_REQUEST,
+    message: "A field search needs the one value its fields are declared for",
+  },
+  FIELD_WITH_FILTER: {
+    statusCode: BAD_REQUEST,
+    message: "A field search cannot be combined with another filter or a ref",
+  },
+  INVALID_FIELD_VALUE: {
+    statusCode: BAD_REQUEST,
+    message:
+      "A searched value needs a letter or digit, and at most 200 characters",
+  },
+  FIELD_TOO_SHORT: {
+    statusCode: BAD_REQUEST,
+    message: "A field searched by its start needs at least 3 letters or digits",
+  },
   INVALID_CURSOR: {
     statusCode: BAD_REQUEST,
     message: "The cursor cannot be read",

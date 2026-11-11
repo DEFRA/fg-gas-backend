@@ -6,6 +6,10 @@ import {
   storedBytes,
 } from "../../common/mongo/capped-projection.js";
 import { db } from "../../common/mongo-client.js";
+import {
+  findCurrentSearches as findCurrentSearchesIn,
+  recordConfigChange,
+} from "../../common/search/current-searches.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
 
@@ -30,6 +34,7 @@ export const toGrant = (doc) =>
     pages: optionalBlock(doc.pages),
     claims: optionalBlock(doc.claims),
     admin: optionalBlock(doc.admin),
+    search: optionalBlock(doc.search),
   });
 
 export const collection = "grants";
@@ -64,6 +69,9 @@ export const save = async (grant, session) => {
 
     throw error;
   }
+
+  // A stored definition can make its version the one search declares from.
+  await recordConfigChange(db, grant.code, session);
 };
 
 export const findByCode = async (code, version) => {
@@ -95,6 +103,9 @@ export const findStoredVersions = async (code, versions, session) => {
 
   return documents.map(({ version }) => version);
 };
+
+// Every code with the `search` of its current version, once that is stored.
+export const findCurrentSearches = () => findCurrentSearchesIn(db, collection);
 
 const readOne = async (pipeline) => {
   const [doc] = await db

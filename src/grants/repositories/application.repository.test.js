@@ -2,6 +2,7 @@ import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
+import { indexRecord } from "../../common/search/store.js";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -14,6 +15,7 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
+import { applicationSearch } from "../search/application-search.js";
 import {
   findApplicationIdentifiers,
   findApplicationRowsByClientRefs,
@@ -28,6 +30,10 @@ import {
 } from "./application.repository.js";
 
 vi.mock("../../common/mongo-client.js");
+vi.mock("../../common/search/store.js", async (original) => ({
+  ...(await original()),
+  indexRecord: vi.fn(),
+}));
 
 describe("update", () => {
   it("should update application", async () => {
@@ -50,19 +56,23 @@ describe("update", () => {
       agreements: {},
     });
 
-    const updateOne = vi.fn().mockResolvedValueOnce({
-      modifiedCount: 1,
-    });
+    const stored = {
+      _id: "id-1",
+      code: "grant-1",
+      createdAt: "2021-01-02T00:00:00.000Z",
+      phases: [{ code: "PRE_AWARD", answers: { committed: true } }],
+    };
+    const findOneAndUpdate = vi.fn().mockResolvedValueOnce(stored);
     const session = {};
     db.collection.mockReturnValue({
-      updateOne,
+      findOneAndUpdate,
     });
 
     await update(application, session);
 
     const { refs, ...document } = application;
 
-    expect(updateOne).toHaveBeenCalledWith(
+    expect(findOneAndUpdate).toHaveBeenCalledWith(
       { clientRef: "application-1", code: "grant-1" },
       {
         $set: document,
@@ -72,13 +82,22 @@ describe("update", () => {
           },
         },
       },
-      { session },
+      {
+        session,
+        projection: { code: 1, createdAt: 1, phases: 1 },
+        returnDocument: "after",
+      },
+    );
+    expect(indexRecord).toHaveBeenCalledExactlyOnceWith(
+      applicationSearch,
+      stored,
+      session,
     );
   });
 
   it("sends only the fields a save owns, so series refs survive", async () => {
-    const updateOne = vi.fn().mockResolvedValueOnce({ modifiedCount: 1 });
-    db.collection.mockReturnValue({ updateOne });
+    const findOneAndUpdate = vi.fn().mockResolvedValueOnce({ _id: "id-1" });
+    db.collection.mockReturnValue({ findOneAndUpdate });
 
     await update(
       new ApplicationDocument({
@@ -89,7 +108,7 @@ describe("update", () => {
       }),
     );
 
-    const [, { $set, $addToSet }] = updateOne.mock.calls[0];
+    const [, { $set, $addToSet }] = findOneAndUpdate.mock.calls[0];
 
     expect($set).not.toHaveProperty("refs");
     expect($addToSet.refs.$each).toEqual([
@@ -117,16 +136,14 @@ describe("update", () => {
       },
     });
 
-    const updateOne = vi.fn().mockResolvedValueOnce({
-      modifiedCount: 0,
-    });
     db.collection.mockReturnValue({
-      updateOne,
+      findOneAndUpdate: vi.fn().mockResolvedValueOnce(null),
     });
 
     await expect(() => update(application)).rejects.toThrow(
       'Failed to update application with clientRef "application-1" and code "grant-1"',
     );
+    expect(indexRecord).not.toHaveBeenCalled();
   });
 });
 
@@ -235,6 +252,11 @@ describe("save", () => {
       "frn:frn-1",
       "crn:crn-1",
     ]);
+    expect(indexRecord).toHaveBeenCalledExactlyOnceWith(
+      applicationSearch,
+      { ...insertOne.mock.calls[0][0], _id: "1" },
+      session,
+    );
   });
 
   it("throws Boom.conflict when an application with same clientRef exists", async () => {
