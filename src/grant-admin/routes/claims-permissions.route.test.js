@@ -13,9 +13,12 @@ import { Application } from "../../grants/models/application.js";
 import { Grant } from "../../grants/models/grant.js";
 import { findByClientRefAndCode } from "../../grants/repositories/application.repository.js";
 import { findByApplication } from "../../grants/repositories/claim.repository.js";
+import { findLatestForMajor } from "../../grants/repositories/config-version.repository.js";
 import { findExistingEntitlements } from "../../grants/repositories/entitlement.repository.js";
 import { findByCode } from "../../grants/repositories/grant.repository.js";
+import { resolveAndFetchGrant } from "../../grants/services/resolve-config-version.service.js";
 import { findClaimPaymentClientClaimRefs } from "../../payments/repositories/payment.repository.js";
+import { _clearGrantDefinitionCache } from "../../grants/use-cases/resolve-current-grant.use-case.js";
 import { findCwUserRoles } from "../repositories/cw-users.repository.js";
 import { setAuditActor } from "../set-audit-actor.js";
 import { getClaimsRoute } from "./get-claims.route.js";
@@ -23,8 +26,10 @@ import { getClaimsRoute } from "./get-claims.route.js";
 vi.mock("../../common/logger.js");
 vi.mock("../../grants/repositories/application.repository.js");
 vi.mock("../../grants/repositories/claim.repository.js");
+vi.mock("../../grants/repositories/config-version.repository.js");
 vi.mock("../../grants/repositories/entitlement.repository.js");
 vi.mock("../../grants/repositories/grant.repository.js");
+vi.mock("../../grants/services/resolve-config-version.service.js");
 vi.mock("../../payments/repositories/payment.repository.js");
 vi.mock("../repositories/cw-users.repository.js");
 
@@ -58,6 +63,7 @@ describe("claims permissions with real services", () => {
   });
 
   beforeEach(() => {
+    _clearGrantDefinitionCache();
     grant = new Grant({
       code,
       metadata: {},
@@ -72,9 +78,20 @@ describe("claims permissions with real services", () => {
         },
       },
     });
+    findLatestForMajor.mockResolvedValue({ version: "1.0.0" });
+    resolveAndFetchGrant.mockResolvedValue({
+      grant,
+      resolvedVersion: "1.0.0",
+      definitionSource: "mongodb",
+    });
     findByCode.mockResolvedValue(grant);
     findByClientRefAndCode.mockResolvedValue(
-      new Application({ code, clientRef, phases: [] }),
+      new Application({
+        code,
+        clientRef,
+        phases: [],
+        originalConfigVersion: "1.0.0",
+      }),
     );
     findExistingEntitlements.mockResolvedValue([]);
     findByApplication.mockResolvedValue([]);
@@ -93,7 +110,6 @@ describe("claims permissions with real services", () => {
     const response = await getClaims();
 
     expect(response.statusCode).toBe(403);
-    expect(findByCode).toHaveBeenCalledWith(code);
     expect(findCwUserRoles).not.toHaveBeenCalled();
   });
 

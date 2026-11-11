@@ -12,6 +12,7 @@ import {
   vi,
 } from "vitest";
 import { createAgreementPublications } from "../../src/agreements/services/integrations/create-publications.js";
+import { seedConfigVersion } from "../helpers/applications.js";
 import { receiveMessages, sendMessage } from "../helpers/sqs.js";
 
 const code = "legacy-test-code";
@@ -20,7 +21,7 @@ const agreementNumber = "LEG123456789";
 const agreementDate = "2026-07-21T12:00:00.000Z";
 const caseworkingUpdateTarget =
   "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status_fifo.fifo";
-const legacyGrantDefinition = {
+const grantDefinition = {
   ...JSON.parse(
     readFileSync(
       new URL("../fixtures/wmp/woodland.json", import.meta.url),
@@ -28,7 +29,7 @@ const legacyGrantDefinition = {
     ),
   ),
   code,
-  version: "0.0.0",
+  version: "1.0.0",
 };
 
 const createApplication = () => ({
@@ -37,6 +38,8 @@ const createApplication = () => ({
   currentStatus: "STATUS_AGREEMENT_GENERATING",
   clientRef,
   code,
+  originalConfigVersion: "1.0.0",
+  currentConfigVersion: "1.0.0",
   createdAt: agreementDate,
   updatedAt: agreementDate,
   submittedAt: agreementDate,
@@ -56,6 +59,7 @@ describe("Legacy Agreement status updates", () => {
     Promise.all([
       applications.deleteMany({ clientRef, code }),
       grants.deleteMany({ code }),
+      database.collection("config_versions").deleteMany({ grantCode: code }),
       inbox.deleteMany({ "event.data.clientRef": clientRef }),
       outbox.deleteMany({
         $or: [
@@ -66,9 +70,11 @@ describe("Legacy Agreement status updates", () => {
       }),
     ]);
 
+  let database;
+
   beforeAll(async () => {
     client = await MongoClient.connect(env.MONGO_URI);
-    const database = client.db();
+    database = client.db();
     applications = database.collection("applications");
     grants = database.collection("grants");
     inbox = database.collection("inbox");
@@ -77,7 +83,8 @@ describe("Legacy Agreement status updates", () => {
 
   beforeEach(async () => {
     await clearScenarioData();
-    await grants.insertOne(structuredClone(legacyGrantDefinition));
+    await grants.insertOne(structuredClone(grantDefinition));
+    await seedConfigVersion(database, code);
     await applications.insertOne(createApplication());
   });
 

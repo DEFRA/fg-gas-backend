@@ -1,7 +1,6 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { findLatestForMajor } from "../repositories/config-version.repository.js";
-import { findByCode } from "../repositories/grant.repository.js";
 import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 import {
   _clearGrantDefinitionCache,
@@ -13,7 +12,6 @@ import {
 
 vi.mock("../../common/logger.js");
 vi.mock("../repositories/config-version.repository.js");
-vi.mock("../repositories/grant.repository.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../services/resolve-config-version.service.js");
 
@@ -38,18 +36,15 @@ describe("resolveCurrentGrantUseCase", () => {
     _clearGrantDefinitionCache();
   });
 
-  it("uses legacy findByCode when there is no pinned version", async () => {
-    const grant = aGrant();
-    findByCode.mockResolvedValue(grant);
-
-    const result = await resolveCurrentGrantUseCase("pigs-might-fly", null);
-
-    expect(result).toEqual({
-      grant,
-      resolvedVersion: null,
-      definitionSource: "mongodb",
-    });
-    expect(findByCode).toHaveBeenCalledWith("pigs-might-fly");
+  it("throws badRequest when there is no pinned version", async () => {
+    await expect(
+      resolveCurrentGrantUseCase("pigs-might-fly", null),
+    ).rejects.toThrow(
+      expect.objectContaining({
+        output: expect.objectContaining({ statusCode: 500 }),
+        message: expect.stringContaining("has no pinned config version"),
+      }),
+    );
     expect(resolveAndFetchGrant).not.toHaveBeenCalled();
   });
 
@@ -220,44 +215,16 @@ describe("resolveGrantForApplication", () => {
     expect(message).toContain("resolutionType=roll-forward");
   });
 
-  it("logs legacy when application has no pinned version", async () => {
-    const grant = aGrant();
+  it("throws badImplementation and logs error when application has no pinned version", async () => {
     const application = anApplication({
       currentConfigVersion: null,
       originalConfigVersion: null,
     });
-    findByCode.mockResolvedValue(grant);
-
-    const result = await resolveGrantForApplication(application);
-
-    expect(result.resolutionType).toBe("legacy");
-    expect(result.definitionSource).toBe("mongodb");
-    expect(logger.info).toHaveBeenCalledWith(
-      expect.objectContaining({
-        event: expect.objectContaining({
-          action: "application-grant-resolved",
-          outcome: "success",
-          reason: "legacy",
-        }),
-      }),
-      expect.stringContaining("Resolved grant configuration for application"),
-    );
-
-    const message = logger.info.mock.calls[0][1];
-    expect(message).toContain("resolutionType=legacy");
-    expect(message).toContain("definitionSource=mongodb");
-  });
-
-  it("throws notFound and logs error when legacy grant is null", async () => {
-    const application = anApplication({
-      currentConfigVersion: null,
-      originalConfigVersion: null,
-    });
-    findByCode.mockResolvedValue(null);
 
     await expect(resolveGrantForApplication(application)).rejects.toThrow(
       expect.objectContaining({
-        output: expect.objectContaining({ statusCode: 404 }),
+        output: expect.objectContaining({ statusCode: 500 }),
+        message: expect.stringContaining("has no pinned config version"),
       }),
     );
 
@@ -272,10 +239,6 @@ describe("resolveGrantForApplication", () => {
         "Failed to resolve grant configuration for application",
       ),
     );
-    const successCalls = logger.info.mock.calls.filter((call) =>
-      call[1]?.startsWith("Resolved grant configuration for application"),
-    );
-    expect(successCalls).toHaveLength(0);
   });
 
   it("logs error with requestedVersion on resolution failure", async () => {
