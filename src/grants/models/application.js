@@ -21,6 +21,13 @@ export const ApplicationStatus = {
   WithdrawRequested: "WITHDRAWAL_REQUESTED",
 };
 
+// The answers of every phase in one object, as a grant's pages address them.
+export const mergeAnswers = (phases) =>
+  (phases ?? []).reduce(
+    (merged, phase) => ({ ...merged, ...(phase.answers ?? {}) }),
+    {},
+  );
+
 export class Application {
   static validationSchema = Joi.object({
     clientRef: Joi.string().required(),
@@ -164,10 +171,7 @@ export class Application {
   }
 
   referenceContext() {
-    const answers = (this.phases ?? []).reduce(
-      (merged, phase) => ({ ...merged, ...(phase.answers ?? {}) }),
-      {},
-    );
+    const answers = mergeAnswers(this.phases);
 
     return {
       clientRef: this.clientRef,

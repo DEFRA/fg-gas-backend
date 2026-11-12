@@ -248,6 +248,40 @@ describe("Grant", () => {
       expect(() => fromDefinition(published)).not.toThrow();
     });
 
+    it("keeps the fields a definition declares to search its applications by", () => {
+      const search = {
+        fields: [
+          {
+            key: "businessName",
+            label: "Business name",
+            path: "$.answers.applicant.business.name",
+            match: "prefix",
+          },
+        ],
+      };
+
+      expect(fromDefinition({ ...definition(), search }).search).toEqual(
+        search,
+      );
+      expect(fromDefinition(definition()).search).toBeUndefined();
+    });
+
+    it.each([
+      ["no fields", { fields: [] }],
+      [
+        "a path outside the answers",
+        { fields: [{ key: "sbi1", label: "SBI", path: "$.identifiers.sbi" }] },
+      ],
+      [
+        "a reserved key",
+        { fields: [{ key: "crn", label: "CRN", path: "$.answers.crn" }] },
+      ],
+    ])("refuses a search declaring %s", (_, search) => {
+      expect(() => fromDefinition({ ...definition(), search })).toThrow(
+        /Invalid grant definition "test-grant"/,
+      );
+    });
+
     it("accepts empty external status maps and pages", () => {
       expect(() =>
         fromDefinition({ ...definition(), externalStatusMap: {}, pages: {} }),

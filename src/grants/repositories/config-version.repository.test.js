@@ -17,15 +17,26 @@ const mockCollection = {
   find: vi.fn(),
 };
 
+const mockChanges = { updateOne: vi.fn() };
+
 vi.mock("../../common/mongo-client.js", () => ({
   db: {
-    collection: () => mockCollection,
+    collection: (name) =>
+      name === "config_changes" ? mockChanges : mockCollection,
   },
+}));
+
+vi.mock("../../common/with-transaction.js", () => ({
+  withTransaction: (run) => run("session"),
 }));
 
 describe("config-version.repository", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCollection.updateOne.mockResolvedValue({
+      upsertedCount: 0,
+      modifiedCount: 0,
+    });
   });
 
   describe("findLatestActive", () => {
@@ -74,7 +85,7 @@ describe("config-version.repository", () => {
           },
           withWorstFetchStatus,
         ],
-        { upsert: true },
+        { upsert: true, session: "session" },
       );
       const [, [{ $set }]] = mockCollection.updateOne.mock.calls[0];
       expect($set["definitions.agreement"]).toBeUndefined();
@@ -88,6 +99,37 @@ describe("config-version.repository", () => {
       expect($set.fetchError).toBeUndefined();
       expect($set.fetchedAt).toBeUndefined();
       expect($set.lastFetchAttemptAt).toBeUndefined();
+    });
+
+    it("counts a config change for the code, in the same transaction, when the version arrives or changes", async () => {
+      const cv = ConfigVersion.new({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        s3Key: "woodland/1.2.3/gas/gas.json",
+        s3Bucket: "bucket",
+      });
+      mockCollection.updateOne
+        .mockResolvedValueOnce({ upsertedCount: 1, modifiedCount: 0 })
+        .mockResolvedValueOnce({ upsertedCount: 0, modifiedCount: 1 })
+        .mockResolvedValueOnce({ upsertedCount: 0, modifiedCount: 0 });
+
+      await upsert(cv, {});
+      await upsert(cv, {});
+      await upsert(cv, {});
+
+      expect(mockChanges.updateOne.mock.calls).toEqual([
+        [
+          { _id: "woodland" },
+          { $inc: { change: 1 } },
+          { upsert: true, session: "session" },
+        ],
+        [
+          { _id: "woodland" },
+          { $inc: { change: 1 } },
+          { upsert: true, session: "session" },
+        ],
+      ]);
     });
 
     it("should include an Agreement location without resetting its fetch state", async () => {

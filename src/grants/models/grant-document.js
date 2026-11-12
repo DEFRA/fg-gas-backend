@@ -44,5 +44,6 @@ export class GrantDocument {
     this.pages = grant.pages;
     this.claims = grant.claims;
     this.admin = grant.admin;
+    this.search = grant.search;
   }
 }

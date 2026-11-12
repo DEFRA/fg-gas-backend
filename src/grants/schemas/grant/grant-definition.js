@@ -9,6 +9,7 @@ import { startDate } from "./metadata/start-date.js";
 import { title } from "./metadata/title.js";
 import { pages } from "./pages.js";
 import { phases } from "./phases.js";
+import { search } from "./search.js";
 
 const MAX_ACTIONS = 20;
 
@@ -45,6 +46,7 @@ export const grantDefinition = Joi.object({
   admin: Joi.object({ role: Joi.string().trim().required() })
     .unknown(false)
     .optional(),
+  search: search.optional(),
 })
   .unknown()
   .label("GrantDefinition");

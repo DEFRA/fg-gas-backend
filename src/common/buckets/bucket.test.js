@@ -11,6 +11,7 @@ import {
 } from "./bucket.js";
 import { REFS } from "./plan.js";
 import { ledBucket, testBucket } from "./test-bucket.js";
+import { searchedBucket } from "./search-test-bucket.js";
 
 describe("BUCKET_ID", () => {
   it.each(["gas.outbox", "cw.cases", "gas.case-notes2"])("matches %s", (id) => {
@@ -433,6 +434,37 @@ describe("defineBucket", () => {
 
   it("accepts a stored fact", () => {
     expect(testBucket().facts.code.values).toBe(STORED);
+  });
+
+  it("defaults to no search, and keeps one declared", () => {
+    expect(testBucket().search).toBeNull();
+    expect(searchedBucket().search).toEqual({
+      collection: "record_search",
+      lead: "code",
+    });
+  });
+
+  it("refuses a search led by an undeclared fact", () => {
+    expect(() =>
+      searchedBucket({
+        search: { collection: "record_search", lead: "colour" },
+      }),
+    ).toThrow("has a search led by an undeclared fact");
+  });
+
+  it("refuses a search on a list not timed by its createdAt", () => {
+    expect(() =>
+      testBucket({ search: { collection: "record_search", lead: "code" } }),
+    ).toThrow("has a search but is not timed by its createdAt");
+  });
+
+  it("refuses a search on a list that hides values", () => {
+    expect(() =>
+      ledBucket({
+        time: { field: "createdAt", type: "date", label: "Created" },
+        search: { collection: "record_search", lead: "status" },
+      }),
+    ).toThrow("has a search, and hides values of a fact");
   });
 });
 

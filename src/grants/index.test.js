@@ -9,6 +9,12 @@ import {
 } from "../common/config-broker/definition-stores.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
+import { SearchReindexer } from "../common/search/reindexer.js";
+import { SearchSweeper } from "../common/search/sweeper.js";
+import {
+  clearSearchSources,
+  findSearchSource,
+} from "../common/search/source.js";
 import {
   clearEventHandlers,
   dispatchEvent,
@@ -31,6 +37,8 @@ vi.mock("./handlers/handle-grant-status-message.js");
 vi.mock("./handlers/handle-config-version-message.js");
 vi.mock("./subscribers/config-version-updated.subscriber.js");
 vi.mock("./repositories/grant.repository.js");
+vi.mock("../common/search/reindexer.js");
+vi.mock("../common/search/sweeper.js");
 
 describe("grants", () => {
   let server;
@@ -42,6 +50,34 @@ describe("grants", () => {
     clearEventHandlers();
     clearBuckets();
     clearDefinitionStores();
+    clearSearchSources();
+  });
+
+  it("registers the application search and reindexes and sweeps it while running", async () => {
+    await server.register(grants);
+
+    expect(findSearchSource("application_search")).toMatchObject({
+      records: "applications",
+      lead: "code",
+    });
+    expect(SearchReindexer).toHaveBeenCalledWith({
+      source: findSearchSource("application_search"),
+      intervalMs: 30_000,
+    });
+    expect(SearchSweeper).toHaveBeenCalledWith({
+      source: findSearchSource("application_search"),
+      batchSize: 200,
+      intervalMs: 30_000,
+    });
+
+    const [reindexer] = SearchReindexer.mock.instances;
+    const [sweeper] = SearchSweeper.mock.instances;
+    server.events.emit("start");
+    expect(reindexer.start).toHaveBeenCalled();
+    expect(sweeper.start).toHaveBeenCalled();
+    server.events.emit("stop");
+    expect(reindexer.stop).toHaveBeenCalled();
+    expect(sweeper.stop).toHaveBeenCalled();
   });
 
   it("runs migrations on startup", async () => {

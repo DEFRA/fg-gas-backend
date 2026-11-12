@@ -1,0 +1,74 @@
+[
+  {
+    "input": "Hilltop Farm",
+    "normalised": "hilltopfarm"
+  },
+  {
+    "input": "  Lower   Meadow  ",
+    "normalised": "lowermeadow"
+  },
+  {
+    "input": "O’Neill's Orchard",
+    "normalised": "oneillsorchard"
+  },
+  {
+    "input": "Brook-Side Holdings",
+    "normalised": "brooksideholdings"
+  },
+  {
+    "input": "SX0679 9238",
+    "normalised": "sx06799238"
+  },
+  {
+    "input": "Crème Brûlée Ltd.",
+    "normalised": "cremebruleeltd"
+  },
+  {
+    "input": "Ångström Señora",
+    "normalised": "angstromsenora"
+  },
+  {
+    "input": "Straße",
+    "normalised": "strasse"
+  },
+  {
+    "input": "STRAẞE",
+    "normalised": "strasse"
+  },
+  {
+    "input": "Æbleby",
+    "normalised": "aebleby"
+  },
+  {
+    "input": "Øster Vale",
+    "normalised": "ostervale"
+  },
+  {
+    "input": "Łąka Wałowa",
+    "normalised": "lakawalowa"
+  },
+  {
+    "input": "Đorđe Field",
+    "normalised": "dordefield"
+  },
+  {
+    "input": "Þorn Acre",
+    "normalised": "thornacre"
+  },
+  {
+    "input": "Œuvre Cœur",
+    "normalised": "oeuvrecoeur"
+  },
+  {
+    "input": "Plot 007-B",
+    "normalised": "plot007b"
+  },
+  {
+    "input": "ﬁeld №2",
+    "normalised": "fieldno2"
+  },
+  {
+    "input": " -'’. ",
+    "normalised": ""
+  }
+]

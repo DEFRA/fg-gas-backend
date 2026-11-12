@@ -130,6 +130,7 @@ describe("queryRequestSchema", () => {
       where: { status: "DEAD_LETTER", source: "AS" },
       show: ["eventType"],
       ref: "ref:abc-123-xyz",
+      field: "businessName:Hilltop Farm",
       from: "2026-10-08T12:00:00.000Z",
       to: "2026-10-09T12:00:00.000Z",
       cursor: "eyJ0IjoiMjAyNi0xMC0wOVQwOTowMDowMC4wMDBaIn0",
@@ -172,6 +173,8 @@ describe("queryRequestSchema", () => {
     ["a from that is not a date", { from: "yesterday" }],
     ["a to that is not a date", { to: "tomorrow" }],
     ["a cursor over 512 characters", { cursor: "x".repeat(513) }],
+    ["a field over 241 characters", { field: `a:${"x".repeat(240)}` }],
+    ["a field that is not a string", { field: 1 }],
     ["a limit of zero", { limit: 0 }],
     ["a limit over the maximum", { limit: 101 }],
     ["a key it does not know", { total: true }],
@@ -488,6 +491,46 @@ describe("summaries", () => {
       ).toBeDefined();
     },
   );
+});
+
+describe("a catalogue entry's fields", () => {
+  const fields = {
+    fact: "code",
+    byValue: {
+      "grant-a": [
+        { key: "businessName", label: "Business name", match: "prefix" },
+      ],
+    },
+  };
+
+  it.each([
+    ["fields", fields],
+    ["no fields", null],
+    ["fields of no value", { fact: "code", byValue: {} }],
+  ])("accepts %s", (_, value) => {
+    expect(
+      catalogueEntrySchema.validate({ ...entry(), fields: value }).error,
+    ).toBeUndefined();
+  });
+
+  it("accepts an entry from a release before field searches", () => {
+    expect(catalogueEntrySchema.validate(entry()).error).toBeUndefined();
+  });
+
+  it.each([
+    ["no fact", { byValue: fields.byValue }],
+    [
+      "an unknown match",
+      {
+        fact: "code",
+        byValue: { a: [{ key: "k", label: "K", match: "any" }] },
+      },
+    ],
+  ])("refuses %s", (_, value) => {
+    expect(
+      catalogueEntrySchema.validate({ ...entry(), fields: value }).error,
+    ).toBeDefined();
+  });
 });
 
 describe("a catalogue entry's page", () => {

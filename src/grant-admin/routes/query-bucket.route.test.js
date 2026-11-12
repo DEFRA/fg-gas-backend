@@ -100,6 +100,7 @@ describe("queryBucketRoute", () => {
       },
       caller: "fg-grants-platform-admin",
       actor: "Jo Operator",
+      actorId: OID,
       repeat: false,
     });
   });

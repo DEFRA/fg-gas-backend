@@ -156,6 +156,7 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           withRequest: {
             method: "GET",
             path: "/actuators/buckets",
+            query: { include: "fields" },
             headers: { authorization },
           },
           willRespondWith: {

@@ -1,8 +1,10 @@
 import { BUCKET_ID } from "../../common/buckets/bucket.js";
-import { parseQuery, runQuery } from "../../common/buckets/engine.js";
+import { prepareQuery, runQuery } from "../../common/buckets/engine.js";
 import { refuse } from "../../common/buckets/refusal.js";
 import { findBucket } from "../../common/buckets/registry.js";
+import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
+import { searchAuditOf } from "../../common/search/audit.js";
 import {
   PMC_0706_SECURITY,
   auditActions,
@@ -11,10 +13,17 @@ import {
 import { auditedRead } from "../../events/audited-read.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
 import { queryCwBucket } from "../repositories/cw-actuators.repository.js";
+import { decodeActor } from "../services/actor-header.js";
 
-// What was asked and how it was read, never a filter value or the ref searched for.
+const operatorOf = (actor, actorId) => ({
+  actor: decodeActor(actor) ?? null,
+  actorId: actorId ?? null,
+});
+
+// What was asked and how it was read, never a filter value or the value
+// searched for: that only as a keyed digest.
 export const buildQueryBucketAudit = (
-  { bucket, query, caller, repeat },
+  { bucket, query, caller, actor, actorId, repeat },
   result,
 ) =>
   buildAuditEvent({
@@ -23,8 +32,10 @@ export const buildQueryBucketAudit = (
     entityid: bucket.id,
     details: {
       caller,
+      ...operatorOf(actor, actorId),
       facts: query.asked,
       refKind: query.refKind,
+      ...searchAuditOf(query, config.search.auditKey),
       from: query.from,
       to: query.to,
       page: query.cursor ? "next" : "first",
@@ -42,17 +53,24 @@ const auditedQuery = auditedRead(
 );
 
 // Parsed before the read, so a refused request writes no audit.
-const queryOwnBucket = ({ bucketId, body, caller, repeat }) => {
+const queryOwnBucket = async ({
+  bucketId,
+  body,
+  caller,
+  actor,
+  actorId,
+  repeat,
+}) => {
   const bucket = findBucket(bucketId);
 
   if (!bucket) {
     throw refuse("UNKNOWN_BUCKET");
   }
 
-  const query = parseQuery(bucket, body);
+  const query = await prepareQuery(bucket, body);
 
   return bucket.audited
-    ? auditedQuery({ bucket, query, caller, repeat })
+    ? auditedQuery({ bucket, query, caller, actor, actorId, repeat })
     : runQuery(bucket, query);
 };
 

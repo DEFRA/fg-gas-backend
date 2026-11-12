@@ -1,4 +1,5 @@
 import { STORED, defineBucket } from "../../common/buckets/bucket.js";
+import { APPLICATION_SEARCH } from "../search/application-search.js";
 
 const orNull = (value) => value ?? null;
 
@@ -41,6 +42,7 @@ export const applicationsBucket = () =>
       agreement: "Agreement number",
     },
     indexes: [["code"], ["code", "currentConfigVersion"]],
+    search: { collection: APPLICATION_SEARCH, lead: "code" },
     audited: true,
     timeline: false,
     title: { label: "Reference", format: "mono" },

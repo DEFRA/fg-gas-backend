@@ -341,6 +341,52 @@ describe("POST /grant-admin/buckets/{bucketId}/query", () => {
     });
   });
 
+  it.each([
+    [
+      "a field on a bucket with no search",
+      "gas.outbox",
+      { where: { status: "COMPLETED" }, field: "name:x" },
+      "UNKNOWN_FIELD",
+    ],
+    [
+      "a field without a grant",
+      "gas.applications",
+      { field: "businessName:hilltop" },
+      "FIELD_NEEDS_LEAD",
+    ],
+    [
+      "a field beside a ref",
+      "gas.applications",
+      {
+        where: { code: "woodland" },
+        ref: "sbi:900000005",
+        field: "businessName:hilltop",
+      },
+      "FIELD_WITH_FILTER",
+    ],
+    [
+      "a field value with no letters or digits",
+      "gas.applications",
+      { where: { code: "woodland" }, field: "businessName: -' " },
+      "INVALID_FIELD_VALUE",
+    ],
+    [
+      "a field the grant does not declare",
+      "gas.applications",
+      { where: { code: "no-such-grant" }, field: "businessName:hilltop" },
+      "UNKNOWN_FIELD",
+    ],
+  ])(
+    "refuses %s with 400 and its reason",
+    async (_, bucketId, payload, reason) => {
+      expect(await refusalOf(query(bucketId, payload))).toMatchObject({
+        statusCode: 400,
+        reason,
+      });
+      expect(await bucketAudits()).toEqual([]);
+    },
+  );
+
   it.each(["gas.nothing", "GAS.Outbox", "cw.nothing"])(
     "answers 404 UNKNOWN_BUCKET for %s",
     async (bucketId) => {

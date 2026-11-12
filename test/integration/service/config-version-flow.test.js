@@ -11,6 +11,7 @@ import { payments } from "../../../src/payments/index.js";
 
 let client;
 let configVersionsCol;
+let configChangesCol;
 
 const BUCKET = "config-broker-local";
 
@@ -85,6 +86,7 @@ beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   const db = client.db(env.MONGO_DATABASE);
   configVersionsCol = db.collection("config_versions");
+  configChangesCol = db.collection("config_changes");
   await uploadDefinitions();
 });
 
@@ -283,6 +285,30 @@ describe("config broker message flow", () => {
       grantCode: "woodland",
     });
     expect(cvCount).toBe(0);
+  });
+
+  it("counts a config change when a version arrives or changes status, not when it is resent", async () => {
+    const eventData = {
+      grantCode: "woodland",
+      version: "2.0.0",
+      status: "active",
+      s3Bucket: BUCKET,
+      manifest: ["woodland/2.0.0/gas/gas.json", "woodland/2.0.0/metadata.json"],
+    };
+    const changes = async () =>
+      (await configChangesCol.findOne({ _id: "woodland" }))?.change ?? 0;
+    const counted = [await changes()];
+
+    await processConfigVersionUseCase(eventData);
+    counted.push(await changes());
+    await processConfigVersionUseCase(eventData);
+    counted.push(await changes());
+    await processConfigVersionUseCase({ ...eventData, status: "draft" });
+    counted.push(await changes());
+
+    expect(counted.slice(1).map((change) => change - counted[0])).toEqual([
+      1, 1, 2,
+    ]);
   });
 
   it("should handle duplicate messages via upsert without error", async () => {

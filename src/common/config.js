@@ -11,6 +11,10 @@ const CW_TIMEOUT_MS = 4000;
 // works while the row is there, and SQS holds a redelivery for up to 14 days.
 const RETENTION_DAYS = 90;
 const MIN_RETENTION_DAYS = 30;
+const MIN_SEARCH_AUDIT_KEY_LENGTH = 32;
+const SEARCH_REINDEX_MS = 30_000;
+const SEARCH_SWEEP_BATCH = 200;
+const SEARCH_SWEEP_MS = 30_000;
 
 // A code constant, not configuration, so it cannot be misconfigured to empty.
 const CALLER_TOKEN_ALLOWED_ISSUERS = Object.freeze([
@@ -125,6 +129,24 @@ const schema = Joi.object({
   ENABLE_TEST_ENDPOINTS: Joi.boolean().optional(),
   // Process-level grant definition cache. Disabled for integration tests.
   GRANT_DEFINITION_CACHE_ENABLED: Joi.boolean().default(true).optional(),
+  // Keys the digest of a searched value in the query audit; none is written without it.
+  SEARCH_AUDIT_KEY: Joi.string().min(MIN_SEARCH_AUDIT_KEY_LENGTH).optional(),
+  SEARCH_REINDEX_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(1)
+    .default(SEARCH_REINDEX_MS)
+    .optional(),
+  // How many records the search sweeper checks against their documents per wake.
+  SEARCH_SWEEP_BATCH: Joi.number()
+    .integer()
+    .min(1)
+    .default(SEARCH_SWEEP_BATCH)
+    .optional(),
+  SEARCH_SWEEP_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(1)
+    .default(SEARCH_SWEEP_MS)
+    .optional(),
   // `client:sha256hex`, validated by seed-access-token.js so a bad value warns, not stops boot.
   SERVICE_ACCESS_TOKEN_HASH: Joi.string()
     .trim()
@@ -248,4 +270,10 @@ export const config = {
   },
   enableTestEndpoints: vars.ENABLE_TEST_ENDPOINTS ?? false,
   grantDefinitionCacheEnabled: vars.GRANT_DEFINITION_CACHE_ENABLED,
+  search: {
+    auditKey: vars.SEARCH_AUDIT_KEY,
+    reindexIntervalMs: vars.SEARCH_REINDEX_INTERVAL_MS,
+    sweepBatch: vars.SEARCH_SWEEP_BATCH,
+    sweepIntervalMs: vars.SEARCH_SWEEP_INTERVAL_MS,
+  },
 };

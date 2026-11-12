@@ -113,6 +113,7 @@ describe("checkGrantAllowListUseCase", () => {
         ({
           grants,
           config_versions: catalogue,
+          config_changes: { updateOne: vi.fn() },
           allow_lists: lists,
           grant_settings: settings,
         })[name],

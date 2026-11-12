@@ -6,6 +6,7 @@ export const BUCKET_ID = /^[a-z]+\.[a-z][a-z0-9-]*$/;
 const BUCKET_PATH = /^[a-z][a-z0-9-]*(\/[a-z][a-z0-9-]*)*$/;
 export const STORED = "stored";
 const DATE = "date";
+const SEARCH_TIME = "createdAt";
 
 const RESERVED_NAMES = new Set([
   "ref",
@@ -152,6 +153,19 @@ const rules = [
     "has a summary, and hides values of a fact it does not lead with",
   ({ audited, summaries }) =>
     audited && summaries.length > 0 && "is audited and declares a summary",
+  ({ facts, search }) =>
+    search !== null &&
+    isUndeclared(facts)(search.lead) &&
+    "has a search led by an undeclared fact",
+  ({ search, time }) =>
+    search !== null &&
+    time.field !== SEARCH_TIME &&
+    "has a search but is not timed by its createdAt",
+  // A field search reads only the search table, so it cannot leave them out.
+  ({ facts, search }) =>
+    search !== null &&
+    Object.values(facts).some(hidesValues) &&
+    "has a search, and hides values of a fact",
 ];
 
 const problemOf = (bucket) => {
@@ -202,6 +216,7 @@ const defaults = {
   summaries: [],
   page: null,
   tab: null,
+  search: null,
 };
 
 const withDefaults = (definition) => {

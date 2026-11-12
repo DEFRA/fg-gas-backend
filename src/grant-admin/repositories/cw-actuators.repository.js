@@ -299,12 +299,13 @@ const toCwEntries = (payload) => {
   return value.buckets.filter(({ id }) => id.startsWith(CW_BUCKET_PREFIX));
 };
 
-// Only the entries GAS can route: those whose id Caseworking owns.
+// Only the entries GAS can route: those whose id Caseworking owns. Their
+// fields are asked for, and absent from a Caseworking before field searches.
 export const findCwBuckets = async () =>
   toCwEntries(
     await cwRequest(
       "get",
-      "/actuators/buckets",
+      "/actuators/buckets?include=fields",
       BUCKETS_LABEL,
       bucketRequestOptions({}),
     ),
