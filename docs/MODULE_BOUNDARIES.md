@@ -64,7 +64,7 @@ event administration enters the shared event module directly:
 | `grant-admin` | `auth/services/api-client.service.js`                                | API clients: list, issue, revoke, rotate, re-expire and delete GAS access tokens, by hash only                                                              |
 | `grant-admin` | `events/repositories/inbox.repository.js`                            | Event admin: inspect, redrive, purge and edit GAS inbound events                                                                                            |
 | `grant-admin` | `events/repositories/outbox.repository.js`                           | Event admin: inspect, redrive, purge and edit GAS outbound events                                                                                           |
-| `grant-admin` | `common/buckets/registry.js` and `engine.js`                         | Every list: the catalogue and one query route over the declared buckets                                                                                     |
+| `grant-admin` | `common/buckets/registry.js`, `engine.js` and `bins.js`              | Every list: the catalogue and one query route over the declared buckets, and the Overview's dead-letter bins                                                |
 
 Who may see or change a grant's Claims is Grants' rule, not the BFF's. The grant
 configures the roles it requires; `grants/models/claims-access.js` turns them
@@ -308,10 +308,10 @@ production Agreements import made by `test-endpoints`. See [TEST_ENDPOINTS.md](.
 
 A bucket is one list the admin portal can show: one collection, with the facts
 a filter or grouping may name, the ref kinds a search may name, a time field
-and its index lines. A fact may lead every index key (`lead`), and a value of
-a fact may stay out of the list until a switch shows it (`hidden`, `toggle`):
-`gas.outbox` leads with its event type and hides the `audit` type that way,
-because that type is declared `hiddenByDefault`. A fact may be `within`
+and its index lines. A fact may lead every index key (`lead`). The event
+boxes keep one index line per filter shape (none, status, type, type and
+status), so each list reads exactly on its own index; audit rows are listed
+with the rest. A fact may be `within`
 another when its values mean something only for one value of that other fact,
 as `gas.applications`' version is within its grant, and then needs an index
 line of the two. A bucket is declared once, with `defineBucket`, in the module
@@ -333,6 +333,25 @@ in `fg-cw-backend`. `grant-admin` serves every bucket through
 reads the registry, never a declaration, so a new bucket needs no route and no
 `grant-admin` change. A bucket whose id begins `cw.` is forwarded to
 Caseworking by that id.
+
+`GET /grant-admin/overview` is the admin's Overview page in one answer: each
+service's dead letters of the last 24 hours in two-hour bins (`bins.js`, one
+aggregation per box; Caseworking's from `GET /actuators/dead-letters`), with
+each box's own count and list; its top errors among every current dead letter
+(each box's `errors` summary, with no window); its active versions whose
+definition failed; and its tokens expiring within 30 days. `services/overview-reads.js`
+reads the eight parts, each on its own and within a time budget, and one that
+cannot be read says who did not answer and why while the rest stand.
+`services/overview-cache.js` keeps the answer for 60 seconds on each instance,
+and requests that arrive while it is read share that read; a part that failed
+is read again in the background with a growing pause, while the kept answer is
+served at once. `view-models/build-overview-view.js` shapes the answer for the
+page. The tokens are released, kept or not, only once their view is audited as
+`VIEW_API_CLIENT`, for each service that lists any.
+
+A dead letter always holds an `errorKey`: its last error's key, or
+`No error recorded` when it died without one, so Top errors and the Error
+filter can ask for exactly those rows.
 
 A new bucket is a declaration, one `registerBucket` line, `refs` built by the
 collection's writer, and one migration that backfills `refs` and calls

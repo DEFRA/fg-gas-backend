@@ -28,21 +28,11 @@ const leads = (bucket, name) =>
 
 const isOpen = (facts) => (name) => !isClosed(facts[name]);
 
-const hidesValues = (fact) =>
-  isClosed(fact) && fact.values.some(({ hidden }) => hidden);
-
-const isBadToggle = (fact) => Boolean(fact.toggle) && !isClosed(fact);
-
 const URL_KEY = /^[a-z][a-z0-9]*$/;
 
-const urlKeysOf = (facts) =>
-  Object.values(facts).flatMap(({ param, toggle }) =>
-    toggle ? [param, toggle.param] : [param],
-  );
+const urlKeysOf = (facts) => Object.values(facts).map(({ param }) => param);
 
 const isBadKey = (key) => !URL_KEY.test(key ?? "") || RESERVED_NAMES.has(key);
-
-const hidesUnasked = (fact) => hidesValues(fact) && !fact.toggle;
 
 const hasDuplicates = (lines) =>
   new Set(lines.map((line) => line.join("\n"))).size !== lines.length;
@@ -85,20 +75,14 @@ const rules = [
   ({ facts, lead }) =>
     lead.some(isOpen(facts)) && "leads with a fact without closed values",
   (bucket) =>
-    scansOf(bucket, [], [], bucket.lead) > MAX_SCANS &&
+    scansOf(bucket, [], []) > MAX_SCANS &&
     "leads with more values than one read may scan",
   ({ facts }) =>
     urlKeysOf(facts).some(isBadKey) &&
-    "has a fact or toggle without a URL key of its own, or with a reserved one",
+    "has a fact without a URL key of its own, or with a reserved one",
   ({ facts }) =>
     new Set(urlKeysOf(facts)).size !== urlKeysOf(facts).length &&
     "uses one URL key twice",
-  ({ facts }) =>
-    Object.values(facts).some(isBadToggle) &&
-    "has a toggle on a fact without closed values",
-  ({ facts }) =>
-    Object.values(facts).some(hidesUnasked) &&
-    "hides a value of a fact that has no toggle to show it",
   ({ facts }) =>
     Object.entries(facts).some(
       ([name, { within }]) =>
@@ -142,14 +126,6 @@ const rules = [
     summaries.some(
       (summary) => !hasLine(indexes, summaryLineOf(summary, lead)),
     ) && "has a summary with no index line of its own",
-  // A summary fills only the lead, so a value it must leave out until shown
-  // can only be on a lead fact.
-  ({ facts, lead, summaries }) =>
-    summaries.length > 0 &&
-    Object.entries(facts).some(
-      ([name, fact]) => hidesValues(fact) && !lead.includes(name),
-    ) &&
-    "has a summary, and hides values of a fact it does not lead with",
   ({ audited, summaries }) =>
     audited && summaries.length > 0 && "is audited and declares a summary",
 ];
@@ -166,19 +142,12 @@ const problemOf = (bucket) => {
   return null;
 };
 
-// `param` is the fact's key in the admin's URLs, and the toggle's its own:
-// short words, so a URL reads as what it filters by. A fact `within` another
-// has values that mean something only for one value of that other fact.
-const toFact = ({
-  label,
-  values = null,
-  toggle = null,
-  within = null,
-  param,
-}) => ({
+// `param` is the fact's key in the admin's URLs: a short word, so a URL reads
+// as what it filters by. A fact `within` another has values that mean
+// something only for one value of that other fact.
+const toFact = ({ label, values = null, within = null, param }) => ({
   label,
   values,
-  toggle,
   within,
   param,
 });

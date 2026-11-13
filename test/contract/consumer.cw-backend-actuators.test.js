@@ -13,6 +13,7 @@ import { withRequestContext } from "../../src/common/get-request-context.js";
 import { MASKED_HASH } from "../../src/auth/models/masked-hash.js";
 import {
   CASE_NOT_FOUND,
+  countCwDeadLetters,
   findCwBuckets,
   findCwCase,
   findCwCaseExistence,
@@ -381,6 +382,90 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           ).catch((e) => e);
 
           expect(error.output.statusCode).toBe(502);
+        },
+      ));
+  });
+
+  describe("the dead letters actuator", () => {
+    const WINDOW = {
+      from: "2026-06-15T10:00:00.000Z",
+      to: "2026-06-16T10:00:00.000Z",
+    };
+
+    const bin = {
+      from: regex(ISO, "2026-06-15T10:00:00.000Z"),
+      to: regex(ISO, "2026-06-15T12:00:00.000Z"),
+      count: integer(2),
+      capped: boolean(false),
+    };
+
+    it("counts each box's dead letters in two-hour bins over the window", () =>
+      run(
+        {
+          states: [{ description: "dead letters exist" }],
+          uponReceiving: "a count of the dead letters of a day",
+          withRequest: {
+            method: "GET",
+            path: "/actuators/dead-letters",
+            query: WINDOW,
+            headers: operatorHeaders,
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              from: WINDOW.from,
+              to: WINDOW.to,
+              countCap: integer(10_000),
+              buckets: eachLike({
+                id: regex("^cw\\.[a-z][a-z0-9-]*$", "cw.outbox"),
+                list: {
+                  path: string("events/cw/outbox"),
+                  query: { status: "DEAD_LETTER" },
+                },
+                bins: atLeastLike(bin, 12),
+              }),
+            },
+          },
+        },
+        async () => {
+          const answer = await asOperator(() =>
+            countCwDeadLetters(WINDOW, { actor: ACTOR }),
+          );
+
+          expect(answer.buckets[0].bins).toHaveLength(12);
+          expect(answer.buckets[0].list.query).toEqual({
+            status: "DEAD_LETTER",
+          });
+        },
+      ));
+
+    // What an older Caseworking answers, without the route: GAS reads it as
+    // a part Caseworking does not offer yet.
+    it("answers a bare 404 when it has no dead letters actuator", () =>
+      run(
+        {
+          states: [
+            { description: "the dead letters actuator is not deployed" },
+          ],
+          uponReceiving:
+            "a count of dead letters from a Caseworking without it",
+          withRequest: {
+            method: "GET",
+            path: "/actuators/dead-letters",
+            query: WINDOW,
+            headers: operatorHeaders,
+          },
+          willRespondWith: {
+            status: 404,
+            body: { statusCode: 404, error: "Not Found", message: "Not Found" },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            countCwDeadLetters(WINDOW, { actor: ACTOR }),
+          ).catch((e) => e);
+
+          expect(error.cwReason).toBe("NOT_OFFERED");
         },
       ));
   });

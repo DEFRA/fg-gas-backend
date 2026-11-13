@@ -28,7 +28,6 @@ describe("gas.grants", () => {
       grantCode: {
         label: "Grant",
         values: STORED,
-        toggle: null,
         within: null,
         param: "grant",
       },
@@ -48,7 +47,6 @@ describe("gas.grants", () => {
             hint: "Not yet published as active.",
           },
         ],
-        toggle: null,
         within: null,
         param: "status",
       },
@@ -76,7 +74,6 @@ describe("gas.grants", () => {
             tone: "error",
           }),
         ],
-        toggle: null,
         within: null,
         param: "definition",
       },

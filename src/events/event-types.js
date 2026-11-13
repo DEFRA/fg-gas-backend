@@ -25,14 +25,13 @@ const assertSentAsIsFree = ({ name, sentAs }) => {
 // envelope with no `type`. boxes: where this service meets it. refs: the row's
 // identifiers as [kind, value] pairs, read once by the writer from the envelope
 // and the row's ordering key, to which a publication may add pairs from its
-// aggregate; must never throw (read with `?.`). hiddenByDefault: left out of a list until it is asked for.
+// aggregate; must never throw (read with `?.`).
 export const defineEventType = ({
   name,
   sentAs,
   recognise,
   boxes,
   refs = () => [],
-  hiddenByDefault = false,
 }) => {
   const eventType = Object.freeze({
     name,
@@ -40,7 +39,6 @@ export const defineEventType = ({
     recognise,
     boxes: Object.freeze([...boxes]),
     refs,
-    hiddenByDefault,
   });
 
   assertSentAsIsFree(eventType);
@@ -88,10 +86,9 @@ export const findEventTypeInAnyEnvironment = (event) =>
 export const audit = defineEventType({
   name: AUDIT,
   boxes: [OUTBOX],
-  hiddenByDefault: true,
 });
 
-const unrecognised = { name: UNRECOGNISED, hiddenByDefault: false };
+const unrecognised = { name: UNRECOGNISED };
 
 const eventTypesOf = (box) => [
   ...declared()
@@ -103,10 +100,7 @@ const eventTypesOf = (box) => [
 export const eventTypeNames = (box) =>
   eventTypesOf(box).map((eventType) => eventType.name);
 
-const toValue = ({ name, hiddenByDefault }) =>
-  hiddenByDefault
-    ? { value: name, label: name, hidden: true }
-    : { value: name, label: name };
+const toValue = ({ name }) => ({ value: name, label: name });
 
 // The box's types as the listed values of a bucket's event type fact.
 export const eventTypeValues = (box) => eventTypesOf(box).map(toValue);

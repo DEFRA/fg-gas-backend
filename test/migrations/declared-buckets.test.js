@@ -422,17 +422,20 @@ describe("build bucket indexes", () => {
     expect(await keysOf("outbox")).toEqual([
       "_id",
       "status,claimedBy",
+      "publicationDate,_id",
+      "status,publicationDate,_id",
       "eventType,publicationDate,_id",
       "eventType,status,publicationDate,_id",
       "eventType,status,lastError.name,publicationDate,_id",
-      "eventType,status,errorKey,publicationDate,_id",
-      "eventType,refs,publicationDate,_id",
+      "status,errorKey,eventType,publicationDate,_id",
+      "refs,publicationDate,_id",
     ]);
     expect(await keysOf("inbox")).toEqual([
       "_id",
       "publicationDate,_id",
       "status,publicationDate,_id",
-      "status,eventType,publicationDate,_id",
+      "eventType,publicationDate,_id",
+      "eventType,status,publicationDate,_id",
       "status,lastError.name,publicationDate,_id",
       "status,errorKey,eventType,publicationDate,_id",
       "refs,publicationDate,_id",

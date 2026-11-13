@@ -60,7 +60,7 @@ export const testBucket = (overrides = {}) =>
     ...overrides,
   });
 
-// The same list led by its event type, one of which stays hidden until shown.
+// The same list led by its event type, so every line starts with it.
 export const ledBucket = (overrides = {}) => {
   const { status, grantCode } = testBucket().facts;
 
@@ -70,11 +70,7 @@ export const ledBucket = (overrides = {}) => {
       eventType: {
         label: "Event",
         param: "event",
-        values: [
-          ...eventTypes,
-          { value: "audit", label: "audit", hidden: true },
-        ],
-        toggle: { label: "Show audit events", param: "audit" },
+        values: [...eventTypes, { value: "audit", label: "audit" }],
       },
       status,
       grantCode,

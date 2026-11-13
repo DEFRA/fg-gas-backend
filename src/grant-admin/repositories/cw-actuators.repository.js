@@ -3,6 +3,7 @@ import Joi from "joi";
 import { REFUSAL_REASONS, refuse } from "../../common/buckets/refusal.js";
 import {
   TIMELINE_LIMIT,
+  binSchema,
   catalogueEntrySchema,
   queryResponseSchema,
   summaryResponseSchema,
@@ -369,4 +370,37 @@ export const readCwBucketTimeline = async (bucketId, ref, options = {}) =>
       await queryCwBucket(bucketId, { ref, limit: TIMELINE_LIMIT }, options),
       "a bucket page",
     ),
+  );
+
+const deadLettersSchema = Joi.object({
+  from: Joi.string().isoDate().required(),
+  to: Joi.string().isoDate().required(),
+  countCap: Joi.number().integer().min(1).required(),
+  buckets: Joi.array()
+    .items(
+      Joi.object({
+        id: Joi.string().required(),
+        list: Joi.object({
+          path: Joi.string().required(),
+          query: Joi.object().pattern(Joi.string(), Joi.string()).required(),
+        }).required(),
+        bins: Joi.array().items(binSchema).required(),
+      }),
+    )
+    .min(1)
+    .required(),
+});
+
+// Caseworking's dead letters in two-hour bins over the window, one list of
+// bins per bucket that holds them, each with the list it opens.
+export const countCwDeadLetters = async ({ from, to }, options = {}) =>
+  readBucketAnswer(
+    deadLettersSchema,
+    await cwRequest(
+      "get",
+      `/actuators/dead-letters?${new URLSearchParams({ from, to })}`,
+      BUCKETS_LABEL,
+      bucketRequestOptions(options),
+    ),
+    "dead letters",
   );

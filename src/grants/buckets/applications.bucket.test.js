@@ -28,14 +28,12 @@ describe("gas.applications", () => {
       code: {
         label: "Grant",
         values: STORED,
-        toggle: null,
         within: null,
         param: "grant",
       },
       currentConfigVersion: {
         label: "Version",
         values: null,
-        toggle: null,
         within: "code",
         param: "version",
       },

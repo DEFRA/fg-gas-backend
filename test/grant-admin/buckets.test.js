@@ -233,7 +233,7 @@ describe("POST /grant-admin/buckets/{bucketId}/query", () => {
     expect(bucketQueryResponseSchema.validate(first).error).toBeUndefined();
     expect(first.plan).toMatchObject({
       kind: "exact",
-      index: ["eventType", "publicationDate", "_id"],
+      index: ["publicationDate", "_id"],
     });
     expect(
       [...first.rows, ...second.rows, ...third.rows].map((row) => row.subtitle),
@@ -266,36 +266,27 @@ describe("POST /grant-admin/buckets/{bucketId}/query", () => {
     ]);
   });
 
-  it("finds a row by a ref, and lists audit rows only when they are asked for", async () => {
+  it("finds a row by a ref, and lists audit rows with the rest", async () => {
     await outbox.insertMany([
       aMessage(1),
       aMessage(2, { eventType: "Audit", refs: [] }),
     ]);
 
     const byRef = await answerOf("gas.outbox", { ref: "ref:REF-1" });
-    const hiding = await answerOf("gas.outbox", {});
-    const showing = await answerOf("gas.outbox", {
-      show: ["eventType"],
-    });
+    const all = await answerOf("gas.outbox", {});
     const named = await answerOf("gas.outbox", {
       where: { eventType: "Audit" },
     });
 
-    expect(byRef.plan.index).toEqual([
-      "eventType",
-      "refs",
-      "publicationDate",
-      "_id",
-    ]);
+    expect(byRef.plan.index).toEqual(["refs", "publicationDate", "_id"]);
     expect(byRef.rows.map((row) => row.subtitle)).toEqual(["evt-1"]);
-    expect(hiding.plan).toMatchObject({ kind: "exact", filled: ["eventType"] });
-    expect(hiding.rows.map((row) => row.subtitle)).toEqual(["evt-1"]);
-    expect(showing.plan).toMatchObject({
+    expect(all.plan).toMatchObject({
       kind: "exact",
-      filled: ["eventType"],
-      scans: hiding.plan.scans + 1,
+      index: ["publicationDate", "_id"],
+      filled: [],
+      scans: 1,
     });
-    expect(showing.rows.map((row) => row.subtitle)).toEqual(["evt-2", "evt-1"]);
+    expect(all.rows.map((row) => row.subtitle)).toEqual(["evt-2", "evt-1"]);
     expect(named.rows.map((row) => row.subtitle)).toEqual(["evt-2"]);
   });
 
@@ -551,6 +542,25 @@ describe("POST /grant-admin/buckets/{bucketId}/query", () => {
       body: { where: { status: "COMPLETED" }, limit: 20 },
     });
     expect(await bucketAudits()).toEqual([]);
+  });
+
+  it("forwards to Caseworking only what was asked: no count from an admin that doesn't ask for one", async () => {
+    await setCwStub({
+      buckets: { answers: { "cw.inbox": aCwBucketAnswer("inbox", []) } },
+    });
+
+    await query("cw.inbox", {}, OPERATOR);
+    await query("cw.inbox", { count: true }, OPERATOR);
+    const [plain, counted] = (await cwStubRequests()).map(({ body }) => body);
+
+    expect(plain).toEqual({ where: {}, show: [], limit: 20, groupBy: [] });
+    expect(counted).toEqual({
+      where: {},
+      show: [],
+      limit: 20,
+      groupBy: [],
+      count: true,
+    });
   });
 
   it("rebuilds Caseworking's refusal from its reason, never its message", async () => {

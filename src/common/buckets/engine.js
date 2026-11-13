@@ -29,13 +29,38 @@ const MAX_TIME_MS_EXPIRED = 50;
 
 export const readTimeoutMs = () => config.adminReadTimeoutMs;
 
+const offersValues = (fact) =>
+  Array.isArray(fact.values) || fact.values === STORED;
+
+// Several values are one of them; one given as a list is that value.
+const parseValues = (fact, value) => {
+  if (!offersValues(fact)) {
+    throw refuse("SINGLE_VALUE_FACT");
+  }
+
+  const values = [...new Set(value)];
+
+  return values.length === 1 ? values[0] : values;
+};
+
 const parseFilter = (bucket, name, value) => {
   if (!Object.hasOwn(bucket.facts, name)) {
     throw refuse("UNKNOWN_FACT");
   }
 
-  return value;
+  return Array.isArray(value) ? parseValues(bucket.facts[name], value) : value;
 };
+
+// How many values each asked fact holds, for the scans a key would take.
+export const widthsOf = (where) =>
+  Object.fromEntries(
+    Object.entries(where).map(([name, value]) => [
+      name,
+      Array.isArray(value) ? value.length : 1,
+    ]),
+  );
+
+const matchOf = (value) => (Array.isArray(value) ? { $in: value } : value);
 
 const parseWhere = (bucket, where) =>
   Object.fromEntries(
@@ -65,7 +90,7 @@ const parseRef = (bucket, text) => {
   return { ref, refKind };
 };
 
-export const parseShow = (bucket, show) => {
+export const parseShow = (bucket, show = []) => {
   if (!show.every((name) => Object.hasOwn(bucket.facts, name))) {
     throw refuse("UNKNOWN_FACT");
   }
@@ -96,19 +121,20 @@ export const parseQuery = (bucket, body) => {
   const where = parseWhere(bucket, body.where);
   const asked = Object.keys(where);
   const { ref, refKind } = parseRef(bucket, body.ref);
-  const show = parseShow(bucket, body.show);
+  // Still read, so an admin that sends it isn't refused: nothing is hidden now.
+  parseShow(bucket, body.show);
 
   return {
     where,
     asked,
-    show,
     ref,
     refKind,
     groupBy: parseGroupBy(bucket, body.groupBy),
+    count: body.count === true,
     cursor: parseCursor(bucket, body.cursor),
     ...parseRange(body),
     limit: body.limit,
-    plan: choosePlan(bucket, asked, ref !== null, show),
+    plan: choosePlan(bucket, asked, ref !== null, widthsOf(where)),
   };
 };
 
@@ -125,11 +151,11 @@ const boundFacts = ({ bucket, query, plan }) =>
 
 const boundPart = (read) =>
   Object.fromEntries(
-    boundFacts(read).map((fact) => [fact, read.query.where[fact]]),
+    boundFacts(read).map((fact) => [fact, matchOf(read.query.where[fact])]),
   );
 
-const fillOfFact = ({ bucket, query }, fact, unset) => ({
-  $in: [...fillOf(bucket, fact, query.show), ...unset],
+const fillOfFact = ({ bucket }, fact, unset) => ({
+  $in: [...fillOf(bucket, fact), ...unset],
 });
 
 const filledPart = (read, unset) =>
@@ -155,12 +181,8 @@ export const rangePart = ({ bucket, query }) => {
   return Object.keys(range).length ? { [bucket.time.field]: range } : {};
 };
 
-// A residual nothing asked for is a fact that hides values: it is tested
-// against the values it still shows, and null.
-const residualOf = (read, fact) =>
-  read.query.asked.includes(fact)
-    ? read.query.where[fact]
-    : fillOfFact(read, fact, [null]);
+// A residual is an asked fact the line doesn't hold, tested row by row.
+const residualOf = (read, fact) => matchOf(read.query.where[fact]);
 
 const residualPart = (read) =>
   Object.fromEntries(
@@ -290,7 +312,7 @@ const isBounded = ({ plan }) => plan.kind === BOUNDED;
 
 const readPage = async (read) => {
   const { bucket, query } = read;
-  const edge = isBounded(read) ? await readEdge(read) : null;
+  const edge = isBounded(read) ? (read.edge ?? (await readEdge(read))) : null;
   const docs = await readRows(read, edge);
   const kept = docs.slice(0, query.limit);
 
@@ -305,7 +327,7 @@ const readPage = async (read) => {
 
 export const readCount = async (read, cap = COUNT_CAP) => {
   const found = await collectionOf(read)
-    .countDocuments(and(matchParts(read)), {
+    .countDocuments(and([...matchParts(read), residualPart(read)]), {
       ...readOptions(read),
       limit: cap + 1,
     })
@@ -359,7 +381,7 @@ const countValues = async (read, asked, fact) => {
 };
 
 const planOf = ({ bucket, query }, asked) =>
-  choosePlan(bucket, asked, query.ref !== null, query.show);
+  choosePlan(bucket, asked, query.ref !== null, widthsOf(query.where));
 
 const readGroupValues = (read, others, fact) => {
   const asked = [...others, fact];
@@ -378,6 +400,11 @@ const readGroupTotal = (read, others) => {
     ? readCount({ ...read, plan, query: { ...read.query, asked: others } })
     : null;
 };
+
+// The whole list counted once, every filter and any ref applied: not on a plan
+// that would have to scan to count.
+const readTotal = (read) =>
+  read.query.count && read.plan.kind === EXACT ? readCount(read) : null;
 
 const readGroup = (read) => async (fact) => {
   const others = read.query.asked.filter((name) => name !== fact);
@@ -399,7 +426,7 @@ const describePlan = (read) => ({
     read.bucket,
     read.plan.line,
     read.query.asked,
-    read.query.show,
+    widthsOf(read.query.where),
   ),
 });
 
@@ -411,19 +438,34 @@ const logBounded = ({ bucket, query, plan }) => {
   }
 };
 
+// One reference's rows are few, so its other filters are tested row by row:
+// exact while they fit in the scan budget, bounded past it.
+const settleRef = async (read) => {
+  const { plan } = read;
+
+  if (!leadsOnRefs(plan) || plan.kind === EXACT) {
+    return read;
+  }
+
+  const edge = await readEdge(read);
+
+  return edge ? { ...read, edge } : { ...read, plan: { ...plan, kind: EXACT } };
+};
+
 export const runQuery = async (bucket, query) => {
-  const read = {
+  const read = await settleRef({
     bucket,
     query,
     plan: query.plan,
     deadline: Date.now() + readTimeoutMs(),
-  };
+  });
 
   logBounded(read);
 
-  const [{ rows, page }, groups] = await Promise.all([
+  const [{ rows, page }, groups, total] = await Promise.all([
     readPage(read),
     Promise.all(query.groupBy.map(readGroup(read))),
+    readTotal(read),
   ]);
 
   return {
@@ -432,6 +474,8 @@ export const runQuery = async (bucket, query) => {
     rows,
     page,
     groups,
+    // Only when asked, so a GAS that doesn't count yet reads the answer.
+    ...(query.count && { total }),
   };
 };
 
