@@ -22,6 +22,7 @@ const SHELL = { catalogue: { buckets: [], sourceErrors: [] } };
 const ALWAYS = [
   "get /grant-admin/clients/{service}",
   "get /grant-admin/events/{service}/{box}/{id}",
+  "get /grant-admin/explore/vocabulary",
   "get /grant-admin/grants/{code}/applications/{clientRef}/events",
   "get /grant-admin/grants/{code}/applications/{clientRef}/overview",
   "get /grant-admin/grants/{code}/applications/{clientRef}/raw",
@@ -43,6 +44,7 @@ const ALWAYS = [
   "get /grant-admin/workflows/{workflowCode}/cases/{caseRef}/raw",
   "post /grant-admin/clients/{service}/{clientId}/tokens",
   "post /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/rotate",
+  "post /grant-admin/explore/query",
   "post /grant-admin/lists/query",
 ];
 

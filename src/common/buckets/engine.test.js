@@ -9,13 +9,12 @@ import {
   MAX_VALUES,
   SUMMARY_COUNT_CAP,
   parseQuery,
-  readBucketTimeline,
-  readTimeline,
   runQuery,
 } from "./engine.js";
 import { ensureIndexes } from "./indexes.js";
 import { SCAN_BUDGET } from "./plan.js";
 import { clearBuckets, registerBucket } from "./registry.js";
+import { readBucketTimeline, readTimeline } from "./timeline.js";
 import {
   catalogueEntrySchema,
   queryRequestSchema,
@@ -887,36 +886,54 @@ describe("runQuery", () => {
       expect(collection.countDocuments).not.toHaveBeenCalled();
     });
 
-    it.each([
-      ["more rows than the scan budget", [doc(1)], null],
-      ["few rows", [], { count: 2, capped: false }],
-    ])(
-      "counts a later page's ref with a status only when the whole ref holds %s",
-      async (_, wholeEdge, total) => {
-        const collection = makeCollection({
-          finds: [[], [doc(2)], wholeEdge],
-          count: 2,
-        });
-        const edgeReads = () =>
-          collection.find.mock.calls.filter(([, { skip }]) => skip);
+    it("counts a ref's later page only when the whole ref fits the scan budget", async () => {
+      const collection = makeCollection({ finds: [[], [doc(2)]], count: 2 });
+      const later = {
+        ref: "msg:abc",
+        where: { status: "FAILED" },
+        count: true,
+        cursor: cursorOf(doc(9)),
+      };
 
-        const result = await runQuery(
-          bucket,
-          parse({
-            ref: "msg:abc",
-            where: { status: "FAILED" },
-            count: true,
-            cursor: cursorOf(doc(3)),
-          }),
-        );
+      const result = await runQuery(bucket, parse(later));
 
-        expect(result.plan.kind).toBe("exact");
-        expect(edgeReads()).toHaveLength(2);
-        expect(JSON.stringify(edgeReads()[1][0])).not.toContain("$lt");
-        expect(result.total).toEqual(total);
-        expect(collection.countDocuments).toHaveBeenCalledTimes(total ? 1 : 0);
-      },
-    );
+      expect(collection.find.mock.calls[0][0]).toEqual({
+        $and: [{ refs: "msg:abc" }],
+      });
+      expect(collection.find.mock.calls[0][1]).toMatchObject({
+        skip: SCAN_BUDGET - 1,
+      });
+      expect(result.plan).toMatchObject({ kind: "exact" });
+      expect(result.total).toEqual({ count: 2, capped: false });
+    });
+
+    it("answers a null total on a later page whose ref has more rows than the scan budget", async () => {
+      const collection = makeCollection({ finds: [[doc(1)], [], [doc(2)]] });
+
+      const result = await runQuery(
+        bucket,
+        parse({
+          ref: "msg:abc",
+          where: { status: "FAILED" },
+          count: true,
+          cursor: cursorOf(doc(9)),
+        }),
+      );
+
+      expect(collection.find.mock.calls[0][0]).toEqual({
+        $and: [{ refs: "msg:abc" }],
+      });
+      expect(collection.find.mock.calls[1][0]).toEqual({
+        $and: [
+          { refs: "msg:abc" },
+          { publicationDate: { $lt: doc(9).publicationDate } },
+        ],
+      });
+      expect(result.plan).toMatchObject({ kind: "exact" });
+      expect(result.page.complete).toBe(true);
+      expect(result.total).toBeNull();
+      expect(collection.countDocuments).not.toHaveBeenCalled();
+    });
 
     it("counts a ref search on its own index, up to the cap", async () => {
       const collection = makeCollection({ count: COUNT_CAP + 1 });

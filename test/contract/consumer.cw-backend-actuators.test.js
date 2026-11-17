@@ -22,6 +22,10 @@ import {
   readCwBucketTimeline,
 } from "../../src/grant-admin/repositories/cw-actuators.repository.js";
 import {
+  findCwExploreSources,
+  queryCwExplore,
+} from "../../src/grant-admin/repositories/cw-explore.repository.js";
+import {
   changeCwApiTokenExpiry,
   deleteCwApiToken,
   findCwApiTokens,
@@ -390,6 +394,331 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           ).catch((e) => e);
 
           expect(error.output.statusCode).toBe(502);
+        },
+      ));
+  });
+
+  describe("the Explore actuators", () => {
+    const QUERY = {
+      v: 2,
+      source: "cases",
+      mode: "rows",
+      columns: [
+        { path: "caseRef" },
+        {
+          fn: "count",
+          path: "payload.answers.application.parcel.parcelId",
+          as: "parcels",
+        },
+      ],
+      where: {
+        all: [
+          { path: "workflowCode", op: "eq", values: [WORKFLOW] },
+          {
+            not: {
+              path: "currentStatus",
+              op: "regex",
+              values: [{ pattern: "^withdrawn", flags: "i" }],
+            },
+          },
+        ],
+      },
+      groupBy: null,
+      orderBy: null,
+      limit: 50,
+      positions: null,
+    };
+
+    const exploreHeaders = {
+      ...operatorHeaders,
+      "x-explore-time-left-ms": regex("^\\d+$", "4500"),
+    };
+
+    const known = {
+      path: like("caseRef"),
+      type: regex("^(text|number|boolean|date)$", "text"),
+      index: like("ref"),
+      closed: boolean(false),
+      within: null,
+    };
+
+    it("lists the Query versions it reads and its sources, with what each may read", () =>
+      run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "a read of the Explore sources",
+          withRequest: {
+            method: "GET",
+            path: "/actuators/explore/sources",
+            headers: { authorization },
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              versions: eachLike(integer(2)),
+              sources: eachLike({
+                name: like("cases"),
+                label: like("Cases, in Caseworking"),
+                service: like("CW"),
+                size: regex("^(big|small)$", "big"),
+                noun: { one: like("case"), many: like("cases") },
+                star: eachLike("caseRef"),
+                time: like("createdAt"),
+                roots: eachLike("caseRef"),
+                answersAt: like("payload.answers"),
+                listedAt: like("payload.answers"),
+                requires: null,
+                answerPaths: eachLike("applicant.business.name"),
+                paths: eachLike(known),
+              }),
+            },
+          },
+        },
+        async () => {
+          const { versions, sources } = await findCwExploreSources();
+
+          expect(versions).toContain(2);
+          expect(sources[0].name).toBe("cases");
+        },
+      ));
+
+    it("answers its part of a query, rows per box", () =>
+      run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "an Explore query of cases",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/explore/query",
+            headers: exploreHeaders,
+            body: QUERY,
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              read: regex("^(exact|windowed|full)$", "exact"),
+              boxes: eachLike({
+                id: like("cw.cases"),
+                rows: eachLike({
+                  key: {
+                    t: regex(ISO, "2026-10-13T10:00:00.000Z"),
+                    i: like("6650c1e2a1b2c3d4e5f60718"),
+                  },
+                  open: {
+                    kind: like("case"),
+                    code: like(WORKFLOW),
+                    ref: like("client-ref-1"),
+                  },
+                  cells: like({ c0: "client-ref-1", c1: 2 }),
+                  order: null,
+                }),
+                to: null,
+                end: boolean(true),
+                count: { n: integer(1), capped: boolean(false) },
+              }),
+              groups: null,
+            },
+          },
+        },
+        async () => {
+          const part = await asOperator(() =>
+            queryCwExplore(QUERY, { actor: ACTOR, timeLeftMs: 5000 }),
+          );
+
+          expect(part.boxes[0].rows[0].open.kind).toBe("case");
+        },
+      ));
+
+    it("counts the records a query matches, capped", () => {
+      const counted = {
+        ...QUERY,
+        mode: "count",
+        columns: [{ fn: "count", path: "*" }],
+        where: { path: "workflowCode", op: "eq", values: [WORKFLOW] },
+        orderBy: null,
+        limit: 1,
+      };
+
+      return run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "an Explore count of cases",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/explore/query",
+            headers: exploreHeaders,
+            body: counted,
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              read: regex("^(exact|full)$", "exact"),
+              boxes: eachLike({
+                id: like("cw.cases"),
+                rows: [],
+                to: null,
+                end: boolean(true),
+                count: { n: integer(1), capped: boolean(false) },
+              }),
+              groups: null,
+            },
+          },
+        },
+        async () => {
+          const part = await asOperator(() =>
+            queryCwExplore(counted, { actor: ACTOR, timeLeftMs: 5000 }),
+          );
+
+          expect(part.boxes[0].count.n).toBeGreaterThan(0);
+        },
+      );
+    });
+
+    it("refuses a Query in a version it doesn't read", () =>
+      run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "an Explore query in version 1",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/explore/query",
+            headers: exploreHeaders,
+            body: { ...QUERY, v: 1 },
+          },
+          willRespondWith: {
+            status: 400,
+            body: { reason: "EXPLORE_QUERY_INVALID" },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            queryCwExplore(
+              { ...QUERY, v: 1 },
+              { actor: ACTOR, timeLeftMs: 5000 },
+            ),
+          ).catch((e) => e);
+
+          expect(error.output.payload).toMatchObject({
+            hop: "CW-BE",
+            reason: "EXPLORE_QUERY_INVALID",
+          });
+        },
+      ));
+
+    it("refuses a path off its own roots or answer list, reading nothing", () => {
+      const offList = {
+        ...QUERY,
+        columns: [{ path: "comments.text" }],
+      };
+
+      return run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "an Explore query reading a path Caseworking refuses",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/explore/query",
+            headers: exploreHeaders,
+            body: offList,
+          },
+          willRespondWith: {
+            status: 400,
+            body: {
+              reason: "EXPLORE_QUERY_REFUSED",
+              refusal: "PATH_NOT_ALLOWED",
+            },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            queryCwExplore(offList, { actor: ACTOR, timeLeftMs: 5000 }),
+          ).catch((e) => e);
+
+          expect(error).toMatchObject({
+            refusal: "PATH_NOT_ALLOWED",
+            service: "CW",
+          });
+        },
+      );
+    });
+
+    it("refuses a query it can't read exactly by its code and why, for GAS to word", () => {
+      const grouped = {
+        ...QUERY,
+        mode: "groups",
+        columns: [{ path: "currentStatus" }],
+        where: {
+          path: "payload.answers.applicant.business.name",
+          op: "regex",
+          values: [{ pattern: "x", flags: "" }],
+        },
+        groupBy: { path: "currentStatus" },
+        orderBy: null,
+      };
+
+      return run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "an Explore query grouping a windowed read",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/explore/query",
+            headers: exploreHeaders,
+            body: grouped,
+          },
+          willRespondWith: {
+            status: 400,
+            body: {
+              reason: "EXPLORE_QUERY_REFUSED",
+              refusal: "GROUP_NEEDS_EXACT",
+              detail: {
+                why: like("NOT_INDEXED"),
+                path: like("payload.answers.applicant.business.name"),
+              },
+            },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            queryCwExplore(grouped, { actor: ACTOR, timeLeftMs: 5000 }),
+          ).catch((e) => e);
+
+          expect(error).toMatchObject({
+            refusal: "GROUP_NEEDS_EXACT",
+            service: "CW",
+            detail: {
+              why: "NOT_INDEXED",
+              path: "payload.answers.applicant.business.name",
+            },
+          });
+        },
+      );
+    });
+
+    it("refuses an operator's second query while the first runs", () =>
+      run(
+        {
+          states: [
+            { description: "an Explore query of the operator is running" },
+          ],
+          uponReceiving: "a second Explore query of one operator",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/explore/query",
+            headers: exploreHeaders,
+            body: QUERY,
+          },
+          willRespondWith: {
+            status: 429,
+            body: { reason: "EXPLORE_QUERY_BUSY", refusal: "BUSY" },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            queryCwExplore(QUERY, { actor: ACTOR, timeLeftMs: 5000 }),
+          ).catch((e) => e);
+
+          expect(error).toMatchObject({ refusal: "BUSY", service: "CW" });
         },
       ));
   });

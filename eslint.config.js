@@ -101,9 +101,10 @@ export default [
                 "**/commands/**",
                 "**/services/**",
                 "**/agreements/testing.js",
+                "**/grant-admin/explore/**",
               ],
               message:
-                "Use cases should only import services, commands, repositories, models, events, publishers and common",
+                "Use cases should only import services, commands, repositories, models, events, publishers, Explore and common",
             },
             {
               target: "src/{agreements,grants,payments}/**/!(*.test).js",
@@ -158,6 +159,21 @@ export default [
               message:
                 "The events domain may only import common infrastructure. " +
                 "See docs/MODULE_BOUNDARIES.md.",
+            },
+            ...["agreements", "grants", "payments"].map((module) => ({
+              target: `src/${module}/explore/**/!(*.test).js`,
+              from: ["src/**/**"],
+              except: ["**/src/common/**", `**/src/${module}/**`],
+              message:
+                "An Explore source may only import its own module and common. " +
+                "See docs/MODULE_BOUNDARIES.md.",
+            })),
+            {
+              target: "src/grant-admin/**/!(*.test).js",
+              from: ["src/{agreements,events,grants,payments}/explore/**"],
+              message:
+                "Grant Admin reads Explore sources only through " +
+                "common/explore-sources/registry.js. See docs/MODULE_BOUNDARIES.md.",
             },
             {
               target: "src/common/**/!(*.test).js",

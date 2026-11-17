@@ -12,9 +12,16 @@ import { withRequestContext } from "./common/get-request-context.js";
 import { logger } from "./common/logger.js";
 import { mongoClient } from "./common/mongo-client.js";
 
-const handlePreResponse = (request, h) => {
-  const response = request.response;
+const ASKED_LEVELS = new Set(["info", "warn"]);
 
+// An answer to a person's own mistake, such as a mistyped query, names only
+// its reason, at the level its use case gives it.
+const askedLevelOf = (response) =>
+  response.isBoom && ASKED_LEVELS.has(response.data?.logLevel)
+    ? response.data.logLevel
+    : null;
+
+const logClientError = (response) => {
   // SonarCloud magic numbers
   const statusCodes = {
     badRequest: 400,
@@ -33,6 +40,19 @@ const handlePreResponse = (request, h) => {
     error.stack_trace = response.stack;
 
     logger.error(error);
+  }
+};
+
+const handlePreResponse = (request, h) => {
+  const response = request.response;
+  const level = askedLevelOf(response);
+
+  if (level) {
+    logger[level](
+      `${response.output.statusCode} ${request.route.path}: ${response.message}`,
+    );
+  } else {
+    logClientError(response);
   }
 
   return h.continue;

@@ -1,7 +1,9 @@
+import Boom from "@hapi/boom";
 import Joi from "joi";
 import { up } from "migrate-mongo";
 import crypto from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "./common/logger.js";
 import { db, mongoClient } from "./common/mongo-client.js";
 import { createServer } from "./server.js";
 
@@ -124,6 +126,33 @@ describe("server", () => {
 
     expect(statusCode).toBe(400);
     expect(result.message).toBe(expectedErrorMessage);
+  });
+
+  it("logs an answer to a person's own mistake at its level, with no stack", async () => {
+    const info = vi.spyOn(logger, "info");
+    const error = vi.spyOn(logger, "error");
+    const server = await createServer();
+    server.route({
+      method: "POST",
+      path: "/asked",
+      handler: () => {
+        throw new Boom.Boom("QUERY_INVALID", {
+          statusCode: 400,
+          data: { logLevel: "info" },
+        });
+      },
+    });
+    await server.initialize();
+
+    const { statusCode } = await server.inject({
+      method: "POST",
+      url: "/asked",
+      headers: { authorization: "Bearer token" },
+    });
+
+    expect(statusCode).toBe(400);
+    expect(info).toHaveBeenCalledWith("400 /asked: QUERY_INVALID");
+    expect(error).not.toHaveBeenCalled();
   });
 
   describe("auth", () => {

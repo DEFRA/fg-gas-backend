@@ -1,4 +1,11 @@
-import { MAX_SCANS, REFS, factsOf, scansOf } from "./plan.js";
+import {
+  EXACT,
+  MAX_SCANS,
+  REFS,
+  choosePlan,
+  factsOf,
+  scansOf,
+} from "./plan.js";
 
 export const BUCKET_ID = /^[a-z]+\.[a-z][a-z0-9-]*$/;
 
@@ -53,6 +60,10 @@ const summaryFactsOf = ({ by, among }) => [...Object.keys(among), ...by];
 
 const hasLine = (indexes, wanted) =>
   indexes.some((line) => line.join("\n") === wanted.join("\n"));
+
+// Bins count the rows `among` picks out over time, in one read on its line.
+const binsReadExactly = (bucket) =>
+  choosePlan(bucket, Object.keys(bucket.bins.among), false).kind === EXACT;
 
 const rules = [
   ({ id }) => !BUCKET_ID.test(id) && "has a malformed id",
@@ -133,6 +144,14 @@ const rules = [
     ) && "has a summary with no index line of its own",
   ({ audited, summaries }) =>
     audited && summaries.length > 0 && "is audited and declares a summary",
+  ({ facts, bins }) =>
+    bins !== null &&
+    Object.keys(bins.among).some(isUndeclared(facts)) &&
+    "has bins among an undeclared fact",
+  (bucket) =>
+    bucket.bins !== null &&
+    !binsReadExactly(bucket) &&
+    "has bins with no index line that reads them exactly",
 ];
 
 const problemOf = (bucket) => {
@@ -183,6 +202,7 @@ const defaults = {
   audited: false,
   timeline: false,
   summaries: [],
+  bins: null,
   page: null,
   tab: null,
 };

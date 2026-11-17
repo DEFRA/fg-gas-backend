@@ -1,7 +1,9 @@
 import { registerDefinitionCheck } from "../common/config-broker/definition-checks.js";
 import { registerDefinitionStore } from "../common/config-broker/definition-stores.js";
 import { config } from "../common/config.js";
+import { registerExploreSource } from "../common/explore-sources/registry.js";
 import { registerEventHandler } from "../events/index.js";
+import { paymentsSource } from "./explore/payments.source.js";
 import { handleAgreementPaymentRequested } from "./handlers/handle-agreement-payment-requested.js";
 import { handleClaimPaymentRequested } from "./handlers/handle-claim-payment-requested.js";
 import { findStoredVersions } from "./repositories/payment-definition.repository.js";
@@ -27,6 +29,7 @@ export const payments = {
       storedVersions: findStoredVersions,
       store: storePaymentDefinition,
     });
+    registerExploreSource(paymentsSource);
     registerEventHandler(
       AGREEMENT_PAYMENT_REQUESTED_EVENT_TYPE,
       handleAgreementPaymentRequested,

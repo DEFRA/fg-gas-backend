@@ -13,6 +13,8 @@ import {
 } from "./routes/api-clients.route.js";
 import { createEntitlementRoute } from "./routes/create-entitlement.route.js";
 import { editPayloadRoute } from "./routes/edit-payload.route.js";
+import { exploreQueryRoute } from "./routes/explore-query.route.js";
+import { exploreVocabularyRoute } from "./routes/explore-vocabulary.route.js";
 import { getClaimRoute } from "./routes/get-claim.route.js";
 import { getClaimsRoute } from "./routes/get-claims.route.js";
 import { getEntitlementRoute } from "./routes/get-entitlement.route.js";
@@ -74,6 +76,8 @@ export const grantAdmin = {
       queryBucketRoute,
       queryListRoute,
       summariseBucketRoute,
+      exploreQueryRoute,
+      exploreVocabularyRoute,
       getEventRoute,
       getAllowListRoute,
       getGrantSettingsRoute,

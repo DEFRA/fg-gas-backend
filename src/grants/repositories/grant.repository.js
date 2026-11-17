@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
+import { SECONDARY } from "../../common/buckets/engine.js";
 import { config } from "../../common/config.js";
 import {
   cappedField,
@@ -141,4 +142,37 @@ export const findStoredGrantDocument = async (code, version, { maxBytes }) => {
   return found
     ? { storedBytes: found.storedBytes, document: found.document ?? null }
     : null;
+};
+
+const QUESTION_VERSIONS = 20;
+
+const questionSchemasOf = ({ phases }) =>
+  (phases ?? []).map(({ questions }) => questions).filter(Boolean);
+
+// The question schemas of each grant's newest stored versions, for the
+// answers a query may name.
+export const findQuestionSchemas = async () => {
+  const maxTimeMS = config.adminReadTimeoutMs;
+  const codes = await db
+    .collection(collection)
+    .distinct("code", {}, { maxTimeMS, readPreference: SECONDARY });
+  const versions = await Promise.all(
+    codes.map((code) =>
+      db
+        .collection(collection)
+        .find(
+          { code },
+          {
+            projection: { _id: 0, "phases.questions": 1 },
+            sort: { _id: -1 },
+            limit: QUESTION_VERSIONS,
+            maxTimeMS,
+            readPreference: SECONDARY,
+          },
+        )
+        .toArray(),
+    ),
+  );
+
+  return versions.flat().flatMap(questionSchemasOf);
 };

@@ -1,6 +1,7 @@
 import { up } from "migrate-mongo";
 import { registerBucket } from "../common/buckets/registry.js";
 import { registerDefinitionStore } from "../common/config-broker/definition-stores.js";
+import { registerExploreSource } from "../common/explore-sources/registry.js";
 import { AGREEMENT_STATUS_UPDATED_EVENT_TYPE } from "../agreements/events/agreement-status-updated.event.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
@@ -8,6 +9,8 @@ import { registerEventHandler } from "../events/index.js";
 import { messageSource } from "../events/services/message-source.js";
 import { applicationsBucket } from "./buckets/applications.bucket.js";
 import { grantsBucket } from "./buckets/grants.bucket.js";
+import { applicationsSource } from "./explore/applications.source.js";
+import { grantsSource } from "./explore/grants.source.js";
 import { handleConfigVersionMessage } from "./handlers/handle-config-version-message.js";
 import { handleGrantStatusMessage } from "./handlers/handle-grant-status-message.js";
 import {
@@ -62,6 +65,8 @@ export const grants = {
 
     registerBucket(applicationsBucket());
     registerBucket(grantsBucket());
+    registerExploreSource(applicationsSource);
+    registerExploreSource(grantsSource);
 
     server.events.on("start", async () => {
       configVersionUpdatedSubscriber.start();
