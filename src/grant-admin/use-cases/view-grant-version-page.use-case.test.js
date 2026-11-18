@@ -447,6 +447,26 @@ describe("viewGrantVersionPageUseCase", () => {
     });
   });
 
+  it.each([
+    ["before", "2027-01-13T10:04:00.000Z", false],
+    ["after", "2027-01-13T10:04:00.001Z", true],
+  ])(
+    "overview: its events are past deletion only %s GAS's retention has run",
+    async (_, now, pastDeletion) => {
+      vi.useFakeTimers({ now: new Date(now), toFake: ["Date"] });
+
+      const page = await view("overview");
+
+      vi.useRealTimers();
+      expect(page.versionEvents).toEqual({
+        outcome: "read",
+        events: { rows: [], more: false },
+        sourceErrors: [],
+        pastDeletion,
+      });
+    },
+  );
+
   it("overview: the page stands when its events cannot be read", async () => {
     readGrantVersionEventsUseCase.mockRejectedValue(new Error("mongo down"));
 

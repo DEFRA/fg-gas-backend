@@ -4,8 +4,8 @@ import {
   apiClientParamsSchema,
   apiClientsParamsSchema,
   apiTokenParamsSchema,
+  answeredApiTokensSchema,
   apiTokensResponseSchema,
-  apiTokensSchema,
   changeApiTokenExpiryPayloadSchema,
   issueApiTokenPayloadSchema,
   issuedApiTokenResponseSchema,
@@ -59,7 +59,7 @@ const argsOf = (request) => ({
 // here: one that would carry a hash is answered as unread.
 const carriesUnsafeTokens = (payload) =>
   Boolean(payload?.tokens) &&
-  Boolean(apiTokensSchema.validate({ tokens: payload.tokens }).error);
+  Boolean(answeredApiTokensSchema.validate({ tokens: payload.tokens }).error);
 
 const checkRefusedTokens = (error) => {
   if (carriesUnsafeTokens(error.output?.payload)) {

@@ -80,13 +80,14 @@ export const recordEventsSchema = (label) =>
     .label(label);
 
 // A config version's own events, read beside its Overview within a budget.
-export const versionEventsSchema = (label) =>
+export const versionEventsSchema = (label, readKeys = {}) =>
   Joi.alternatives()
     .try(
       Joi.object({
         outcome: Joi.string().valid("read").required(),
         events: recordEventsSchema(`${label}Events`),
         sourceErrors: sourceErrorsSchema,
+        ...readKeys,
       }),
       Joi.object({
         outcome: Joi.string().valid("timed-out", "failed").required(),

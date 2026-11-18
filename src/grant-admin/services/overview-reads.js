@@ -25,6 +25,7 @@ import {
 import { findCwApiTokens } from "../repositories/cw-clients.repository.js";
 import { GATEWAY_TIMEOUT, statusOf } from "../repositories/cw-http.js";
 import { buildApiClientAudit } from "../use-cases/api-client-audit.js";
+import { TOKENS_WITHIN_DAYS, isExpiringSoon } from "./token-expiry.js";
 
 // What each part of the Overview reads, from GAS's own collections and from
 // Caseworking's actuators, before it is shaped for the page.
@@ -47,7 +48,6 @@ const BIN_MS = 2 * 60 * 60 * 1000;
 export const OVERVIEW_BUDGET_MS = 4000;
 
 export const CONFIG_FAILED_LIMIT = 100;
-const TOKENS_WITHIN_DAYS = 30;
 
 const GAS_BOXES = ["gas.outbox", "gas.inbox"];
 const CW_BOXES = ["cw.outbox", "cw.inbox"];
@@ -210,13 +210,8 @@ const readCwConfigFailed = async ({ actor }) => ({
   ),
 });
 
-const isExpiring =
-  (limit) =>
-  ({ status, expiresAt }) =>
-    status === "EXPIRED" ||
-    (status === "ACTIVE" &&
-      expiresAt !== null &&
-      new Date(expiresAt).getTime() < limit);
+const isExpiring = (now) => (token) =>
+  token.status === "EXPIRED" || isExpiringSoon(token, now);
 
 const soonestFirst = (a, b) =>
   new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
@@ -224,9 +219,7 @@ const soonestFirst = (a, b) =>
 // Active tokens expiring within 30 days, and expired ones; revoked ones can
 // no longer call, so they are left out.
 export const expiringTokens = (tokens, now) =>
-  tokens
-    .filter(isExpiring(now.getTime() + TOKENS_WITHIN_DAYS * DAY_MS))
-    .sort(soonestFirst);
+  tokens.filter(isExpiring(now)).sort(soonestFirst);
 
 const tokensAudit = (service) => (context, result, error) =>
   buildApiClientAudit(auditActions.VIEW_API_CLIENT, PMC_0706_SECURITY)(

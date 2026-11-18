@@ -5,6 +5,7 @@ import {
 } from "../../auth/services/api-client.service.js";
 import { OBJECT_ID_HEX } from "../../common/object-id-hex.js";
 import { decodeActor } from "../services/actor-header.js";
+import { TOKENS_WITHIN_DAYS } from "../services/token-expiry.js";
 import { adminReadHeadersSchema } from "./actor-header.schema.js";
 
 export const API_CLIENT_SERVICES = ["gas", "cw"];
@@ -152,6 +153,20 @@ export const apiTokensSchema = Joi.object({
   tokens: Joi.array().items(listedApiTokenSchema).required(),
 });
 
+const answeredApiTokenSchema = listedApiTokenSchema
+  .keys({
+    expiringSoon: Joi.boolean()
+      .required()
+      .description(
+        `Active with less than ${TOKENS_WITHIN_DAYS} days left: the Overview's rule`,
+      ),
+  })
+  .label("AnsweredApiToken");
+
+export const answeredApiTokensSchema = Joi.object({
+  tokens: Joi.array().items(answeredApiTokenSchema).required(),
+});
+
 export const issuedApiTokenSchema = Joi.object({
   token: apiTokenSchema.required(),
 });
@@ -175,7 +190,7 @@ export const rotatedApiTokenSchema = issuedApiTokenSchema.keys({
 const withService = (schema, label) => schema.keys({ service }).label(label);
 
 export const apiTokensResponseSchema = withService(
-  apiTokensSchema,
+  answeredApiTokensSchema,
   "ApiTokensResponse",
 );
 
@@ -186,7 +201,7 @@ export const issuedApiTokenResponseSchema = withService(
 
 // The list the page is drawn again from, null when it could not be read.
 const tokensAfter = Joi.array()
-  .items(listedApiTokenSchema)
+  .items(answeredApiTokenSchema)
   .allow(null)
   .required();
 
