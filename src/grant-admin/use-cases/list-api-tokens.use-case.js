@@ -6,14 +6,27 @@ import {
 import { auditedRead } from "../../events/audited-read.js";
 import { findCwApiTokens } from "../repositories/cw-clients.repository.js";
 import { GAS } from "../services/event-sources.js";
+import { isExpiringSoon } from "../services/token-expiry.js";
 import { buildApiClientAudit } from "./api-client-audit.js";
 
-const listTokens = async ({ service, callerHash, encodedActor }) => ({
-  service,
-  ...(service === GAS
-    ? await listApiTokens({ callerHash })
-    : await findCwApiTokens({ actor: encodedActor })),
-});
+const readTokens = ({ service, callerHash, encodedActor }) =>
+  service === GAS
+    ? listApiTokens({ callerHash })
+    : findCwApiTokens({ actor: encodedActor });
+
+// Each token says whether it is expiring soon by the Overview's rule.
+const listTokens = async (args) => {
+  const { tokens } = await readTokens(args);
+  const now = new Date();
+
+  return {
+    service: args.service,
+    tokens: tokens.map((token) => ({
+      ...token,
+      expiringSoon: isExpiringSoon(token, now),
+    })),
+  };
+};
 
 export const listApiTokensUseCase = auditedRead(
   listTokens,

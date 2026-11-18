@@ -164,7 +164,7 @@ const stored = {
   createdBy: "Ann",
 };
 
-const listed = { ...token, stored };
+const listed = { ...token, stored, expiringSoon: false };
 
 describe("closed response schemas", () => {
   const { schema: listSchema } = listApiTokensRoute.options.response;
@@ -197,6 +197,14 @@ describe("closed response schemas", () => {
         tokens: [{ ...listed, clientId: null, tokenHint: null }],
       }).error,
     ).toBeUndefined();
+  });
+
+  it("requires expiringSoon on every listed row", () => {
+    const { expiringSoon, ...withoutFlag } = listed;
+
+    expect(
+      listSchema.validate({ service: "gas", tokens: [withoutFlag] }).error,
+    ).toBeDefined();
   });
 
   it("requires the stored row on every listed row", () => {
@@ -358,6 +366,7 @@ describe("API client handlers", () => {
           _id: { $oid: TOKEN_ID },
           id: "bbb••••••bbb",
         },
+        expiringSoon: false,
       },
     ];
     const refusal = Boom.conflict("refused");

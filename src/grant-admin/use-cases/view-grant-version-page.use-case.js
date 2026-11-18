@@ -26,7 +26,10 @@ import {
   grantVersionNotFound,
   noDefinitionFile,
 } from "../services/grant-not-found.js";
-import { readVersionEvents } from "../services/version-events.js";
+import {
+  readVersionEvents,
+  withPastDeletion,
+} from "../services/version-events.js";
 import { readCounterpart } from "./read-counterpart.js";
 import { readGrantVersionEventsUseCase } from "./read-record-events.use-case.js";
 
@@ -190,14 +193,31 @@ export const buildViewGrantVersionAudit = ({ code, version, tab, caller }) =>
     segregationRef: "admin-view-grant-version",
   });
 
-const viewGrantVersionPage = (args) => {
+// The Overview's events say whether GAS has deleted them.
+const withEventDeletion = ({ page, accounts }) => ({
+  page: page.versionEvents
+    ? {
+        ...page,
+        versionEvents: withPastDeletion(
+          page.versionEvents,
+          page.header.receivedAt,
+          new Date(),
+        ),
+      }
+    : page,
+  accounts,
+});
+
+const viewGrantVersionPage = async (args) => {
   const tab = GRANT_VERSION_TABS[args.tab];
 
-  return composeRecordPage({
-    readHeader: readGrantVersionHeader,
-    tab,
-    args: { ...args, withCounterpart: tab.withCounterpart === true },
-  });
+  return withEventDeletion(
+    await composeRecordPage({
+      readHeader: readGrantVersionHeader,
+      tab,
+      args: { ...args, withCounterpart: tab.withCounterpart === true },
+    }),
+  );
 };
 
 const auditedViewGrantVersionPage = auditedRead(

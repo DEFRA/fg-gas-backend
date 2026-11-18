@@ -179,11 +179,18 @@ describe("GAS API clients", () => {
       itFixture: true,
       clientId: "Grants_UI",
     });
+    const soon = await insertRow({
+      itFixture: true,
+      clientId: "it-soon",
+      status: "ACTIVE",
+      expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+    });
 
     const payload = await listed("gas");
     const namedHash = (await accessTokens.findOne({ _id: named })).id;
 
     expect(payload.service).toBe("gas");
+    expect(rowOf(payload, soon).expiringSoon).toBe(true);
     expect(rowOf(payload, named)).toEqual({
       tokenId: named.toHexString(),
       clientId: "it-dated",
@@ -195,6 +202,7 @@ describe("GAS API clients", () => {
       revokedAt: null,
       revokedBy: null,
       inUse: false,
+      expiringSoon: false,
       stored: {
         _id: { $oid: named.toHexString() },
         id: `${namedHash.slice(0, 3)}••••••${namedHash.slice(-3)}`,

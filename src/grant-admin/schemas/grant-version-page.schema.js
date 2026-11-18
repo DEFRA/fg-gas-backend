@@ -204,7 +204,13 @@ export const grantVersionPageSchemas = {
     "overview",
     {
       overview: overviewSchema,
-      versionEvents: versionEventsSchema("GrantVersionOverviewEvents"),
+      versionEvents: versionEventsSchema("GrantVersionOverviewEvents", {
+        pastDeletion: Joi.boolean()
+          .required()
+          .description(
+            "GAS's inbox, read whole, holds none of the version's events, and its event retention has run from the version's arrival",
+          ),
+      }),
     },
     "GrantVersionOverviewPage",
   ),

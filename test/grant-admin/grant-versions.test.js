@@ -1142,6 +1142,34 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/events", () => {
     ]);
   });
 
+  it("overview: past deletion when the inbox holds none of an old version's events", async () => {
+    await configVersions.insertOne(
+      aConfigVersion("1.0.0", "active", "2020-01-01T09:00:00.000Z"),
+    );
+
+    const { payload: page } = await get(`${CODE}/versions/1.0.0/overview`);
+
+    expect(page.versionEvents).toMatchObject({
+      outcome: "read",
+      events: { rows: [], more: false },
+      pastDeletion: true,
+    });
+  });
+
+  it("overview: not past deletion while a later event of the version is held", async () => {
+    await configVersions.insertOne(
+      aConfigVersion("1.0.0", "active", "2020-01-01T09:00:00.000Z"),
+    );
+    await inbox.insertOne(
+      aConfigVersionEvent(CODE, "1.0.0", new Date().toISOString()),
+    );
+
+    const { payload: page } = await get(`${CODE}/versions/1.0.0/overview`);
+
+    expect(page.versionEvents.events.rows).toHaveLength(1);
+    expect(page.versionEvents.pastDeletion).toBe(false);
+  });
+
   it("answers no events for a code none were stamped for", async () => {
     await configVersions.insertOne(
       aConfigVersion("1.0.0", "active", "2026-10-10T09:00:00.000Z"),
