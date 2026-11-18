@@ -10,6 +10,7 @@ import {
 } from "../repositories/config-version.repository.js";
 import {
   findByCode,
+  findQuestionSchemas,
   findStoredGrantDocument,
   findStoredGrantSummary,
 } from "../repositories/grant.repository.js";
@@ -17,6 +18,7 @@ import { CLAIM_APPROVAL_TELLS_CW } from "./claims.service.js";
 import {
   findConfigVersionFiles,
   findConfigVersions,
+  findGrantQuestionSchemas,
   findGrantDefinitionSummary,
   findGrantLifecycle,
   findGrantPhaseNames,
@@ -668,5 +670,13 @@ describe("findGrantVersionEntitlements", () => {
     await expect(findGrantVersionEntitlements(ref)).rejects.toThrow(
       'Invalid entitlement template "MAINTENANCE"',
     );
+  });
+});
+
+describe("findGrantQuestionSchemas", () => {
+  it("answers the stored question schemas", async () => {
+    findQuestionSchemas.mockResolvedValue([{ type: "object" }]);
+
+    expect(await findGrantQuestionSchemas()).toEqual([{ type: "object" }]);
   });
 });

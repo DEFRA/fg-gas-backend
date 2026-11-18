@@ -1,6 +1,6 @@
-import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { db } from "../mongo-client.js";
+import { readTimeoutMs } from "../read-timeout.js";
 import { STORED, keyOf, toIso, toStoredTime } from "./bucket.js";
 import { decodeCursor, encodeCursor } from "./cursor.js";
 import {
@@ -15,8 +15,6 @@ import {
 } from "./plan.js";
 import { toRef } from "./refs.js";
 import { refuse } from "./refusal.js";
-import { findBucket, listBuckets } from "./registry.js";
-import { TIMELINE_LIMIT, queryRequestSchema } from "./schema.js";
 
 export const COUNT_CAP = 10_000;
 
@@ -25,9 +23,12 @@ export const COUNT_CAP = 10_000;
 export const SUMMARY_COUNT_CAP = 100_000;
 export const MAX_VALUES = 100;
 
-const MAX_TIME_MS_EXPIRED = 50;
+export const MAX_TIME_MS_EXPIRED = 50;
 
-export const readTimeoutMs = () => config.adminReadTimeoutMs;
+// Lists and Explore read from a secondary where there is one.
+export const SECONDARY = "secondaryPreferred";
+
+export { readTimeoutMs };
 
 const offersValues = (fact) =>
   Array.isArray(fact.values) || fact.values === STORED;
@@ -205,7 +206,7 @@ export const parseQuery = (bucket, body) => {
   const where = parseWhere(bucket, body.where);
   const asked = Object.keys(where);
   const { ref, refKind } = parseRef(bucket, body.ref);
-  // Still read, so an admin that sends it isn't refused: nothing is hidden now.
+  // Read and ignored, so an admin that sends it isn't refused.
   parseShow(bucket, body.show);
 
   return {
@@ -252,7 +253,8 @@ const filledPart = (read, unset) =>
     read.plan.filled.map((fact) => [fact, fillOfFact(read, fact, unset)]),
   );
 
-const refPart = ({ query }) => (query.ref ? { refs: query.ref } : {});
+// One ref, or several, which the index reads as one scan each.
+const refPart = ({ query }) => (query.ref ? { refs: matchOf(query.ref) } : {});
 
 const bounds = (bucket, entries) =>
   Object.fromEntries(
@@ -276,7 +278,7 @@ export const residualPart = (read) =>
     read.plan.residual.map((fact) => [fact, matchAsked(read, fact)]),
   );
 
-const keysetParts = ({ bucket, query: { cursor } }) =>
+export const keysetParts = ({ bucket, query: { cursor } }) =>
   cursor
     ? [
         { [bucket.time.field]: { $lte: cursor.t } },
@@ -289,7 +291,7 @@ const olderThanCursor = ({ bucket, query: { cursor } }) =>
 
 const positionOf = (bucket, doc) => ({ t: doc[bucket.time.field], i: doc._id });
 
-const withinEdge = ({ bucket }, edge) => {
+export const withinEdge = ({ bucket }, edge) => {
   if (!edge) {
     return [];
   }
@@ -311,14 +313,22 @@ export const matchParts = (read) => [
 
 export const collectionOf = ({ bucket }) => db.collection(bucket.collection);
 
-const timeLeft = ({ deadline }) => Math.max(1, deadline - Date.now());
+// A read of the rows `where` picks out, with no ref, on the plan given.
+export const readOn = (bucket, { where, from, to }, plan) => ({
+  bucket,
+  query: { where, asked: Object.keys(where), ref: null, from, to },
+  plan,
+  deadline: Date.now() + readTimeoutMs(),
+});
+
+export const timeLeft = ({ deadline }) => Math.max(1, deadline - Date.now());
 
 export const readOptions = (read) => ({
   hint: keyOf(read.bucket, read.plan.line),
   maxTimeMS: timeLeft(read),
 });
 
-const findOptions = (read) => ({
+export const findOptions = (read) => ({
   ...readOptions(read),
   sort: { [read.bucket.time.field]: -1, _id: -1 },
 });
@@ -426,6 +436,30 @@ export const readCount = async (read, cap = COUNT_CAP) => {
 const leadLine = (bucket, fact) =>
   bucket.indexes.find((line) => line[0] === fact);
 
+// How many records hold each value of a fact, capped, each counted through
+// the index the fact leads: null where no index leads with it.
+export const readValueCounts = async (bucket, fact, values, maxTimeMS) => {
+  const line = leadLine(bucket, fact);
+
+  if (!line) {
+    return null;
+  }
+
+  const counts = await Promise.all(
+    values.map((value) =>
+      db
+        .collection(bucket.collection)
+        .countDocuments(
+          { [fact]: value },
+          { hint: keyOf(bucket, line), limit: COUNT_CAP, maxTimeMS },
+        )
+        .catch(refuseTimedOut),
+    ),
+  );
+
+  return new Map(values.map((value, n) => [value, counts[n]]));
+};
+
 export const readStoredValues = async (bucket, fact, maxTimeMS) => {
   const groups = await db
     .collection(bucket.collection)
@@ -493,23 +527,12 @@ const readGroupTotal = (read, fact) => {
   return total.plan.kind === EXACT ? readCount(total) : null;
 };
 
-const fromTheStart = (read) => ({
-  ...read,
-  query: { ...read.query, cursor: null },
-});
-
 // The whole list counted once, every filter and any ref applied: not on a plan
-// that would have to scan to count. A later page that proved only the rows
-// past its cursor few has yet to prove the whole reference's.
-const isCounted = (read) => read.query.count && read.plan.kind === EXACT;
-
-const readTotal = async (read) => {
-  const whole =
-    isCounted(read) &&
-    !(read.pastCursor && (await readEdge(fromTheStart(read))));
-
-  return whole ? readCount(read) : null;
-};
+// that would have to scan to count.
+const readTotal = (read) =>
+  read.query.count && read.plan.kind === EXACT && !read.tailOnly
+    ? readCount(read)
+    : null;
 
 const readGroup = (read) => async (fact) => {
   const [values, total] = await Promise.all([
@@ -549,8 +572,23 @@ const logBounded = ({ bucket, query, plan }) => {
   }
 };
 
+const fitsBudget = async (read) => (await readEdge(read)) === null;
+
+const isLaterCount = ({ query }) => query.count && query.cursor !== null;
+
+const wholeRefFits = (read) =>
+  isLaterCount(read) &&
+  fitsBudget({ ...read, query: { ...read.query, cursor: null } });
+
+const settleTail = async (read, exact) => {
+  const edge = await readEdge(read);
+
+  return edge ? { ...read, edge } : { ...exact, tailOnly: isLaterCount(read) };
+};
+
 // One reference's rows are few, so its other filters are tested row by row:
-// exact while they fit in the scan budget, bounded past it.
+// exact while they fit in the scan budget, bounded past it. A later page proves
+// only the rows after its cursor fit, so its total needs the whole reference to.
 const settleRef = async (read) => {
   const { plan } = read;
 
@@ -558,15 +596,9 @@ const settleRef = async (read) => {
     return read;
   }
 
-  const edge = await readEdge(read);
+  const exact = { ...read, plan: { ...plan, kind: EXACT } };
 
-  return edge
-    ? { ...read, edge }
-    : {
-        ...read,
-        plan: { ...plan, kind: EXACT },
-        pastCursor: read.query.cursor !== null,
-      };
+  return (await wholeRefFits(read)) ? exact : settleTail(read, exact);
 };
 
 export const runQuery = async (
@@ -599,36 +631,3 @@ export const runQuery = async (
     ...(query.count && { total }),
   };
 };
-
-const readTimelineOf = (ref) => async (bucket) => {
-  const { id, label } = bucket;
-
-  try {
-    const { value } = queryRequestSchema.validate({
-      ref,
-      limit: TIMELINE_LIMIT,
-    });
-    const { rows, page } = await runQuery(bucket, parseQuery(bucket, value));
-
-    return { id, label, rows, more: page.next !== null };
-  } catch (error) {
-    logger.error(`Timeline: ${id} could not be read (${error.name})`);
-
-    return { id, label, rows: null, more: false };
-  }
-};
-
-// A record's events: its ref searched in every timeline bucket this service
-// registers, each answered apart so one that fails takes none with it.
-export const readTimeline = async (ref) => ({
-  buckets: await Promise.all(
-    listBuckets()
-      .filter(({ timeline }) => timeline)
-      .map(readTimelineOf(ref)),
-  ),
-});
-
-// One bucket's rows for a link only it declares, read as a timeline bucket is.
-export const readBucketTimeline = async (id, ref) => ({
-  buckets: [await readTimelineOf(ref)(findBucket(id))],
-});

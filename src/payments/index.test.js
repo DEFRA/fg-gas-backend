@@ -4,6 +4,10 @@ import {
   storeDefinition,
   storedDefinitionVersions,
 } from "../common/config-broker/definition-stores.js";
+import {
+  clearExploreSources,
+  listExploreSources,
+} from "../common/explore-sources/registry.js";
 import { AGREEMENT_PAYMENT_REQUESTED_EVENT_TYPE } from "../agreements/events/agreement-payment-requested.event.js";
 import {
   clearEventHandlers,
@@ -28,7 +32,14 @@ vi.mock("./handlers/handle-claim-payment-requested.js", () => ({
 afterEach(() => {
   clearEventHandlers();
   clearDefinitionStores();
+  clearExploreSources();
   vi.clearAllMocks();
+});
+
+it("registers the payments Explore source", () => {
+  payments.register();
+
+  expect(listExploreSources().map(({ name }) => name)).toEqual(["payments"]);
 });
 
 it("registers against the producer-owned Agreement payment request type", async () => {

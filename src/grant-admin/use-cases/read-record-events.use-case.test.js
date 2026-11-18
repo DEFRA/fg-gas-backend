@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   readBucketTimeline,
   readTimeline,
-} from "../../common/buckets/engine.js";
+} from "../../common/buckets/timeline.js";
 import { logger } from "../../common/logger.js";
 import {
   readCwBucketTimeline,
@@ -17,7 +17,7 @@ import {
 } from "./read-record-events.use-case.js";
 
 vi.mock("../../common/logger.js");
-vi.mock("../../common/buckets/engine.js");
+vi.mock("../../common/buckets/timeline.js");
 vi.mock("../repositories/cw-actuators.repository.js", () => ({
   readCwTimeline: vi.fn(),
   readCwBucketTimeline: vi.fn(),

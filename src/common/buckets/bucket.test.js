@@ -344,6 +344,33 @@ describe("defineBucket", () => {
     });
   });
 
+  describe("bins", () => {
+    const bins = { among: { status: "DEAD_LETTER" } };
+
+    it("are declared among facts an index line reads exactly", () => {
+      const bucket = testBucket({ bins });
+
+      expect(bucket.bins).toEqual(bins);
+      expect(Object.isFrozen(bucket.bins.among)).toBe(true);
+    });
+
+    it("are none unless declared", () => {
+      expect(testBucket().bins).toBeNull();
+    });
+
+    it("are refused among an undeclared fact", () => {
+      expect(() => testBucket({ bins: { among: { colour: "red" } } })).toThrow(
+        "has bins among an undeclared fact",
+      );
+    });
+
+    it("are refused without an index line that reads them exactly", () => {
+      expect(() => testBucket({ bins, indexes: [["code"]] })).toThrow(
+        "has bins with no index line that reads them exactly",
+      );
+    });
+  });
+
   it("refuses a lead with more values than one read may scan", () => {
     const values = Array.from({ length: 50 }, (_, n) => ({
       value: `type-${n}`,

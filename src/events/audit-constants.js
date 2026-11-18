@@ -14,6 +14,8 @@ export const auditEntities = {
   WORKFLOW: "WORKFLOW",
   // One list Grant Admin can show, as its owning service declares it.
   BUCKET: "BUCKET",
+  // One source Explore reads, as the query named it.
+  EXPLORE_SOURCE: "EXPLORE_SOURCE",
   // A named caller of GAS or Caseworking: the access tokens sharing a name.
   API_CLIENT: "API_CLIENT",
 };
@@ -71,6 +73,8 @@ export const auditActions = {
   FETCH_CONFIG_DEFINITION: "FETCH_CONFIG_DEFINITION",
   // One page of one audited bucket.
   QUERY_BUCKET: "QUERY_BUCKET",
+  // One Explore query read, in the shape asked, never its values.
+  EXPLORE_QUERY: "EXPLORE_QUERY",
   VIEW_API_CLIENT: "VIEW_API_CLIENT",
   ISSUE_API_TOKEN: "ISSUE_API_TOKEN",
   REVOKE_API_TOKEN: "REVOKE_API_TOKEN",

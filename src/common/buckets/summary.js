@@ -10,8 +10,8 @@ import {
   pickedBy,
   rangePart,
   readCount,
+  readOn,
   readOptions,
-  readTimeoutMs,
   refuseTimedOut,
   residualPart,
 } from "./engine.js";
@@ -35,23 +35,16 @@ export const parseSummary = (bucket, summaryId, body) => {
 const summaryRead = (bucket, { summary, from, to }) => {
   const line = summaryLineOf(summary, bucket.lead);
 
-  return {
+  return readOn(
     bucket,
-    query: {
-      where: summary.among,
-      asked: Object.keys(summary.among),
-      ref: null,
-      from,
-      to,
-    },
-    plan: {
+    { where: summary.among, from, to },
+    {
       kind: EXACT,
       line,
       filled: factsOf(bucket, line).filter((fact) => !line.includes(fact)),
       residual: [],
     },
-    deadline: Date.now() + readTimeoutMs(),
-  };
+  );
 };
 
 const fillsOf = (read) =>

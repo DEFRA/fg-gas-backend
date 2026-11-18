@@ -41,6 +41,7 @@ let submitClaim;
 let dispatchEvent;
 let clearPaymentDefinitionCaches;
 let clearBuckets;
+let clearExploreSources;
 
 beforeAll(async () => {
   replSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
@@ -52,6 +53,8 @@ beforeAll(async () => {
   ({ submitClaim } = await import("./claims.service.js"));
   ({ dispatchEvent } = await import("../../events/index.js"));
   ({ clearBuckets } = await import("../../common/buckets/registry.js"));
+  ({ clearExploreSources } =
+    await import("../../common/explore-sources/registry.js"));
   ({ clearPaymentDefinitionCaches } =
     await import("../../payments/use-cases/load-payment-definition.js"));
   const { save: saveApplication } =
@@ -146,6 +149,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   clearPaymentDefinitionCaches();
   clearBuckets();
+  clearExploreSources();
   await Promise.all([
     db.collection("claims").deleteMany({}),
     db.collection("outbox").deleteMany({}),

@@ -1,0 +1,138 @@
+import { describe, expect, it, vi } from "vitest";
+import { readStoredValues, readValueCounts } from "../buckets/engine.js";
+import { describeSource, knownValuesOf } from "./describe.js";
+import { testSource } from "./test-source.js";
+
+vi.mock("../buckets/engine.js", () => ({
+  readStoredValues: vi.fn(),
+  readValueCounts: vi.fn(),
+  readTimeoutMs: () => 1000,
+}));
+
+describe("describeSource", () => {
+  const entry = (path, overrides = {}) => ({
+    path,
+    type: "text",
+    index: null,
+    closed: false,
+    within: null,
+    ...overrides,
+  });
+
+  it("says what the source reads and how each known path is read, never its functions", () => {
+    const described = describeSource(testSource());
+
+    expect(described).toMatchObject({
+      name: "events",
+      service: "Test",
+      size: "big",
+      noun: { one: "event", many: "events" },
+      time: "publicationDate",
+      star: ["publicationDate", "box", "eventType", "status"],
+      answersAt: "payload.answers",
+      listedAt: null,
+    });
+    expect(described.roots).toEqual([...testSource().roots, "box"]);
+    expect(described.paths).toEqual([
+      entry("ref", { index: "ref", scans: 1 }),
+      entry("refs", { index: "refs", scans: 1 }),
+      entry("msg", { index: "ref", scans: 1 }),
+      entry("status", { index: "fact", closed: true }),
+      entry("eventType", { index: "fact", closed: true }),
+      entry("code", { index: "fact" }),
+      entry("version", { index: "fact", within: "code" }),
+      entry("grantCode"),
+      entry("publicationDate", {
+        type: "date",
+        index: "time",
+        stored: "date",
+      }),
+      entry("box", { index: "box" }),
+      entry("attempts", { type: "number" }),
+    ]);
+    expect(JSON.stringify(described)).not.toContain("open");
+  });
+
+  it("drops an index its bucket doesn't declare, a time on another path too", () => {
+    const source = {
+      ...testSource(),
+      paths: [
+        { path: "createdAt", index: { time: true } },
+        { path: "other", index: { ref: "nope" } },
+        { path: "x", index: { fact: "nope" } },
+      ],
+    };
+
+    expect(describeSource(source).paths.map(({ index }) => index)).toEqual([
+      null,
+      null,
+      null,
+    ]);
+  });
+});
+
+describe("knownValuesOf", () => {
+  it("gives each closed path its declared or stored values, open paths none", async () => {
+    readStoredValues.mockResolvedValue(["g1", 2]);
+
+    const values = await knownValuesOf(testSource());
+
+    expect(values.get("status")[0]).toEqual({
+      value: expect.any(String),
+      label: expect.any(String),
+    });
+    expect(values.get("code")).toEqual([
+      { value: "g1", label: "g1" },
+      { value: "2", label: "2" },
+    ]);
+    expect(values.has("ref")).toBe(false);
+    expect(values.has("attempts")).toBe(false);
+    expect(readStoredValues).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "test.outbox" }),
+      "code",
+      1000,
+    );
+  });
+
+  it("puts the values most used first where the index counts them", async () => {
+    readStoredValues.mockResolvedValue(["g1", "g2", "g3"]);
+    readValueCounts.mockImplementation(async (bucket, fact, values) =>
+      fact === "code"
+        ? new Map([
+            ["g1", 1],
+            ["g2", 30],
+            ["g3", 5],
+          ])
+        : new Map(values.map((value) => [value, 0])),
+    );
+
+    const values = await knownValuesOf(testSource());
+
+    expect(values.get("code").map(({ value }) => value)).toEqual([
+      "g2",
+      "g3",
+      "g1",
+    ]);
+    expect(readValueCounts).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "test.outbox" }),
+      "code",
+      ["g1", "g2", "g3"],
+      1000,
+    );
+  });
+
+  it("keeps the declared order where no index leads with the fact", async () => {
+    readStoredValues.mockResolvedValue(["g1"]);
+    readValueCounts.mockResolvedValue(null);
+
+    const values = await knownValuesOf(testSource());
+
+    expect(values.get("code")).toEqual([{ value: "g1", label: "g1" }]);
+  });
+
+  it("gives a stored field with too many values to list none", async () => {
+    readStoredValues.mockResolvedValue(null);
+
+    expect((await knownValuesOf(testSource())).has("code")).toBe(false);
+  });
+});

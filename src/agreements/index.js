@@ -1,6 +1,8 @@
 import { registerDefinitionStore } from "../common/config-broker/definition-stores.js";
+import { registerExploreSource } from "../common/explore-sources/registry.js";
 import { registerInternalCommandHandler } from "../common/internal-command-handlers.js";
 import { internalCommandTypes } from "../common/internal-command-types.js";
+import { agreementsSource } from "./explore/agreements.source.js";
 import { isGasManagedAgreementGrant } from "./services/agreement-ownership.js";
 import { findStoredVersions } from "./repositories/agreement-definition.repository.js";
 import { storeAgreementDefinition } from "./use-cases/store-agreement-definition.js";
@@ -23,6 +25,7 @@ export const agreements = {
       find: findStoredAgreementDefinition,
       store: storeAgreementDefinition,
     });
+    registerExploreSource(agreementsSource);
     registerInternalCommandHandler(
       internalCommandTypes.AGREEMENT_CREATE,
       handleCreateAgreementCommandUseCase,

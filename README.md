@@ -331,6 +331,7 @@ The `/grant-admin` routes answer the Grants Platform Admin alone. Each admin req
   - Issue and rotate answer 201 `{ service, token, tokens }`.
   - `PUT …/expiry` refuses 400 `EXPIRY_PAST` for an expiry not later than now, and 409 `EXPIRY_UNCHANGED` for an active token's expiry moved within the UK day it already ends on.
   - Every refusal of a token write is `{ code, message, tokens }`. `tokens` is the list as `GET /grant-admin/clients/{service}` answers it, hashes masked, or null when it can't be read.
+- **Explore:** `POST /grant-admin/explore/query` carries the editor vocabulary on every answer and refusal (as `GET /grant-admin/explore/vocabulary` answers it), and takes `windows: N` (1 to 50) to read windows 1 to N in turn as one answer, with `windowRows` and `stopped`. `stopped` is null when every window asked was read; otherwise it is the status and code of the window that failed (its rows left out), 413 `TOO_MANY_CELLS` when the next window couldn't fit in one answer, or 408 `QUERY_TOO_SLOW` when too little time was left to read it; neither of these is read or audited. The vocabulary is kept 60 seconds per set of roles.
 
 `GET /grant-admin/buckets`, `POST /grant-admin/buckets/{bucketId}/query` and `newClient` stay for the admin's last release, and go in a later release.
 

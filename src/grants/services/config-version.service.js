@@ -6,6 +6,7 @@ import {
 } from "../repositories/config-version.repository.js";
 import {
   findByCode,
+  findQuestionSchemas,
   findStoredGrantDocument,
   findStoredGrantSummary,
 } from "../repositories/grant.repository.js";
@@ -15,6 +16,9 @@ import { processEffectsOf } from "../use-cases/transition-application.use-case.j
 import { isDefinitionDefect } from "./definition-defect.js";
 
 const PROBLEM_MAX_LENGTH = 500;
+
+// The question schemas Explore reads its answer paths from.
+export const findGrantQuestionSchemas = () => findQuestionSchemas();
 
 const toVersionEntry = (files) => ({
   version: files.version,

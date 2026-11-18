@@ -145,6 +145,45 @@ const optionsWith = (body, options) =>
     ? requestOptions(options)
     : { ...requestOptions(options), payload: body };
 
+const responseError = (res, payload) =>
+  new Boom.Boom(`Response Error: ${res.statusCode} ${res.statusMessage}`, {
+    statusCode: res.statusCode,
+    data: { isResponseError: true, headers: res.headers, res, payload },
+  });
+
+const MIN_ERROR_STATUS = 400;
+
+const readAnswer = async (pending, options) => {
+  const res = await pending;
+  const payload = await wreck.read(res, options);
+
+  if (res.statusCode >= MIN_ERROR_STATUS) {
+    throw responseError(res, payload);
+  }
+
+  return { res, payload };
+};
+
+// As wreck's shortcut answers, with the request kept so that a caller who
+// gives up ends it, and Caseworking stops reading.
+const sendStoppable = async (method, url, options, signal) => {
+  const pending = wreck.request(method.toUpperCase(), url, options);
+  const stop = () => pending.req.destroy();
+
+  signal.addEventListener("abort", stop, { once: true });
+
+  try {
+    return await readAnswer(pending, options);
+  } finally {
+    signal.removeEventListener("abort", stop);
+  }
+};
+
+const send = (method, url, options, signal) =>
+  signal
+    ? sendStoppable(method, url, options, signal)
+    : wreck[method](url, options);
+
 // `failures` maps a status to the error it becomes, `otherwise` any other
 // status; with neither, Caseworking is unavailable. `expected` is what
 // Caseworking's 409 says the row was not, and it differs per route.
@@ -152,14 +191,16 @@ export const cwRequest = async (
   method,
   path,
   label,
-  { body, expected, failures, ...options },
+  { body, expected, failures, signal, ...options },
 ) => {
   assertCwConfigured();
 
   try {
-    const { payload } = await wreck[method](
+    const { payload } = await send(
+      method,
       cwUrl(path),
       optionsWith(body, options),
+      signal,
     );
 
     return payload;
