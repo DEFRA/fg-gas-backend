@@ -4,6 +4,7 @@ import { logger } from "../../common/logger.js";
 import { grantVersionExists } from "../../grants/services/config-version.service.js";
 import { findCwWorkflowVersion } from "../repositories/cw-workflows.repository.js";
 import { SECTION_CAP_BYTES } from "../services/compose-record-page.js";
+import { readGrantStatusMap } from "./read-grant-status-map.js";
 import { readWorkflowVersionEventsUseCase } from "./read-record-events.use-case.js";
 import {
   buildViewWorkflowVersionAudit,
@@ -16,6 +17,7 @@ vi.mock("../../events/audited-read.js", () => ({
 }));
 vi.mock("../../grants/services/config-version.service.js");
 vi.mock("../repositories/cw-workflows.repository.js");
+vi.mock("./read-grant-status-map.js");
 vi.mock("./read-record-events.use-case.js");
 
 const REF = { code: "woodland", version: "1.2.0" };
@@ -73,6 +75,7 @@ describe("viewWorkflowVersionPageUseCase", () => {
   it.each([
     ["overview", undefined],
     ["definition", "document"],
+    ["phases", "document"],
     ["raw", "document"],
     ["events", undefined],
   ])("reads Caseworking once for the %s tab", async (tab, include) => {
@@ -133,6 +136,31 @@ describe("viewWorkflowVersionPageUseCase", () => {
       version: "1.2.0",
       actor: "Jo",
     });
+  });
+
+  it("phases: the definition beside what the grant of the same version does with its statuses", async () => {
+    readGrantStatusMap.mockResolvedValue({ outcome: "no-grant" });
+
+    const page = await view("phases");
+
+    expect(page.definition).toEqual({
+      workflow: DOCUMENT,
+      addresses: ADDRESSES,
+    });
+    expect(page.grantStatusMap).toEqual({ outcome: "no-grant" });
+    expect(readGrantStatusMap).toHaveBeenCalledWith(
+      expect.objectContaining({ ...REF, caller: expect.any(String) }),
+    );
+  });
+
+  it("phases: reads no grant beside no definition", async () => {
+    findCwWorkflowVersion.mockResolvedValue(NOT_STORED);
+
+    const page = await view("phases");
+
+    expect(page.definition).toBeNull();
+    expect(page.grantStatusMap).toBeNull();
+    expect(readGrantStatusMap).not.toHaveBeenCalled();
   });
 
   it("raw: the stored workflow with its size, the size logged", async () => {

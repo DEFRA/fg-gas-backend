@@ -4,8 +4,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { applicationPageSchemas } from "../../src/grant-admin/schemas/application-page.schema.js";
 import { casePageSchemas } from "../../src/grant-admin/schemas/case-page.schema.js";
 import { aCwTimelineBucket, aCwEventRow } from "../helpers/cw-buckets.js";
-import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
+import {
+  cwStubRequestsBesideCatalogue,
+  resetCwStub,
+  setCwStub,
+} from "../helpers/cw-stub.js";
 import { wreck } from "../helpers/wreck.js";
+import { withoutShell } from "../helpers/shell.js";
 
 const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 const ACTOR = "UTF-8''%C5%81ukasz";
@@ -105,7 +110,9 @@ const getTab = (tab, caseRef = "ref-1", headers = OPERATOR) =>
   });
 
 const caseRequests = async () =>
-  (await cwStubRequests()).filter((request) => request.box === "cases");
+  (await cwStubRequestsBesideCatalogue()).filter(
+    (request) => request.box === "cases",
+  );
 
 const auditRows = (action) =>
   outbox
@@ -131,7 +138,10 @@ describe("GET /grant-admin/workflows/{workflowCode}/cases/{caseRef}/{tab}", () =
     const { payload: page, res } = await getTab("overview");
 
     expect(res.headers["cache-control"]).toBe("no-store");
-    expect(casePageSchemas.overview.validate(page).error).toBeUndefined();
+    expect(
+      casePageSchemas.overview.validate(withoutShell(page)).error,
+    ).toBeUndefined();
+    expect(page.shell.catalogue.buckets).toEqual(expect.any(Array));
     expect(page.header).toMatchObject({
       caseRef: "ref-1",
       workflowCode: WORKFLOW,
@@ -170,9 +180,41 @@ describe("GET /grant-admin/workflows/{workflowCode}/cases/{caseRef}/{tab}", () =
 
     const { payload: page } = await getTab("overview");
 
-    expect(casePageSchemas.overview.validate(page).error).toBeUndefined();
+    expect(
+      casePageSchemas.overview.validate(withoutShell(page)).error,
+    ).toBeUndefined();
     expect(page.overview.series).toEqual(answered);
   });
+
+  it.each(["overview", "events", "raw"])(
+    "%s: the names Caseworking gives where the case is, or none from a Caseworking that sends none",
+    async (tab) => {
+      const names = {
+        phases: [{ code: "PRE_AWARD", name: "Pre award" }],
+        stage: "Review",
+        status: null,
+      };
+      const named = aCaseRead("ref-1");
+      named.case.names = { ...names, anything: true };
+      await setCwStub({
+        cases: {
+          records: {
+            [`${WORKFLOW}/ref-1`]: named,
+            [`${WORKFLOW}/ref-2`]: aCaseRead("ref-2"),
+          },
+        },
+      });
+
+      const { payload: page } = await getTab(tab);
+      const { payload: unnamed } = await getTab(tab, "ref-2");
+
+      expect(
+        casePageSchemas[tab].validate(withoutShell(page)).error,
+      ).toBeUndefined();
+      expect(page.header.names).toEqual(names);
+      expect(unnamed.header.names).toBeNull();
+    },
+  );
 
   it.each([
     ["overview", ""],
@@ -219,13 +261,15 @@ describe("GET /grant-admin/workflows/{workflowCode}/cases/{caseRef}/{tab}", () =
 
     const { payload: page } = await getTab("events");
 
-    expect(casePageSchemas.events.validate(page).error).toBeUndefined();
+    expect(
+      casePageSchemas.events.validate(withoutShell(page)).error,
+    ).toBeUndefined();
     expect(page.events.rows.map((row) => [row.service, row.eventId])).toEqual([
       ["caseworking", "cw-msg-ref-1"],
     ]);
     expect(page.sourceErrors).toEqual([]);
 
-    const asked = (await cwStubRequests()).filter(
+    const asked = (await cwStubRequestsBesideCatalogue()).filter(
       (request) => request.box === "buckets",
     );
     expect(asked.map((request) => [request.method, request.path])).toEqual([
@@ -256,10 +300,24 @@ describe("GET /grant-admin/workflows/{workflowCode}/cases/{caseRef}/{tab}", () =
   it("raw: Caseworking's document whole, with its size", async () => {
     const { payload: page } = await getTab("raw");
 
-    expect(casePageSchemas.raw.validate(page).error).toBeUndefined();
+    expect(
+      casePageSchemas.raw.validate(withoutShell(page)).error,
+    ).toBeUndefined();
     expect(page.raw).toEqual(aCaseRead("ref-1").document);
     expect(page.storedBytes).toBe(4096);
   });
+
+  it.each(["overview", "events", "raw"])(
+    "%s: the header names the current config version",
+    async (tab) => {
+      const { payload: page } = await getTab(tab);
+
+      expect(
+        casePageSchemas[tab].validate(withoutShell(page)).error,
+      ).toBeUndefined();
+      expect(page.header.version).toBe("1.1.0");
+    },
+  );
 
   it("draws an orphan case, and audits it with no accounts", async () => {
     const { payload: page } = await getTab("overview");
@@ -341,7 +399,7 @@ describe("the case link on application pages", () => {
     const { payload: page } = await appTab();
 
     expect(
-      applicationPageSchemas.overview.validate(page).error,
+      applicationPageSchemas.overview.validate(withoutShell(page)).error,
     ).toBeUndefined();
     expect(page.header.counterpart).toEqual({ exists: true });
 
@@ -440,9 +498,9 @@ describe("the record on a Caseworking event", () => {
 
     await detail();
 
-    expect((await cwStubRequests()).map((request) => request.box)).toEqual([
-      "inbox",
-    ]);
+    expect(
+      (await cwStubRequestsBesideCatalogue()).map((request) => request.box),
+    ).toEqual(["inbox"]);
     expect(await inbox.countDocuments({})).toBe(0);
   });
 });

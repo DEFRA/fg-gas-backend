@@ -41,6 +41,22 @@ const call = (overrides = {}) =>
   });
 
 describe("redriveEventUseCase gas", () => {
+  it("joins the caller's transaction rather than opening one", async () => {
+    redriveGasInbox.mockResolvedValue(true);
+    const outer = { id: "the-caller's" };
+
+    await redriveEventUseCase(
+      { service: "gas", box: "inbox", id: ID, caller: "grants-ui" },
+      outer,
+    );
+
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(redriveGasInbox).toHaveBeenCalledWith(ID, {
+      by: undefined,
+      session: outer,
+    });
+  });
+
   it("issues the conditional update against its own collection", async () => {
     redriveGasInbox.mockResolvedValue(true);
 

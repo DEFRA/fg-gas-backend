@@ -69,7 +69,17 @@ export const issueApiTokenPayloadSchema = Joi.object({
   tokenHash,
   tokenHint,
   expiresAt: expiresAt.default(null),
-  newClient: Joi.boolean().strict().default(false),
+  confirmed: Joi.boolean()
+    .strict()
+    .default(true)
+    .description(
+      "false: refuse with HAS_ACTIVE, issuing nothing, when the client has active tokens",
+    ),
+  newClient: Joi.boolean()
+    .strict()
+    .description(
+      "Ignored: the owning service decides whether the client is new",
+    ),
 }).label("IssueApiTokenPayload");
 
 export const changeApiTokenExpiryPayloadSchema = Joi.object({
@@ -146,6 +156,11 @@ export const issuedApiTokenSchema = Joi.object({
   token: apiTokenSchema.required(),
 });
 
+// Caseworking answers whether the issue created the client, for the audit.
+export const cwIssuedApiTokenSchema = issuedApiTokenSchema.keys({
+  newClient: Joi.boolean(),
+});
+
 // What the owning service replaced, for the audit; the admin is answered the
 // token alone.
 export const changedApiTokenExpirySchema = issuedApiTokenSchema.keys({
@@ -167,4 +182,15 @@ export const apiTokensResponseSchema = withService(
 export const issuedApiTokenResponseSchema = withService(
   issuedApiTokenSchema,
   "IssuedApiTokenResponse",
+);
+
+// The list the page is drawn again from, null when it could not be read.
+const tokensAfter = Joi.array()
+  .items(listedApiTokenSchema)
+  .allow(null)
+  .required();
+
+export const issuedApiTokenWithTokensResponseSchema = withService(
+  issuedApiTokenSchema.keys({ tokens: tokensAfter }),
+  "IssuedApiTokenWithTokensResponse",
 );

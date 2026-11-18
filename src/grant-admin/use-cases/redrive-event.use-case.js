@@ -73,9 +73,15 @@ export const redriveEventAuditBuilder = ([
 
 const redriveEventWithAudit = withAudit(redriveEvent, redriveEventAuditBuilder);
 
-// GAS: the row and its audit event commit together. Caseworking cannot join a
-// Mongo transaction, so its redrive stays best-effort.
-export const redriveEventUseCase = async (params) =>
-  params.service === GAS
-    ? withTransaction((session) => redriveEventWithAudit(params, session))
-    : redriveEventWithAudit(params);
+// GAS: the row and its audit event commit together, in the caller's
+// transaction when it has one. Caseworking cannot join a Mongo transaction,
+// so its redrive stays best-effort.
+export const redriveEventUseCase = async (params, session) => {
+  if (params.service !== GAS) {
+    return redriveEventWithAudit(params);
+  }
+
+  return session
+    ? redriveEventWithAudit(params, session)
+    : withTransaction((started) => redriveEventWithAudit(params, started));
+};

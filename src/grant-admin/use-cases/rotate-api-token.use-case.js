@@ -9,6 +9,7 @@ import { withAudit } from "../../events/with-audit.js";
 import { rotateCwApiToken } from "../repositories/cw-clients.repository.js";
 import { GAS } from "../services/event-sources.js";
 import { buildApiClientAudit, expiryOf } from "./api-client-audit.js";
+import { answeringTokens, withTokens } from "./api-token-answers.js";
 
 // Caseworking answers when the old token now stops, for this audit as for its
 // own.
@@ -68,7 +69,11 @@ export const buildRotateApiTokenAudit = ([params], result, error) =>
 const rotateWithAudit = withAudit(rotate, buildRotateApiTokenAudit);
 
 // GAS: both rows and the audit event commit together, or none of them do.
-export const rotateApiTokenUseCase = (params) =>
+const rotateOnService = (params) =>
   params.service === GAS
     ? withTransaction((session) => rotateWithAudit(params, session))
     : rotateWithAudit(params);
+
+export const rotateApiTokenUseCase = answeringTokens(async (params) =>
+  withTokens(params, await rotateOnService(params)),
+);

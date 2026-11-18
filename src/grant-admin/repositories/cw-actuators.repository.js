@@ -3,6 +3,7 @@ import Joi from "joi";
 import { REFUSAL_REASONS, refuse } from "../../common/buckets/refusal.js";
 import {
   TIMELINE_LIMIT,
+  binSchema,
   catalogueEntrySchema,
   queryResponseSchema,
   summaryResponseSchema,
@@ -208,6 +209,29 @@ const toCaseSeries = ({ latestRef, refs, members }) => ({
   ...(members === undefined ? {} : { members: members.map(toSeriesMember) }),
 });
 
+const caseNamesSchema = Joi.object({
+  phases: Joi.array()
+    .items(
+      Joi.object({
+        code: Joi.string().required(),
+        name: Joi.string().allow(null).required(),
+      }),
+    )
+    .required(),
+  stage: Joi.string().allow(null).required(),
+  status: Joi.string().allow(null).required(),
+}).required();
+
+// A Caseworking that predates names sends none, and names it cannot be sure
+// of are none: the page shows the codes.
+const toCaseNames = (names) => {
+  const { error, value } = caseNamesSchema.validate(names, {
+    stripUnknown: true,
+  });
+
+  return error ? null : value;
+};
+
 const toCaseSummary = (found) => ({
   caseRef: found.ref.caseRef,
   workflowCode: found.ref.workflowCode,
@@ -218,6 +242,7 @@ const toCaseSummary = (found) => ({
   originalConfigVersion: found.originalConfigVersion,
   currentConfigVersion: found.currentConfigVersion,
   series: found.series && toCaseSeries(found.series),
+  names: toCaseNames(found.names),
 });
 
 const readCase = async (ref, { include, actor }) => {
@@ -270,9 +295,22 @@ const bucketRefusalOf = (error) => {
 const bucketRefused = (error) =>
   bucketRefusalOf(error) ?? bucketsUnavailable(error);
 
+// A Caseworking that predates a list or a summary answers it with a reason.
+const NOT_OFFERED_REASONS = new Set(["UNKNOWN_BUCKET", "UNKNOWN_SUMMARY"]);
+
+const notOfferedOf = (refusal) =>
+  NOT_OFFERED_REASONS.has(refusal.output.payload.reason)
+    ? Object.assign(refusal, { cwReason: "NOT_OFFERED" })
+    : refusal;
+
 // A 404 without a reason is a Caseworking that has no bucket routes yet.
-const bucketNotFound = (error) =>
-  bucketRefusalOf(error) ?? Boom.badGateway("CW-BE has no bucket routes");
+const bucketNotFound = (error) => {
+  const refusal = bucketRefusalOf(error);
+
+  return refusal
+    ? notOfferedOf(refusal)
+    : Boom.badGateway("CW-BE has no bucket routes");
+};
 
 const BUCKET_FAILURES = {
   [BAD_REQUEST]: bucketRefused,
@@ -300,23 +338,26 @@ const toCwEntries = (payload) => {
 };
 
 // Only the entries GAS can route: those whose id Caseworking owns.
-export const findCwBuckets = async () =>
+export const findCwBuckets = async ({ timeout } = {}) =>
   toCwEntries(
-    await cwRequest(
-      "get",
-      "/actuators/buckets",
-      BUCKETS_LABEL,
-      bucketRequestOptions({}),
-    ),
+    await cwRequest("get", "/actuators/buckets", BUCKETS_LABEL, {
+      ...bucketRequestOptions({}),
+      ...(timeout === undefined ? {} : { timeout }),
+    }),
   );
 
 // Caseworking's answer is returned as it is; it audits the read itself.
+// `timeout`, when given, is the time left of a read that spans several pages.
 export const queryCwBucket = async (bucketId, body, options = {}) =>
   cwRequest(
     "post",
     `/actuators/buckets/${encodeURIComponent(bucketId)}/query`,
     BUCKETS_LABEL,
-    { ...bucketRequestOptions(options), body },
+    {
+      ...bucketRequestOptions(options),
+      ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
+      body,
+    },
   );
 
 const readBucketAnswer = (schema, payload, what) => {
@@ -361,12 +402,62 @@ const toCwBucketTimeline = ({ bucket, rows, page }) => ({
   buckets: [{ id: bucket, label: "CW-BE", rows, more: page.next !== null }],
 });
 
+// One Caseworking bucket's page, checked as GAS reads its own.
+export const readCwBucketPage = async (bucketId, body, options = {}) =>
+  readBucketAnswer(
+    queryResponseSchema,
+    await queryCwBucket(bucketId, body, options),
+    "a bucket page",
+  );
+
 // One Caseworking bucket's rows for a ref, in the shape readCwTimeline answers.
 export const readCwBucketTimeline = async (bucketId, ref, options = {}) =>
   toCwBucketTimeline(
-    readBucketAnswer(
-      queryResponseSchema,
-      await queryCwBucket(bucketId, { ref, limit: TIMELINE_LIMIT }, options),
-      "a bucket page",
-    ),
+    await readCwBucketPage(bucketId, { ref, limit: TIMELINE_LIMIT }, options),
   );
+
+const deadLettersSchema = Joi.object({
+  from: Joi.string().isoDate().required(),
+  to: Joi.string().isoDate().required(),
+  countCap: Joi.number().integer().min(1).required(),
+  buckets: Joi.array()
+    .items(
+      Joi.object({
+        id: Joi.string().required(),
+        list: Joi.object({
+          path: Joi.string().required(),
+          query: Joi.object().pattern(Joi.string(), Joi.string()).required(),
+        }).required(),
+        bins: Joi.array().items(binSchema).required(),
+      }),
+    )
+    .min(1)
+    .required(),
+});
+
+const coversWindow =
+  ({ from, to, binMs }) =>
+  ({ bins }) =>
+    bins.length === (Date.parse(to) - Date.parse(from)) / binMs &&
+    bins[0]?.from === from;
+
+// Caseworking's dead letters in `binMs` bins over the window, one list of
+// bins per bucket that holds them, each with the list it opens.
+export const countCwDeadLetters = async ({ from, to, binMs }, options = {}) => {
+  const answer = readBucketAnswer(
+    deadLettersSchema,
+    await cwRequest(
+      "get",
+      `/actuators/dead-letters?${new URLSearchParams({ from, to })}`,
+      BUCKETS_LABEL,
+      bucketRequestOptions(options),
+    ),
+    "dead letters",
+  );
+
+  if (!answer.buckets.every(coversWindow({ from, to, binMs }))) {
+    throw Boom.badGateway("CW-BE answered bins for another window");
+  }
+
+  return answer;
+};

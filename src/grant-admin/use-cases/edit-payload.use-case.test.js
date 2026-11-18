@@ -76,6 +76,29 @@ const reasonOf = (promise) =>
   ]);
 
 describe("editPayloadUseCase gas", () => {
+  it("joins the caller's transaction rather than opening one", async () => {
+    findEditableGasInbox.mockResolvedValue(aStoredRow());
+    editGasInbox.mockResolvedValue(true);
+    const outer = { id: "the-caller's" };
+
+    await editPayloadUseCase(
+      {
+        service: "gas",
+        box: "inbox",
+        id: ID,
+        caller: "grants-platform-admin",
+        actor: "donatas",
+        payload: EDITED_EVENT,
+        note: NOTE,
+        revision: 0,
+      },
+      outer,
+    );
+
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(findEditableGasInbox).toHaveBeenCalledWith(ID, outer);
+  });
+
   it("reads the row and writes the edit fenced on the revision it was made from", async () => {
     findEditableGasInbox.mockResolvedValue(aStoredRow());
     editGasInbox.mockResolvedValue(true);

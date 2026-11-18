@@ -47,6 +47,7 @@ const PAGE = {
       adminRole: null,
       storedBytes: null,
     },
+    versionEvents: { outcome: "timed-out" },
   },
   sourceErrors: [],
   sectionErrors: [],

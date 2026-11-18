@@ -2,8 +2,13 @@ import { MongoClient, ObjectId } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eventDetailResponseSchema } from "../../src/grant-admin/schemas/event-detail-response.schema.js";
-import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
+import {
+  cwStubRequestsBesideCatalogue,
+  resetCwStub,
+  setCwStub,
+} from "../helpers/cw-stub.js";
 import { wreck } from "../helpers/wreck.js";
+import { withoutShell } from "../helpers/shell.js";
 
 let client;
 let inbox;
@@ -106,7 +111,13 @@ const getEvent = (service, box, id, options) =>
   wreck.get(`/grant-admin/events/${service}/${box}/${id}`, options);
 
 const detailOf = async (service, box, id) =>
-  (await getEvent(service, box, id)).payload;
+  withoutShell((await getEvent(service, box, id)).payload);
+
+const bodyOf = (error) => {
+  const payload = error.data?.payload;
+
+  return Buffer.isBuffer(payload) ? JSON.parse(payload.toString()) : payload;
+};
 
 describe("GET /grant-admin/events/{service}/{box}/{id}", () => {
   describe("validation", () => {
@@ -133,6 +144,21 @@ describe("GET /grant-admin/events/{service}/{box}/{id}", () => {
     it("404s for an id that does not exist", async () => {
       await expect(getEvent("gas", "inbox", UNKNOWN_ID)).rejects.toThrow(
         "Response Error: 404 Not Found",
+      );
+    });
+
+    it("carries the shell on a detail and on a 404", async () => {
+      const doc = anInboxDoc();
+      await inbox.insertOne(doc);
+
+      const { payload } = await getEvent("gas", "inbox", doc._id.toHexString());
+      const missing = await getEvent("gas", "inbox", UNKNOWN_ID).catch(
+        (e) => e,
+      );
+
+      expect(payload.shell.catalogue.buckets).toEqual(expect.any(Array));
+      expect(bodyOf(missing).shell.catalogue.buckets).toEqual(
+        expect.any(Array),
       );
     });
 
@@ -314,7 +340,7 @@ describe("GET /grant-admin/events/{service}/{box}/{id}", () => {
 
       await detailOf("caseworking", "inbox", UNKNOWN_ID);
 
-      const [request] = await cwStubRequests();
+      const [request] = await cwStubRequestsBesideCatalogue();
 
       expect(request.path).toBe(`/actuators/events/inbox/${UNKNOWN_ID}`);
       expect(request.method).toBe("GET");

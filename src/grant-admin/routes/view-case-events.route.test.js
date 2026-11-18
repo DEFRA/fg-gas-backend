@@ -13,6 +13,8 @@ const CASE_HEADER = {
   caseRef: "ref-1",
   workflowCode: "frps-private-beta",
   position: { phase: null, stage: null, status: null },
+  version: "1.0.0",
+  names: null,
   closed: false,
   closedAt: null,
   counterpart: { exists: true },

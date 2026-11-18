@@ -11,7 +11,8 @@ export const viewWorkflowVersionOverviewRoute = {
   method: "GET",
   path: "/grant-admin/workflows/{code}/versions/{version}/overview",
   options: recordPageRouteOptions({
-    description: "Admin: one Caseworking workflow version's overview tab",
+    description:
+      "Admin: one Caseworking workflow version's overview tab, with its own events (versionEvents) read beside it within 1.5 seconds: read with any source errors, timed-out or failed",
     label: "View workflow version",
     params: workflowVersionParamsSchema,
     headers: adminReadHeadersSchema,

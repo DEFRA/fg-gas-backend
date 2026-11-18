@@ -20,6 +20,9 @@ const refusalOf = (call) => {
     return {
       statusCode: error.output.statusCode,
       errorCode: error.output.payload.errorCode,
+      ...(error.output.payload.active && {
+        active: error.output.payload.active,
+      }),
     };
   }
 
@@ -31,7 +34,6 @@ const issue = (rows, args = {}, clientId = "grants-ui") =>
     tokenHash: HASH,
     tokenHint: "a_9-",
     expiresAt: null,
-    newClient: false,
     by: "Ann Operator",
     now: NOW,
     ...args,
@@ -39,7 +41,7 @@ const issue = (rows, args = {}, clientId = "grants-ui") =>
 
 describe("ApiClient.issueToken", () => {
   it("issues a token stamped with who made it, when, and its hint", () => {
-    expect(issue([row()]).toDocument()).toEqual({
+    expect(issue([row()]).token.toDocument()).toEqual({
       id: HASH,
       clientId: "grants-ui",
       expiresAt: null,
@@ -49,14 +51,39 @@ describe("ApiClient.issueToken", () => {
     });
   });
 
-  it("issues a new client's first token", () => {
-    expect(issue([], { newClient: true }).clientId).toBe("grants-ui");
+  it("issues a new client's first token, saying it is new", () => {
+    const issued = issue([]);
+
+    expect(issued.newClient).toBe(true);
+    expect(issued.token.clientId).toBe("grants-ui");
+  });
+
+  it("issues to a client whose name has any row, even a revoked one, saying it is not new", () => {
+    expect(
+      issue([row({ revokedAt: EARLIER, expiresAt: EARLIER })], {
+        confirmed: false,
+      }).newClient,
+    ).toBe(false);
+  });
+
+  it("ignores whether the caller said the client is new", () => {
+    expect(issue([row()], { newClient: true }).newClient).toBe(false);
+  });
+
+  it("refuses an unconfirmed issue beside active tokens, saying how many", () => {
+    expect(
+      refusalOf(() =>
+        issue([row(), row(), row({ expiresAt: EARLIER })], {
+          confirmed: false,
+        }),
+      ),
+    ).toEqual({ statusCode: 409, errorCode: "HAS_ACTIVE", active: 2 });
   });
 
   it("issues a token that expires on a future date", () => {
     const expiresAt = new Date("2027-01-01T00:00:00.000Z");
 
-    expect(issue([row()], { expiresAt }).expiresAt).toBe(expiresAt);
+    expect(issue([row()], { expiresAt }).token.expiresAt).toBe(expiresAt);
   });
 
   it.each([
@@ -71,8 +98,8 @@ describe("ApiClient.issueToken", () => {
     });
   });
 
-  it("issues however many tokens are already active", () => {
-    expect(issue([row(), row(), row()]).isActive(NOW)).toBe(true);
+  it("issues beside active tokens when confirmed, as it is by default", () => {
+    expect(issue([row(), row(), row()]).token.isActive(NOW)).toBe(true);
   });
 
   it.each([
@@ -83,7 +110,7 @@ describe("ApiClient.issueToken", () => {
     ["65 characters", "a".repeat(65)],
     ["64 hex characters, as a hash", "a".repeat(64)],
   ])("refuses a name with %s", (_, name) => {
-    expect(refusalOf(() => issue([], { newClient: true }, name))).toEqual({
+    expect(refusalOf(() => issue([], {}, name))).toEqual({
       statusCode: 400,
       errorCode: "API_CLIENT_INVALID_NAME",
     });
@@ -92,7 +119,7 @@ describe("ApiClient.issueToken", () => {
   it("accepts lowercase letters, digits and hyphens up to 64 characters", () => {
     const name = `a-1${"b".repeat(61)}`;
 
-    expect(issue([], { newClient: true }, name).clientId).toBe(name);
+    expect(issue([], {}, name).token.clientId).toBe(name);
   });
 
   it.each([
@@ -120,23 +147,6 @@ describe("ApiClient.issueToken", () => {
       errorCode: "API_TOKEN_INVALID_HINT",
     });
   });
-
-  it("refuses a new client whose name has any row, even a revoked one", () => {
-    expect(
-      refusalOf(() =>
-        issue([row({ revokedAt: EARLIER, expiresAt: EARLIER })], {
-          newClient: true,
-        }),
-      ),
-    ).toEqual({ statusCode: 409, errorCode: "API_CLIENT_EXISTS" });
-  });
-
-  it("refuses a token for a client that has no rows", () => {
-    expect(refusalOf(() => issue([]))).toEqual({
-      statusCode: 404,
-      errorCode: "API_CLIENT_NOT_FOUND",
-    });
-  });
 });
 
 describe("ApiClient.fromTokens", () => {
@@ -151,11 +161,8 @@ describe("ApiClient.fromTokens", () => {
 
   it("has no rows under a name that breaks the rule", () => {
     expect(
-      refusalOf(() =>
-        ApiClient.fromTokens("Grants_UI", [
-          row({ clientId: "Grants_UI" }),
-        ]).assertExistence(false),
-      ),
-    ).toEqual({ statusCode: 404, errorCode: "API_CLIENT_NOT_FOUND" });
+      ApiClient.fromTokens("Grants_UI", [row({ clientId: "Grants_UI" })])
+        .tokens,
+    ).toEqual([]);
   });
 });

@@ -13,10 +13,19 @@ import {
 import { toApplicationLink } from "../../src/events/case-refs.js";
 import { applicationPageSchemas } from "../../src/grant-admin/schemas/application-page.schema.js";
 import { submitApplication } from "../helpers/applications.js";
-import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
-import { createGrant } from "../helpers/grants.js";
+import {
+  cwStubRequestsBesideCatalogue,
+  resetCwStub,
+  setCwStub,
+} from "../helpers/cw-stub.js";
+import {
+  createGrant,
+  createTestGrant,
+  insertGrant,
+} from "../helpers/grants.js";
 import { sendMessage } from "../helpers/sqs.js";
 import { wreck } from "../helpers/wreck.js";
+import { withoutShell } from "../helpers/shell.js";
 
 const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 const OPERATOR = { "x-actor": "Jo Operator", "x-actor-id": OID };
@@ -112,8 +121,9 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
 
     expect(res.headers["cache-control"]).toBe("no-store");
     expect(
-      applicationPageSchemas.overview.validate(page).error,
+      applicationPageSchemas.overview.validate(withoutShell(page)).error,
     ).toBeUndefined();
+    expect(page.shell.catalogue.buckets).toEqual(expect.any(Array));
     expect(page.header).toMatchObject({
       clientRef: "ref-1",
       code: "woodland",
@@ -163,7 +173,7 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
     const { payload: page } = await getTab("overview", "ref-2");
 
     expect(
-      applicationPageSchemas.overview.validate(page).error,
+      applicationPageSchemas.overview.validate(withoutShell(page)).error,
     ).toBeUndefined();
     expect(page.overview.series.members.map((m) => m.clientRef)).toEqual([
       "ref-1",
@@ -202,6 +212,7 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
 
     const { payload: page } = await getTab("overview");
 
+    expect(page.header.version).toBe("0.9.0");
     expect(page.overview).toMatchObject({
       originalConfigVersion: "0.9.0",
       currentConfigVersion: "0.9.0",
@@ -209,6 +220,20 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
       identifiers: { sbi: null, frn: null, crn: null },
     });
   });
+
+  it.each(["overview", "events", "raw"])(
+    "%s: the header names the current config version",
+    async (tab) => {
+      await applications.insertOne(anApplication("ref-1"));
+
+      const { payload: page } = await getTab(tab);
+
+      expect(
+        applicationPageSchemas[tab].validate(withoutShell(page)).error,
+      ).toBeUndefined();
+      expect(page.header.version).toBe("1.2.0");
+    },
+  );
 
   it("overview: shows a submitted or updated time that is not an instant as stored", async () => {
     await applications.insertOne(
@@ -221,7 +246,7 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
     const { payload: page } = await getTab("overview");
 
     expect(
-      applicationPageSchemas.overview.validate(page).error,
+      applicationPageSchemas.overview.validate(withoutShell(page)).error,
     ).toBeUndefined();
     expect(page.overview).toMatchObject({
       submittedAt: "not-an-instant",
@@ -255,13 +280,15 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
 
     const { payload: page } = await getTab("events");
 
-    expect(applicationPageSchemas.events.validate(page).error).toBeUndefined();
+    expect(
+      applicationPageSchemas.events.validate(withoutShell(page)).error,
+    ).toBeUndefined();
     expect(page.events.rows.map((row) => [row.service, row.eventId])).toEqual([
       ["gas", "msg-ref-1"],
     ]);
     expect(page.events.more).toBe(false);
     expect(page.sourceErrors).toEqual([]);
-    expect(await cwStubRequests()).toEqual([]);
+    expect(await cwStubRequestsBesideCatalogue()).toEqual([]);
   });
 
   it("events: never a row found by the ref alone, without its grant's link", async () => {
@@ -304,7 +331,9 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
     for (const doc of [wmp, frps]) {
       const { payload: page } = await getTab("raw", doc.clientRef);
 
-      expect(applicationPageSchemas.raw.validate(page).error).toBeUndefined();
+      expect(
+        applicationPageSchemas.raw.validate(withoutShell(page)).error,
+      ).toBeUndefined();
       expect(page.raw.phases).toEqual(doc.phases);
       expect(page.raw.metadata).toEqual(doc.metadata);
       expect(page.raw._id).toBe(doc._id.toHexString());
@@ -341,6 +370,36 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
       { section: "raw", message: "too large to show" },
     ]);
   });
+
+  it.each(["overview", "events", "raw"])(
+    "%s: names where the application is from its grant version's definition, and none on a version not stored",
+    async (tab) => {
+      const grant = createTestGrant({ code: "woodland", version: "1.2.0" });
+      grant.phases[0].name = "Pre award";
+      grant.phases[0].stages[0].name = "Assessment";
+      await insertGrant(grant);
+      await applications.insertMany([
+        anApplication("ref-1", {
+          currentStage: "ASSESSMENT",
+          currentStatus: "IN_REVIEW",
+        }),
+        anApplication("ref-2", { currentConfigVersion: "9.9.9" }),
+      ]);
+
+      const { payload: page } = await getTab(tab);
+      const { payload: unnamed } = await getTab(tab, "ref-2");
+
+      expect(
+        applicationPageSchemas[tab].validate(withoutShell(page)).error,
+      ).toBeUndefined();
+      expect(page.header.names).toEqual({
+        phases: [{ code: "PRE_AWARD", name: "Pre award" }],
+        stage: "Assessment",
+        status: null,
+      });
+      expect(unnamed.header.names).toBeNull();
+    },
+  );
 
   it("answers 404 APPLICATION_NOT_FOUND for an unknown application, audited as a FAILURE", async () => {
     const error = await getTab("overview", "nobody").catch((e) => e);
@@ -459,7 +518,7 @@ describe("the operator on the existing event routes", () => {
       )
       .catch(() => {});
 
-    const [request] = await cwStubRequests();
+    const [request] = await cwStubRequestsBesideCatalogue();
     expect(request.actorId).toBe(OID);
   });
 });

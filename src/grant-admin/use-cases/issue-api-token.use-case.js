@@ -9,6 +9,7 @@ import { withAudit } from "../../events/with-audit.js";
 import { issueCwApiToken } from "../repositories/cw-clients.repository.js";
 import { GAS } from "../services/event-sources.js";
 import { buildApiClientAudit } from "./api-client-audit.js";
+import { answeringTokens, withTokens } from "./api-token-answers.js";
 
 const issueOnGas = (params, session) =>
   issueApiToken(
@@ -17,7 +18,7 @@ const issueOnGas = (params, session) =>
       tokenHash: params.tokenHash,
       tokenHint: params.tokenHint,
       expiresAt: params.expiresAt,
-      newClient: params.newClient,
+      confirmed: params.confirmed,
       by: params.actor,
     },
     session,
@@ -30,7 +31,7 @@ const issueOnCw = (params) =>
       tokenHash: params.tokenHash,
       tokenHint: params.tokenHint,
       expiresAt: params.expiresAt,
-      newClient: params.newClient,
+      confirmed: params.confirmed,
     },
     { actor: params.encodedActor },
   );
@@ -38,7 +39,7 @@ const issueOnCw = (params) =>
 const issue = async (params, session) => {
   logger.info(`Issue API token ${params.service}/${params.clientId}`);
 
-  const { token } =
+  const { token, newClient } =
     params.service === GAS
       ? await issueOnGas(params, session)
       : await issueOnCw(params);
@@ -47,12 +48,19 @@ const issue = async (params, session) => {
     `Finished: Issue API token ${params.service}/${params.clientId}/${token.tokenId}`,
   );
 
-  return { service: params.service, token };
+  return { service: params.service, token, newClient };
 };
+
+// Whether the client was new is the owning service's decision, as it answers.
+const issueOf = ({ confirmed }, result) => ({
+  confirmed,
+  newClient: result?.newClient,
+});
 
 const buildAudit = buildApiClientAudit(
   auditActions.ISSUE_API_TOKEN,
   PMC_0705_SECURITY,
+  issueOf,
 );
 
 export const buildIssueApiTokenAudit = ([params], result, error) =>
@@ -61,8 +69,12 @@ export const buildIssueApiTokenAudit = ([params], result, error) =>
 const issueWithAudit = withAudit(issue, buildIssueApiTokenAudit);
 
 // GAS: the row and its audit event commit together. Caseworking cannot join
-// the transaction; it audits the change itself.
-export const issueApiTokenUseCase = (params) =>
+// the transaction; it audits the change itself. The list is read after either.
+const issueOn = (params) =>
   params.service === GAS
     ? withTransaction((session) => issueWithAudit(params, session))
     : issueWithAudit(params);
+
+export const issueApiTokenUseCase = answeringTokens(async (params) =>
+  withTokens(params, await issueOn(params)),
+);

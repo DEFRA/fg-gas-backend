@@ -255,8 +255,13 @@ describe("API client handlers", () => {
     });
   });
 
-  it("issue answers 201 with the new token", async () => {
-    issueApiTokenUseCase.mockResolvedValue("issued");
+  it("issue answers 201 with the new token and the list after it, not whether the client was new", async () => {
+    issueApiTokenUseCase.mockResolvedValue({
+      service: "cw",
+      token,
+      newClient: true,
+      tokens: [],
+    });
     const code = vi.fn().mockReturnValue("created");
     const h = { response: vi.fn().mockReturnValue({ code }) };
 
@@ -268,6 +273,7 @@ describe("API client handlers", () => {
             tokenHash: HASH,
             tokenHint: "wxyz",
             expiresAt: null,
+            confirmed: false,
             newClient: true,
           },
         },
@@ -281,15 +287,19 @@ describe("API client handlers", () => {
       tokenHash: HASH,
       tokenHint: "wxyz",
       expiresAt: null,
-      newClient: true,
+      confirmed: false,
       ...reader,
     });
-    expect(h.response).toHaveBeenCalledWith("issued");
+    expect(h.response).toHaveBeenCalledWith({
+      service: "cw",
+      token,
+      tokens: [],
+    });
     expect(code).toHaveBeenCalledWith(201);
     expect(result).toBe("created");
   });
 
-  it("issue takes only the hash, the hint and whether the client is new", () => {
+  it("issue takes the hash, the hint and whether an issue beside active tokens is confirmed, true when not said", () => {
     const { payload } = issueApiTokenRoute.options.validate;
 
     expect(
@@ -298,8 +308,12 @@ describe("API client handlers", () => {
       tokenHash: HASH,
       tokenHint: "wxyz",
       expiresAt: null,
-      newClient: false,
+      confirmed: true,
     });
+    expect(
+      payload.validate({ tokenHash: HASH, tokenHint: "wxyz", newClient: true })
+        .error,
+    ).toBeUndefined();
     expect(
       payload.validate({
         tokenHash: HASH,
@@ -309,8 +323,59 @@ describe("API client handlers", () => {
     ).toEqual(new Date("2027-01-01T00:00:00.000Z"));
     expect(payload.validate({ tokenHash: HASH }).error).toBeDefined();
     expect(
+      payload.validate({ tokenHash: HASH, tokenHint: "wxyz", confirmed: "no" })
+        .error,
+    ).toBeDefined();
+    expect(
       payload.validate({ tokenHash: HASH, tokenHint: "wxyz", raw: "x" }).error,
     ).toBeDefined();
+  });
+
+  it("answers a refused write's list as unread when it would carry a hash", async () => {
+    const refusal = Boom.conflict("refused");
+    refusal.output.payload.tokens = [{ ...token, stored: { id: HASH } }];
+    revokeApiTokenUseCase.mockRejectedValue(refusal);
+
+    const error = await revokeApiTokenRoute
+      .handler(
+        requestOf({
+          service: "gas",
+          clientId: "grants-ui",
+          tokenId: TOKEN_ID,
+        }),
+        {},
+      )
+      .catch((e) => e);
+
+    expect(error.output.payload.tokens).toBeNull();
+  });
+
+  it("answers a refused write's list as it was read when it is safe", async () => {
+    const tokens = [
+      {
+        ...token,
+        stored: {
+          _id: { $oid: TOKEN_ID },
+          id: "bbb••••••bbb",
+        },
+      },
+    ];
+    const refusal = Boom.conflict("refused");
+    refusal.output.payload.tokens = tokens;
+    deleteApiTokenUseCase.mockRejectedValue(refusal);
+
+    const error = await deleteApiTokenRoute
+      .handler(
+        requestOf({
+          service: "gas",
+          clientId: "grants-ui",
+          tokenId: TOKEN_ID,
+        }),
+        {},
+      )
+      .catch((e) => e);
+
+    expect(error.output.payload.tokens).toBe(tokens);
   });
 
   it("revoke answers 204", async () => {
@@ -378,6 +443,7 @@ describe("API client handlers", () => {
       service: "gas",
       token,
       oldExpiresAt: new Date(),
+      tokens: null,
     });
     const code = vi.fn().mockReturnValue("created");
     const h = { response: vi.fn().mockReturnValue({ code }) };
@@ -397,7 +463,11 @@ describe("API client handlers", () => {
       keepOld: "7d",
       ...reader,
     });
-    expect(h.response).toHaveBeenCalledWith({ service: "gas", token });
+    expect(h.response).toHaveBeenCalledWith({
+      service: "gas",
+      token,
+      tokens: null,
+    });
     expect(code).toHaveBeenCalledWith(201);
   });
 

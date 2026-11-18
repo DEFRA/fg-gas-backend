@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NO_ERROR_KEY } from "../common/buckets/error-key.js";
 import { config } from "../common/config.js";
 import { db } from "../common/mongo-client.js";
 import { Inbox } from "./models/inbox.js";
@@ -25,6 +26,7 @@ import {
   REDRIVABLE_STATUSES,
   redriveConflict,
 } from "./event-redrive.js";
+import { withErrorKey } from "./last-error.js";
 
 vi.mock("../common/mongo-client.js");
 
@@ -74,8 +76,47 @@ const applyInc = (doc, increments) => {
   return result;
 };
 
+const EXPRESSIONS = {
+  $literal: (_, value) => value,
+  $eq: (doc, [a, b]) => evaluate(doc, a) === evaluate(doc, b),
+  $cond: (doc, [test, then, otherwise]) =>
+    evaluate(doc, evaluate(doc, test) ? then : otherwise),
+  $ifNull: (doc, [value, fallback]) =>
+    evaluate(doc, value) ?? evaluate(doc, fallback),
+  $add: (doc, values) =>
+    values.reduce((sum, value) => sum + evaluate(doc, value), 0),
+};
+
+const isFieldPath = (expression) =>
+  typeof expression === "string" && expression.startsWith("$");
+
+const operatorOf = (expression) =>
+  Object.keys(expression ?? {}).find((key) => key in EXPRESSIONS);
+
+// The few aggregation expressions an update pipeline here uses.
+const evaluate = (doc, expression) => {
+  if (isFieldPath(expression)) {
+    return doc[expression.slice(1)];
+  }
+
+  const operator = operatorOf(expression);
+
+  return operator
+    ? EXPRESSIONS[operator](doc, expression[operator])
+    : expression;
+};
+
+const applyStage = (doc, { $set }) => ({
+  ...doc,
+  ...Object.fromEntries(
+    Object.entries($set).map(([key, value]) => [key, evaluate(doc, value)]),
+  ),
+});
+
 const applyUpdate = (doc, update) =>
-  applyInc({ ...doc, ...(update.$set ?? {}) }, update.$inc);
+  Array.isArray(update)
+    ? update.reduce(applyStage, doc)
+    : applyInc({ ...doc, ...(update.$set ?? {}) }, update.$inc);
 
 const capture = async (method, run, answer = null) => {
   const spy = vi.fn().mockResolvedValue(answer);
@@ -215,7 +256,7 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
     );
 
     expect(redriven.lastPurge).toEqual(lastPurge);
-    expect(redriveDoc.$set).not.toHaveProperty("lastPurge");
+    expect(redriveDoc[0].$set).not.toHaveProperty("lastPurge");
   });
 
   it("moves the payload revision on, so an editor opened before it is stale", () => {
@@ -224,6 +265,27 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
       applyUpdate({ ...aDeadLetter(), payloadRevision: 2 }, redriveDoc)
         .payloadRevision,
     ).toBe(3);
+  });
+
+  it("keeps the key of the error it recorded", () => {
+    const redriven = applyUpdate(
+      { ...aDeadLetter(), errorKey: "TypeError: before the redrive" },
+      redriveDoc,
+    );
+
+    expect(redriven.errorKey).toBe("TypeError: before the redrive");
+  });
+
+  it("drops the key of a death with no error recorded, as a living row has none", () => {
+    const redriven = applyUpdate(
+      { ...aDeadLetter(), lastError: null, errorKey: NO_ERROR_KEY },
+      redriveDoc,
+    );
+
+    expect(redriven.errorKey).toBeNull();
+    expect(redriven.errorKey).toBe(
+      withErrorKey(null, redriven.status).errorKey,
+    );
   });
 
   it("leaves the row RESUBMITTED with its attempts reset to 0", () => {
@@ -245,7 +307,7 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
 
   // Storage keeps a null actor; only the display layer names it `System`.
   it("records no actor where none was given, and never a display name", () => {
-    expect(redriveDoc.$set.lastRedrive.by).toBeNull();
+    expect(redriveDoc[0].$set.lastRedrive.$literal.by).toBeNull();
     expect(JSON.stringify(redriveDoc)).not.toContain("System");
   });
 
@@ -256,7 +318,7 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
       redriveDoc,
     );
 
-    expect(redriveDoc.$set.expireAt).toBeNull();
+    expect(redriveDoc[0].$set.expireAt).toBeNull();
     expect(redriven.expireAt).toBeNull();
   });
 
@@ -320,9 +382,9 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
   });
 
   it("would be unclaimable if the redrive left completionAttempts alone", () => {
-    const withoutReset = {
-      $set: { ...redriveDoc.$set, completionAttempts: box.maxRetries },
-    };
+    const withoutReset = [
+      { $set: { ...redriveDoc[0].$set, completionAttempts: box.maxRetries } },
+    ];
     const published = applyUpdate(
       applyUpdate(aDeadLetter(), withoutReset),
       resubmittedUpdate,

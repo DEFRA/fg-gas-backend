@@ -4,6 +4,7 @@ import {
   nullableIso,
   nullableString,
   recordEventsSchema,
+  versionEventsSchema,
   recordPageSchema,
   storedBytesSchema as storedBytes,
 } from "./admin-record.schema.js";
@@ -125,7 +126,7 @@ const externalStatusMappingSchema = Joi.object({
   to: Joi.string().allow(null).required(),
 }).label("ExternalStatusMapping");
 
-const grantLifecycleSchema = Joi.object({
+export const grantLifecycleSchema = Joi.object({
   phases: Joi.array().items(lifecyclePhaseSchema).required(),
   initialPosition: positionSchema,
   amendablePositions: Joi.array().items(Joi.string()).required(),
@@ -201,7 +202,10 @@ const pageSchema = (tab, keys, label) =>
 export const grantVersionPageSchemas = {
   overview: pageSchema(
     "overview",
-    { overview: overviewSchema },
+    {
+      overview: overviewSchema,
+      versionEvents: versionEventsSchema("GrantVersionOverviewEvents"),
+    },
     "GrantVersionOverviewPage",
   ),
   definition: pageSchema(

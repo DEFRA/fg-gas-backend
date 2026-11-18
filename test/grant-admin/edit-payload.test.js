@@ -3,7 +3,11 @@ import { createHash } from "node:crypto";
 import { env } from "node:process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
+import {
+  cwStubRequestsBesideCatalogue,
+  resetCwStub,
+  setCwStub,
+} from "../helpers/cw-stub.js";
 import { wreck } from "../helpers/wreck.js";
 
 let client;
@@ -98,6 +102,25 @@ const aDeadOutboxDoc = (overrides = {}) => ({
   ...overrides,
 });
 
+const aCwInboxDetail = () => ({
+  messageId: "cw-msg-1",
+  type: "cloud.defra.local.fg-gas-backend.case.create.new",
+  source: "GAS",
+  segregationRef: "CW-SEG-1",
+  status: "DEAD_LETTER",
+  completionAttempts: 7,
+  maxAttempts: 7,
+  eventTime: "2026-06-16T09:00:00.000Z",
+  publicationDate: "2026-06-16T09:00:01.000Z",
+  lastResubmissionDate: null,
+  completionDate: null,
+  lastError: { name: "ClaimExpired", message: "expired", at: null },
+  claimedAt: null,
+  claimExpiresAt: null,
+  payloadRevision: 4,
+  event: { id: "cw-evt-1", data: { caseRef: "CASE-REF-1" } },
+});
+
 const withSheetId = (event, sheetId = "AA0109") => ({
   ...event,
   data: { ...event.data, sheetId },
@@ -149,6 +172,14 @@ const auditOf = (id) =>
     "event.audit.entities.action": "EDIT_EVENT_PAYLOAD",
     "event.audit.entities.entityid": id,
   });
+
+const auditsOf = (id, action) =>
+  outbox
+    .find({
+      "event.audit.entities.action": action,
+      "event.audit.entities.entityid": id,
+    })
+    .toArray();
 
 const failureAuditOf = (id) =>
   outbox.findOne({
@@ -285,6 +316,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/payload", () => {
           payloadRevision: 1,
           changedPaths: ["/data/sheetId"],
           changedPathsTruncated: false,
+          redrive: null,
         });
 
         const stored = await collectionOf().findOne({ _id: doc._id });
@@ -409,6 +441,68 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/payload", () => {
 
       expect(stored.event).toEqual(doc.event);
       expect(stored).not.toHaveProperty("lastEdit");
+    });
+
+    it("saves and redrives in one call, auditing both", async () => {
+      const doc = aDeadInboxDoc();
+      await inbox.insertOne(doc);
+      const id = doc._id.toHexString();
+
+      const { payload } = await edit(
+        "gas",
+        "inbox",
+        id,
+        anEdit(withSheetId(doc.event), { redrive: true }),
+      );
+
+      expect(payload).toMatchObject({
+        payloadRevision: 1,
+        redrive: { outcome: "redriven" },
+      });
+
+      const stored = await inbox.findOne({ _id: doc._id });
+
+      expect(stored.event.data.sheetId).toBe("AA0109");
+      expect(stored.lastRedrive).toEqual({
+        at: expect.any(String),
+        by: "donatas",
+      });
+      expect(await auditsOf(id, "EDIT_EVENT_PAYLOAD")).toHaveLength(1);
+      expect(await auditsOf(id, "REDRIVE_EVENT")).toHaveLength(1);
+    });
+
+    it("412s a stale save with the event as it is now, audited as a view, and redrives nothing", async () => {
+      const doc = aDeadInboxDoc();
+      await inbox.insertOne(doc);
+      const id = doc._id.toHexString();
+
+      await edit("gas", "inbox", id, anEdit(withSheetId(doc.event, "FIRST")));
+
+      const { statusCode, body } = await failureOf(
+        edit(
+          "gas",
+          "inbox",
+          id,
+          anEdit(withSheetId(doc.event, "SECOND"), { redrive: true }),
+        ),
+      );
+
+      expect(statusCode).toBe(412);
+      expect(body).toMatchObject({
+        code: "STALE_REVISION",
+        event: {
+          service: "gas",
+          box: "inbox",
+          id,
+          payloadRevision: 1,
+          payload: { data: { sheetId: "FIRST" } },
+        },
+      });
+      expect(body.message).not.toContain(id);
+      expect(body.shell.catalogue.buckets).toEqual(expect.any(Array));
+      expect(await auditsOf(id, "VIEW_EVENT")).toHaveLength(1);
+      expect(await auditsOf(id, "REDRIVE_EVENT")).toHaveLength(0);
+      expect((await inbox.findOne({ _id: doc._id })).lastRedrive).toBeFalsy();
     });
 
     it("412s a stale editor and keeps the edit that got there first", async () => {
@@ -658,7 +752,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/payload", () => {
         anEdit(payload, { revision: 2 }),
       );
 
-      const [request] = await cwStubRequests();
+      const [request] = await cwStubRequestsBesideCatalogue();
 
       expect(request.method).toBe("POST");
       expect(request.path).toBe(
@@ -680,7 +774,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/payload", () => {
       );
 
       expect(res.statusCode).toBe(200);
-      expect(payload).toEqual(CW_EDITED);
+      expect(payload).toEqual({ ...CW_EDITED, redrive: null });
     });
 
     it("audits the request with the paths Caseworking answered with", async () => {
@@ -696,6 +790,85 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/payload", () => {
         changedPaths: ["/data/sheetId"],
       });
       expect(JSON.stringify(audit)).not.toContain("retired form");
+    });
+
+    it("edits, then redrives, in one call", async () => {
+      await setCwStub({ inbox: { edit: CW_EDITED, redrive: true } });
+
+      const { payload } = await edit(
+        "caseworking",
+        "inbox",
+        UNKNOWN_ID,
+        anEdit(anInboxEvent(), { redrive: true }),
+      );
+
+      expect(payload).toEqual({
+        ...CW_EDITED,
+        redrive: { outcome: "redriven" },
+      });
+      expect(
+        (await cwStubRequestsBesideCatalogue()).map(
+          ({ method, path }) => `${method} ${path}`,
+        ),
+      ).toEqual([
+        `POST /actuators/events/inbox/${UNKNOWN_ID}/payload`,
+        `POST /actuators/events/inbox/${UNKNOWN_ID}/redrive`,
+      ]);
+    });
+
+    it("keeps the save and names the status when caseworking refuses the redrive", async () => {
+      await setCwStub({
+        inbox: { edit: CW_EDITED, redriveConflictStatus: "COMPLETED" },
+      });
+
+      const { res, payload } = await edit(
+        "caseworking",
+        "inbox",
+        UNKNOWN_ID,
+        anEdit(anInboxEvent(), { redrive: true }),
+      );
+
+      expect(res.statusCode).toBe(200);
+      expect(payload.redrive).toEqual({
+        outcome: "conflict",
+        status: "COMPLETED",
+        statusLabel: "Completed",
+      });
+    });
+
+    it("keeps the save and says the redrive failed when caseworking cannot redrive", async () => {
+      await setCwStub({ inbox: { edit: CW_EDITED } });
+
+      const { res, payload } = await edit(
+        "caseworking",
+        "inbox",
+        UNKNOWN_ID,
+        anEdit(anInboxEvent(), { redrive: true }),
+      );
+
+      expect(res.statusCode).toBe(200);
+      expect(payload).toEqual({ ...CW_EDITED, redrive: { outcome: "failed" } });
+    });
+
+    it("412s a stale save with caseworking's event as it is now", async () => {
+      await setCwStub({
+        inbox: { editStale: true, detail: aCwInboxDetail() },
+      });
+
+      const { statusCode, body } = await failureOf(
+        edit("caseworking", "inbox", UNKNOWN_ID, anEdit(anInboxEvent())),
+      );
+
+      expect(statusCode).toBe(412);
+      expect(body).toMatchObject({
+        code: "STALE_REVISION",
+        event: {
+          service: "caseworking",
+          box: "inbox",
+          id: UNKNOWN_ID,
+          payloadRevision: 4,
+        },
+      });
     });
 
     it("passes a caseworking 404 through", async () => {

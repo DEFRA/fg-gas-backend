@@ -1,4 +1,7 @@
-import { changeApiTokenExpiry } from "../../auth/services/api-client.service.js";
+import {
+  assertExpiryChange,
+  changeApiTokenExpiry,
+} from "../../auth/services/api-client.service.js";
 import { logger } from "../../common/logger.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import {
@@ -9,15 +12,45 @@ import { withAudit } from "../../events/with-audit.js";
 import { changeCwApiTokenExpiry } from "../repositories/cw-clients.repository.js";
 import { GAS } from "../services/event-sources.js";
 import { buildApiClientAudit, expiryOf } from "./api-client-audit.js";
+import {
+  answeringTokens,
+  readTokensOrNull,
+  refusalWithTokens,
+} from "./api-token-answers.js";
+
+const TOKEN_ACTIVE = "ACTIVE";
+
+// Caseworking's expiry is checked against its list as GAS checks its own, and
+// a refusal carries that list.
+const assertCwExpiryChange = async (params) => {
+  const tokens = await readTokensOrNull(params);
+  const token = tokens?.find(({ tokenId }) => tokenId === params.tokenId);
+
+  try {
+    if (token) {
+      assertExpiryChange({
+        expiresAt: params.expiresAt,
+        stored: token.expiresAt,
+        active: token.status === TOKEN_ACTIVE,
+        now: new Date(),
+      });
+    }
+  } catch (error) {
+    throw await refusalWithTokens(error, params, tokens);
+  }
+};
 
 // Caseworking answers what it replaced, for this audit as for its own.
-const changeOnCw = (params) =>
-  changeCwApiTokenExpiry(
+const changeOnCw = async (params) => {
+  await assertCwExpiryChange(params);
+
+  return changeCwApiTokenExpiry(
     params.clientId,
     params.tokenId,
     { expiresAt: params.expiresAt },
     { actor: params.encodedActor },
   );
+};
 
 const changeOn = (params, session) =>
   params.service === GAS
@@ -59,7 +92,8 @@ export const buildChangeApiTokenExpiryAudit = ([params], result, error) =>
 
 const changeWithAudit = withAudit(changeExpiry, buildChangeApiTokenExpiryAudit);
 
-export const changeApiTokenExpiryUseCase = (params) =>
+export const changeApiTokenExpiryUseCase = answeringTokens((params) =>
   params.service === GAS
     ? withTransaction((session) => changeWithAudit(params, session))
-    : changeWithAudit(params);
+    : changeWithAudit(params),
+);

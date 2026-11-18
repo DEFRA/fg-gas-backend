@@ -91,6 +91,41 @@ const assertExpiry = (expiresAt, now) => {
   }
 };
 
+const expiryPast = () =>
+  refusal(Boom.badRequest("An expiry must be later than now"), "EXPIRY_PAST");
+
+const expiryUnchanged = () =>
+  refusal(
+    Boom.conflict("The token already stops at the end of that day"),
+    "EXPIRY_UNCHANGED",
+  );
+
+const ukDayOf = (expiresAt) =>
+  expiresAt === null ? null : endOfUkDay(expiresAt).getTime();
+
+const isSameUkDay = (expiresAt, stored) =>
+  ukDayOf(expiresAt) === ukDayOf(stored);
+
+const isPast = (expiresAt, now) =>
+  isExpiry(expiresAt) && !isFuture(expiresAt, now);
+
+const isUnchanged = ({ expiresAt, stored, active, now }) =>
+  active && isFuture(expiresAt, now) && isSameUkDay(expiresAt, stored);
+
+// An active token's expiry is compared by the UK day it ends, so one moved to
+// the end of the day it already ends on is no change. An expired or revoked
+// token is revived by any future expiry. A value that is no expiry is left
+// for the owning service to refuse.
+export const assertExpiryChange = (change) => {
+  if (isPast(change.expiresAt, change.now)) {
+    throw expiryPast();
+  }
+
+  if (isUnchanged(change)) {
+    throw expiryUnchanged();
+  }
+};
+
 const tokenInUse = (message) =>
   refusal(Boom.conflict(message), "API_TOKEN_IN_USE");
 
@@ -183,7 +218,12 @@ export class AccessToken {
       );
     }
 
-    assertExpiry(expiresAt, now);
+    assertExpiryChange({
+      expiresAt,
+      stored: this.expiresAt,
+      active: this.isActive(now),
+      now,
+    });
 
     const change = {
       previousExpiresAt: this.expiresAt,

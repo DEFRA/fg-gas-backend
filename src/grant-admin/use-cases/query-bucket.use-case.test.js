@@ -9,18 +9,28 @@ import {
   queryBucketUseCase,
 } from "./query-bucket.use-case.js";
 
-const audit = vi.hoisted(() => ({ builder: null, reads: 0 }));
+const audit = vi.hoisted(() => ({
+  builder: null,
+  options: null,
+  reads: 0,
+  fails: null,
+}));
 
 vi.mock("../../common/logger.js");
 vi.mock("../../common/buckets/engine.js");
 vi.mock("../../common/buckets/registry.js");
 vi.mock("../repositories/cw-actuators.repository.js");
 vi.mock("../../events/audited-read.js", () => ({
-  auditedRead: vi.fn((read, builder) => {
+  auditedRead: vi.fn((read, builder, options) => {
     audit.builder = builder;
+    audit.options = options;
 
-    return (args) => {
+    return async (args) => {
       audit.reads += 1;
+
+      if (audit.fails) {
+        throw audit.fails;
+      }
 
       return read(args);
     };
@@ -63,6 +73,7 @@ const ask = (bucketId, overrides) =>
 describe("queryBucketUseCase", () => {
   beforeEach(() => {
     audit.reads = 0;
+    audit.fails = null;
     parseQuery.mockReturnValue(QUERY);
     runQuery.mockResolvedValue(RESULT);
     queryCwBucket.mockResolvedValue({ bucket: "cw.example", rows: [] });
@@ -73,6 +84,33 @@ describe("queryBucketUseCase", () => {
     expect(audit.builder).toBe(buildQueryBucketAudit);
   });
 
+  it("bounds the audit by the read's deadline, and by none when it has none", () => {
+    expect(audit.options.deadlineOf({ deadline: 1_000 })).toBe(1_000);
+    expect(audit.options.deadlineOf({})).toBe(Infinity);
+  });
+
+  it("times the read out when its audit is still writing at the deadline", async () => {
+    findBucket.mockReturnValue({ id: "gas.applications", audited: true });
+    audit.fails = Object.assign(new Error("Audited read out of time"), {
+      outOfTime: true,
+      auditNotWritten: true,
+    });
+
+    await expect(ask("gas.applications", { deadline: 1_000 })).rejects.toThrow(
+      reasonOf("TIMED_OUT"),
+    );
+  });
+
+  it("passes on an audit that fails in time", async () => {
+    findBucket.mockReturnValue({ id: "gas.applications", audited: true });
+    audit.fails = Object.assign(new Error("Audit not written"), {
+      outOfTime: false,
+      auditNotWritten: true,
+    });
+
+    await expect(ask("gas.applications")).rejects.toBe(audit.fails);
+  });
+
   it("reads a bucket that is not audited without an audit", async () => {
     const bucket = { id: "gas.outbox", audited: false };
     findBucket.mockReturnValue(bucket);
@@ -80,7 +118,7 @@ describe("queryBucketUseCase", () => {
     expect(await ask("gas.outbox")).toBe(RESULT);
     expect(findBucket).toHaveBeenCalledWith("gas.outbox");
     expect(parseQuery).toHaveBeenCalledWith(bucket, BODY);
-    expect(runQuery).toHaveBeenCalledWith(bucket, QUERY);
+    expect(runQuery).toHaveBeenCalledWith(bucket, QUERY, undefined);
     expect(audit.reads).toBe(0);
   });
 
@@ -89,7 +127,7 @@ describe("queryBucketUseCase", () => {
     findBucket.mockReturnValue(bucket);
 
     expect(await ask("gas.applications")).toBe(RESULT);
-    expect(runQuery).toHaveBeenCalledWith(bucket, QUERY);
+    expect(runQuery).toHaveBeenCalledWith(bucket, QUERY, undefined);
     expect(audit.reads).toBe(1);
   });
 
@@ -116,6 +154,33 @@ describe("queryBucketUseCase", () => {
     });
     expect(findBucket).not.toHaveBeenCalled();
     expect(audit.reads).toBe(0);
+  });
+
+  it("reads a GAS bucket by the deadline it is given", async () => {
+    const bucket = { id: "gas.applications", audited: true };
+    findBucket.mockReturnValue(bucket);
+
+    await ask("gas.applications", { deadline: 1_000 });
+
+    expect(runQuery).toHaveBeenCalledWith(bucket, QUERY, 1_000);
+  });
+
+  it("gives Caseworking no longer than the deadline leaves, and no less than a millisecond", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(10_000);
+
+    await ask("cw.example", { deadline: 10_250 });
+    await ask("cw.example", { deadline: 9_000 });
+
+    expect(queryCwBucket).toHaveBeenNthCalledWith(1, "cw.example", BODY, {
+      actor: "Jo Operator",
+      repeat: false,
+      timeout: 250,
+    });
+    expect(queryCwBucket).toHaveBeenNthCalledWith(2, "cw.example", BODY, {
+      actor: "Jo Operator",
+      repeat: false,
+      timeout: 1,
+    });
   });
 
   it("passes Caseworking's refusal on", async () => {

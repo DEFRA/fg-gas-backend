@@ -62,14 +62,36 @@ describe("editPayloadRequestSchema", () => {
 });
 
 describe("editPayloadResponseSchema", () => {
-  it("names the revision, the paths and whether they were cut", () => {
+  it("names the revision, the paths, whether they were cut and the redrive", () => {
+    expect(
+      editPayloadResponseSchema.validate({
+        payloadRevision: 2,
+        changedPaths: ["/a"],
+        changedPathsTruncated: false,
+        redrive: null,
+      }).error,
+    ).toBeUndefined();
+  });
+
+  it("always says what came of a redrive", () => {
     expect(
       editPayloadResponseSchema.validate({
         payloadRevision: 2,
         changedPaths: ["/a"],
         changedPathsTruncated: false,
       }).error,
-    ).toBeUndefined();
+    ).toBeDefined();
+  });
+
+  it("refuses a redrive outcome it does not know", () => {
+    expect(
+      editPayloadResponseSchema.validate({
+        payloadRevision: 2,
+        changedPaths: ["/a"],
+        changedPathsTruncated: false,
+        redrive: { outcome: "maybe" },
+      }).error,
+    ).toBeDefined();
   });
 
   it("carries nothing else", () => {
@@ -78,6 +100,7 @@ describe("editPayloadResponseSchema", () => {
         payloadRevision: 2,
         changedPaths: ["/a"],
         changedPathsTruncated: false,
+        redrive: null,
         beforeHash: "x",
       }).error,
     ).toBeDefined();

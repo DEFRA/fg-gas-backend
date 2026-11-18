@@ -27,6 +27,18 @@ describe("plan", () => {
       ).toBe(1);
     });
 
+    it("multiplies by the number of values asked of each bound fact", () => {
+      expect(
+        scansOf(bucket, ["status", "eventType"], ["status", "eventType"], {
+          status: 3,
+          eventType: 2,
+        }),
+      ).toBe(6);
+      expect(
+        scansOf(bucket, ["status", "eventType"], ["status"], { status: 3 }),
+      ).toBe(9);
+    });
+
     it("multiplies the listed values plus null of each filled fact", () => {
       expect(scansOf(bucket, ["status", "eventType"], ["eventType"])).toBe(8);
       expect(scansOf(bucket, ["status", "eventType"], [])).toBe(24);
@@ -49,6 +61,24 @@ describe("plan", () => {
         line: ["status", "eventType"],
         filled: [],
         residual: [],
+      });
+    });
+
+    it("leaves a line whose values asked would take more scans than the cap, so the read is bounded", () => {
+      const wide = testBucket({
+        indexes: [["status"], ["eventType", "status"], ["code"]],
+      });
+      const asked = ["eventType", "status"];
+
+      expect(
+        choosePlan(wide, asked, false, { eventType: 2, status: 7 }),
+      ).toMatchObject({ kind: EXACT, line: ["eventType", "status"] });
+      expect(
+        choosePlan(wide, asked, false, { eventType: 8, status: 7 }),
+      ).toMatchObject({
+        kind: BOUNDED,
+        line: ["status"],
+        residual: ["eventType"],
       });
     });
 
@@ -147,7 +177,7 @@ describe("plan", () => {
     });
   });
 
-  describe("a bucket led by a fact that hides a value", () => {
+  describe("a bucket led by a fact", () => {
     const led = ledBucket();
 
     it("holds the lead before the facts of every line, and before refs", () => {
@@ -156,30 +186,22 @@ describe("plan", () => {
       expect(factsOf(led, REFS)).toEqual(["eventType"]);
     });
 
-    it("fills with the values shown, or with all once the fact is shown", () => {
-      expect(fillOf(led, "eventType", [])).toEqual([
-        "case.create",
-        "case.update.status",
-      ]);
-      expect(fillOf(led, "eventType", ["eventType"])).toEqual([
+    it("fills the lead with every value it lists, and null", () => {
+      expect(fillOf(led, "eventType")).toEqual([
         "case.create",
         "case.update.status",
         "audit",
       ]);
-      expect(scansOf(led, [], [])).toBe(3);
-      expect(scansOf(led, [], [], ["eventType"])).toBe(4);
+      expect(scansOf(led, [], [])).toBe(4);
     });
 
-    it("stays exact with the lead filled, shown or not", () => {
-      const plan = {
+    it("stays exact with the lead filled", () => {
+      expect(choosePlan(led, [], false)).toEqual({
         kind: EXACT,
         line: [],
         filled: ["eventType"],
         residual: [],
-      };
-
-      expect(choosePlan(led, [], false)).toEqual(plan);
-      expect(choosePlan(led, [], false, ["eventType"])).toEqual(plan);
+      });
       expect(choosePlan(led, ["status"], false)).toEqual({
         kind: EXACT,
         line: ["status"],
@@ -216,38 +238,81 @@ describe("plan", () => {
         filled: ["eventType"],
         residual: ["status"],
       });
-      expect(scansOf(led, REFS, ["status"])).toBe(3);
+      expect(scansOf(led, REFS, ["status"])).toBe(4);
     });
   });
 
-  describe("a fact that hides a value outside the lead", () => {
-    const loose = ledBucket({
-      lead: [],
-      indexes: [["status"], ["status", "eventType"]],
+  describe("an events list with one index per filter shape", () => {
+    const types = Array.from({ length: 18 }, (_, n) => ({
+      value: `type-${n}`,
+      label: `type-${n}`,
+    }));
+    const events = testBucket({
+      facts: {
+        status: testBucket().facts.status,
+        eventType: { label: "Event", param: "event", values: types },
+      },
+      indexes: [["status"], ["eventType"], ["eventType", "status"]],
+      groupings: [],
+      columns: [],
     });
+    const widths = (eventType, status) => ({ eventType, status });
 
-    it("takes the line that holds it, filling what is not asked", () => {
-      expect(choosePlan(loose, [], false)).toEqual({
-        kind: EXACT,
-        line: ["status", "eventType"],
-        filled: ["status", "eventType"],
-        residual: [],
-      });
-      expect(scansOf(loose, ["status", "eventType"], [])).toBe(24);
-    });
+    it.each([
+      ["nothing", [], []],
+      ["a status", ["status"], ["status"]],
+      ["a type", ["eventType"], ["eventType"]],
+      ["a type and a status", ["eventType", "status"], ["eventType", "status"]],
+    ])(
+      "takes the index of just its facts for %s, exact in one scan",
+      (_, asked, line) => {
+        expect(choosePlan(events, asked, false)).toEqual({
+          kind: EXACT,
+          line,
+          filled: [],
+          residual: [],
+        });
+        expect(scansOf(events, line, asked)).toBe(1);
+      },
+    );
 
-    it("reads the time-only line once the fact is shown", () => {
-      expect(choosePlan(loose, [], false, ["eventType"]).line).toEqual([]);
-    });
+    it.each([1, 2, 3, 4, 5])(
+      "stays exact for %i statuses and no type, one scan each",
+      (statuses) => {
+        const plan = choosePlan(events, ["status"], false, {
+          status: statuses,
+        });
 
-    it("is a residual behind a ref, whose key does not hold it", () => {
-      expect(choosePlan(loose, [], true)).toEqual({
-        kind: BOUNDED,
-        line: REFS,
-        filled: [],
-        residual: ["eventType"],
-      });
-      expect(choosePlan(loose, [], true, ["eventType"]).kind).toBe(EXACT);
-    });
+        expect(plan).toEqual({
+          kind: EXACT,
+          line: ["status"],
+          filled: [],
+          residual: [],
+        });
+        expect(
+          scansOf(events, plan.line, ["status"], { status: statuses }),
+        ).toBe(statuses);
+      },
+    );
+
+    it.each([
+      [7, 7, EXACT, ["eventType", "status"]],
+      [18, 2, EXACT, ["eventType", "status"]],
+      [10, 5, EXACT, ["eventType", "status"]],
+      [18, 3, BOUNDED, ["status"]],
+      [8, 7, BOUNDED, ["status"]],
+    ])(
+      "%i types and %i statuses: %s on %j",
+      (typeCount, statusCount, kind, line) => {
+        expect(
+          choosePlan(
+            events,
+            ["eventType", "status"],
+            false,
+            widths(typeCount, statusCount),
+          ),
+        ).toMatchObject({ kind, line });
+      },
+    );
   });
 });

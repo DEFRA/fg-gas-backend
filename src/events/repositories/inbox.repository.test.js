@@ -1,3 +1,4 @@
+import { NO_ERROR_KEY } from "../../common/buckets/error-key.js";
 import { ObjectId } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -59,14 +60,17 @@ describe("inbox.repository", () => {
         {
           _id: record._id,
         },
-        {
-          $set: {
-            status: InboxStatus.DEAD_LETTER,
-            claimedAt: null,
-            claimExpiresAt: null,
-            claimedBy: null,
+        [
+          {
+            $set: {
+              status: InboxStatus.DEAD_LETTER,
+              errorKey: { $ifNull: ["$errorKey", "No error recorded"] },
+              claimedAt: null,
+              claimExpiresAt: null,
+              claimedBy: null,
+            },
           },
-        },
+        ],
       );
     });
   });
@@ -218,14 +222,17 @@ describe("inbox.repository", () => {
           ],
         },
       },
-      {
-        $set: {
-          status: InboxStatus.DEAD_LETTER,
-          claimedAt: null,
-          claimExpiresAt: null,
-          claimedBy: null,
+      [
+        {
+          $set: {
+            status: InboxStatus.DEAD_LETTER,
+            errorKey: { $ifNull: ["$errorKey", "No error recorded"] },
+            claimedAt: null,
+            claimExpiresAt: null,
+            claimedBy: null,
+          },
         },
-      },
+      ],
     );
   });
 
@@ -390,20 +397,27 @@ describe("inbox.repository detail and redrive", () => {
         _id: new ObjectId(ID),
         status: { $in: [InboxStatus.DEAD_LETTER, InboxStatus.PURGED] },
       },
-      {
-        $set: {
-          status: InboxStatus.RESUBMITTED,
-          retryable: true,
-          completionAttempts: 0,
-          attemptHistory: [],
-          lastRedrive: { at: expect.any(String), by: null },
-          expireAt: null,
-          claimedBy: null,
-          claimedAt: null,
-          claimExpiresAt: null,
+      [
+        {
+          $set: {
+            status: InboxStatus.RESUBMITTED,
+            retryable: true,
+            completionAttempts: 0,
+            attemptHistory: [],
+            lastRedrive: { $literal: { at: expect.any(String), by: null } },
+            expireAt: null,
+            claimedBy: null,
+            claimedAt: null,
+            claimExpiresAt: null,
+            errorKey: {
+              $cond: [{ $eq: ["$errorKey", NO_ERROR_KEY] }, null, "$errorKey"],
+            },
+            payloadRevision: {
+              $add: [{ $ifNull: ["$payloadRevision", 0] }, 1],
+            },
+          },
         },
-        $inc: { payloadRevision: 1 },
-      },
+      ],
       {},
     );
   });

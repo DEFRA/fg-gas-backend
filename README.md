@@ -311,6 +311,27 @@ npm run test:contract:local
 
 When `PACT_USE_LOCAL=true`, tests will read pact files from `tmp/pacts` (for example `tmp/pacts/grants-ui-fg-gas-backend.json`).
 
+## Grant Admin API
+
+The `/grant-admin` routes answer the Grants Platform Admin alone. Each admin request makes at most one call to GAS, so an answer carries what its page needs:
+
+- **`shell`:** every answer the admin draws a page from, a refusal or failure too, carries `shell: { catalogue: { buckets, sourceErrors } }`, the lists the sidebar shows (`null` when it can't be built). A write the admin redirects after carries it only on a refusal. GAS keeps the catalogue for 60 seconds (`ADMIN_SHELL_CACHE_MS`), one missing Caseworking's lists for 10, answers a kept one at once and reads it again behind it. `GET /grant-admin/shell` answers it alone, for a page that needs nothing else. It is never answered to another client.
+- **`POST /grant-admin/lists/query`** reads one list by its admin path (the catalogue entry's `path`) and the URL's params as typed. GAS checks the address (400 `ADDRESS_REFUSED` naming unknown keys, repeated keys and unoffered values), then the range (400 `RANGE_REFUSED`), then reads the first page, or pages 1 to `pages` (at most 50) in turn under one deadline, counting only the first. Each page released is audited as a bucket query, every later one as a repeat; a later page that fails ends the answer as `stopped`, and the rows before it stand. A refused stored search is read again without it and named in `refusedSearch`. `read: false` checks without reading. A path neither service lists is 404 `LIST_NOT_FOUND`. While Caseworking's lists can't be read, a path Caseworking last listed is 503 `CW_UNREACHABLE` instead, and so is every unknown path on an instance that hasn't read Caseworking's lists yet.
+- **Application and case pages:** the header carries `names: { phases: [{ code, name }], stage, status }`, from the grant definition of the application's version, or passed on from Caseworking's case read; `null` when there is none, and the page shows the codes.
+- **Grant and workflow version Overviews** carry `versionEvents`, the version's own events read beside the overview within 1.5 seconds: `read` (with `sourceErrors`), `timed-out` or `failed`.
+- **`GET /grant-admin/workflows/{code}/versions/{version}/phases`** answers the workflow definition with `grantStatusMap`: what GAS does with the statuses the workflow sends, from the grant of the same code and version (`found` with its lifecycle, `no-grant`, `not-stored`, `unreadable` or `unavailable`), audited as a view of that grant's Phases tab.
+- **Events:**
+  - `GET /grant-admin/events/{service}/{box}/{id}` carries `shell` on every answer, a 404 too.
+  - `POST …/payload` takes `redrive: true` to redrive the event once it is saved, in the same transaction and with both audits for a GAS event. The 200 adds `redrive`: `null`, `redriven`, `conflict` (with its status) or `failed`; the save stands in every case. A stale revision is 412 `STALE_REVISION` with `event`, as the event read answers it (null when it can't be read).
+  - `POST …/purge` answers 409 `NOT_PURGEABLE` with `status` and `statusLabel` for an event that is not dead-lettered with a deletion date; 404 means only that there is no such event.
+- **API client tokens:**
+  - `POST /grant-admin/clients/{service}/{clientId}/tokens` creates the client when it has no tokens. With `confirmed: false`, a client with active tokens is refused with 409 `HAS_ACTIVE` (the count in `active`) and nothing is issued; a missing `confirmed` means true, and `newClient` is ignored.
+  - Issue and rotate answer 201 `{ service, token, tokens }`.
+  - `PUT …/expiry` refuses 400 `EXPIRY_PAST` for an expiry not later than now, and 409 `EXPIRY_UNCHANGED` for an active token's expiry moved within the UK day it already ends on.
+  - Every refusal of a token write is `{ code, message, tokens }`. `tokens` is the list as `GET /grant-admin/clients/{service}` answers it, hashes masked, or null when it can't be read.
+
+`GET /grant-admin/buckets`, `POST /grant-admin/buckets/{bucketId}/query` and `newClient` stay for the admin's last release, and go in a later release.
+
 ## Service to service authentication
 
 The GAS API uses simple bearer tokens for service access. Only each token's SHA‑256 hash is stored, in MongoDB's `access_tokens` collection.

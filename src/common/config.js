@@ -6,6 +6,7 @@ import { VARIANT_PATTERN } from "./configuration-variant.js";
 // maxTimeMS, so each layer degrades to a named error before the one above gives up.
 const ADMIN_READ_MS = 5000;
 const CW_TIMEOUT_MS = 4000;
+const ADMIN_SHELL_MS = 60_000;
 
 // The floor is not configurable down: inbox dedup (`findByMessageId`) only
 // works while the row is there, and SQS holds a redelivery for up to 14 days.
@@ -106,6 +107,11 @@ const schema = Joi.object({
     .integer()
     .min(1)
     .default(CW_TIMEOUT_MS)
+    .optional(),
+  ADMIN_SHELL_CACHE_MS: Joi.number()
+    .integer()
+    .min(0)
+    .default(ADMIN_SHELL_MS)
     .optional(),
   // `.optional()` is needed despite the default: this schema is `presence:
   // "required"`, so a defaulted key is still demanded of the environment.
@@ -241,6 +247,7 @@ export const config = {
     allowedIssuers: CALLER_TOKEN_ALLOWED_ISSUERS,
   },
   adminReadTimeoutMs: vars.ADMIN_READ_TIMEOUT_MS,
+  adminShellCacheMs: vars.ADMIN_SHELL_CACHE_MS,
   cwBackend: {
     url: vars.CW_BACKEND_URL,
     token: vars.CW_BACKEND_TOKEN,

@@ -14,6 +14,10 @@ const refusals = {
     statusCode: BAD_REQUEST,
     message: "A filter names a fact this bucket does not declare",
   },
+  SINGLE_VALUE_FACT: {
+    statusCode: BAD_REQUEST,
+    message: "A filter gives several values for a fact that takes one",
+  },
   UNKNOWN_REF_KIND: {
     statusCode: BAD_REQUEST,
     message: "The search names an identifier kind this bucket does not declare",

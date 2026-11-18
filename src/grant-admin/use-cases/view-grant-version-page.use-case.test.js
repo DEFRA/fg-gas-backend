@@ -68,6 +68,10 @@ const view = (tab) =>
 
 describe("viewGrantVersionPageUseCase", () => {
   beforeEach(() => {
+    readGrantVersionEventsUseCase.mockResolvedValue({
+      content: { events: { rows: [], more: false } },
+      sourceErrors: [],
+    });
     configVersionNotFound.mockImplementation(
       actualNotFound.configVersionNotFound,
     );
@@ -441,6 +445,16 @@ describe("viewGrantVersionPageUseCase", () => {
       code: "woodland",
       version: "2.0.0",
     });
+  });
+
+  it("overview: the page stands when its events cannot be read", async () => {
+    readGrantVersionEventsUseCase.mockRejectedValue(new Error("mongo down"));
+
+    const page = await view("overview");
+
+    expect(page.versionEvents).toEqual({ outcome: "failed" });
+    expect(page.overview).not.toBeNull();
+    expect(page.sectionErrors).toEqual([]);
   });
 
   it("answers 404 GRANT_VERSION_NOT_FOUND for an unknown version", async () => {
