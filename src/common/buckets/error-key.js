@@ -7,7 +7,7 @@
 // The shapes come from the messages this code throws and the libraries it
 // calls: interpolated ids, refs and codes, Joi's quoted paths and values,
 // MongoDB's duplicate-key documents, HTTP statuses and URLs.
-const MAX_KEY_LENGTH = 120;
+export const MAX_KEY_LENGTH = 120;
 
 const VALUE = "<v>";
 

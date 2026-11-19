@@ -80,6 +80,8 @@ describe("gas.outbox", () => {
       ["eventType", "publicationDate", "_id"],
       ["eventType", "status", "publicationDate", "_id"],
       ["eventType", "status", "lastError.name", "publicationDate", "_id"],
+      ["status", "lastError.name", "publicationDate", "_id"],
+      ["status", "errorKey", "publicationDate", "_id"],
       ["status", "errorKey", "eventType", "publicationDate", "_id"],
       ["refs", "publicationDate", "_id"],
     ]);
@@ -128,13 +130,43 @@ describe("gas.outbox", () => {
     ]);
   });
 
-  it("is the Outbox tab of its service's Events page", () => {
-    expect(bucket.page).toEqual({
-      id: "events",
-      label: "GAS events",
-      shortLabel: "Events",
+  it("is drawn on no page of its own: the events list groups it", () => {
+    expect(bucket.page).toBeNull();
+    expect(bucket.tab).toBeNull();
+  });
+
+  it.each([
+    ["an error name", ["lastError.name"], ["status", "lastError.name"], 8],
+    ["an error key", ["errorKey"], ["status", "errorKey"], 8],
+    [
+      "a status and an error name",
+      ["status", "lastError.name"],
+      ["status", "lastError.name"],
+      1,
+    ],
+    [
+      "a status and an error key",
+      ["status", "errorKey"],
+      ["status", "errorKey"],
+      1,
+    ],
+  ])("reads %s exactly on its error line", (_, asked, line, scans) => {
+    expect(choosePlan(bucket, asked, false)).toEqual({
+      kind: "exact",
+      line,
+      filled: line.filter((fact) => !asked.includes(fact)),
+      residual: [],
     });
-    expect(bucket.tab).toBe("Outbox");
+    expect(scansOf(bucket, line, asked)).toBe(scans);
+  });
+
+  it("still reads a type and an error name on the type's error line", () => {
+    expect(
+      choosePlan(bucket, ["eventType", "lastError.name"], false),
+    ).toMatchObject({
+      kind: "exact",
+      line: ["eventType", "status", "lastError.name"],
+    });
   });
 
   it("declares its dead letters counted by error key and event type as Top errors, each entry an exact read", () => {

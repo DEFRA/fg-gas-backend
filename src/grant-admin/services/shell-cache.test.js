@@ -2,14 +2,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { describeBucket } from "../../common/buckets/catalogue.js";
 import { config } from "../../common/config.js";
 import { listBuckets } from "../../common/buckets/registry.js";
+import {
+  clearListGroups,
+  registerListGroup,
+} from "../../common/list-groups/registry.js";
+import { eventListGroups } from "../../events/lists/event-list-groups.js";
 import { findCwBuckets } from "../repositories/cw-actuators.repository.js";
 import {
   CW_TIMEOUT_MS,
   FAILED_MS,
   clearShellCache,
   mayBeCwList,
+  readListShell,
   readShell,
 } from "./shell-cache.js";
+import {
+  CW_TYPES,
+  GAS_TYPES,
+  anEventEntry,
+} from "./list-groups/test-groups.js";
 
 vi.mock("../../common/logger.js");
 vi.mock("../../common/buckets/registry.js");
@@ -17,7 +28,13 @@ vi.mock("../../common/buckets/catalogue.js", async (importOriginal) => ({
   ...(await importOriginal()),
   describeBucket: vi.fn(),
 }));
-vi.mock("../repositories/cw-actuators.repository.js");
+vi.mock(
+  "../repositories/cw-actuators.repository.js",
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    findCwBuckets: vi.fn(),
+  }),
+);
 
 const STORED = "stored";
 
@@ -257,5 +274,92 @@ describe("mayBeCwList", () => {
 
     expect(mayBeCwList("cases")).toBe(true);
     expect(mayBeCwList("tasks")).toBe(false);
+  });
+});
+
+describe("readShell with list groups", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    clearShellCache();
+    clearListGroups();
+    eventListGroups().forEach(registerListGroup);
+    config.adminShellCacheMs = MINUTE;
+    listBuckets.mockReturnValue([
+      ownBucket,
+      { ...ownBucket, id: "gas.outbox" },
+    ]);
+    describeBucket.mockImplementation(async ({ id }) =>
+      anEventEntry(id, GAS_TYPES[id.split(".")[1]]),
+    );
+    findCwBuckets.mockResolvedValue([
+      anEventEntry("cw.outbox", CW_TYPES.outbox),
+      anEventEntry("cw.inbox", CW_TYPES.inbox),
+    ]);
+  });
+
+  afterEach(() => {
+    clearListGroups();
+    vi.useRealTimers();
+  });
+
+  it("lists each service's events as one entry, its boxes hidden, and keeps what the read splits by beside it", async () => {
+    const shell = await readShell();
+
+    expect(shell.catalogue.buckets.map(({ id }) => id)).toEqual([
+      "gas.events",
+      "cw.events",
+    ]);
+    expect([...(await readListShell()).groups.keys()]).toEqual([
+      "gas.events",
+      "cw.events",
+    ]);
+    expect(Object.keys(shell)).toEqual(["catalogue"]);
+  });
+
+  it("leaves Caseworking's boxes out while it can't be read, and GAS's grouped", async () => {
+    findCwBuckets.mockRejectedValue(new Error("down"));
+
+    const shell = await readShell();
+
+    expect(shell.catalogue.buckets.map(({ id }) => id)).toEqual(["gas.events"]);
+  });
+
+  it("reads no list shell while there is no catalogue", async () => {
+    listBuckets.mockImplementation(() => {
+      throw new Error("down");
+    });
+
+    expect(await readListShell()).toBeNull();
+  });
+
+  it("waits on Caseworking for its events once it has listed them", async () => {
+    await readShell();
+
+    config.adminShellCacheMs = 0;
+    findCwBuckets.mockRejectedValue(new Error("down"));
+    await readShell();
+
+    expect(mayBeCwList("events/cw")).toBe(true);
+    expect(mayBeCwList("events/gas")).toBe(false);
+    expect(mayBeCwList("events/cw/outbox")).toBe(false);
+  });
+
+  it("never waits on Caseworking for a path under a group's, even before reading it", async () => {
+    findCwBuckets.mockRejectedValue(new Error("down"));
+    await readShell();
+
+    expect(mayBeCwList("events/cw/outbox")).toBe(false);
+    expect(mayBeCwList("events/gas/inbox")).toBe(false);
+    expect(mayBeCwList("events/cw")).toBe(true);
+  });
+
+  it("lists no box on its own while its group can't be built", async () => {
+    findCwBuckets.mockResolvedValue([
+      anEventEntry("cw.outbox", CW_TYPES.outbox),
+    ]);
+
+    const { catalogue } = await readShell();
+
+    expect(catalogue.buckets.map(({ id }) => id)).toEqual(["gas.events"]);
   });
 });

@@ -44,17 +44,6 @@ const OVERVIEW = {
       count: 2,
       capped: false,
       bars: [{ from: FROM, to: AT, count: 2, capped: false }],
-      lists: [
-        {
-          box: "inbox",
-          count: 2,
-          capped: false,
-          list: {
-            path: "events/gas/inbox",
-            query: { status: "DEAD_LETTER", from: FROM, to: AT },
-          },
-        },
-      ],
     }),
     cw: notRead,
   },
@@ -67,7 +56,10 @@ const OVERVIEW = {
           count: 2,
           capped: false,
           lastAt: null,
-          list: { path: "events/gas/inbox", query: { status: "DEAD_LETTER" } },
+          list: {
+            path: "events/gas",
+            query: { queue: "inbox", status: "DEAD_LETTER" },
+          },
         },
       ],
       more: false,

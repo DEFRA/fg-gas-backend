@@ -36,6 +36,13 @@ describe("main", () => {
     vi.doMock("./auth/access-token-identity.js", () => ({
       reportAccessTokenIdentity: vi.fn().mockResolvedValue(undefined),
     }));
+    vi.doMock("./common/mongo-client.js", () => ({ db: { name: "db" } }));
+    vi.doMock("./common/buckets/registry.js", () => ({
+      listBuckets: vi.fn().mockReturnValue([{ id: "gas.outbox" }]),
+    }));
+    vi.doMock("./common/buckets/indexes.js", () => ({
+      checkDeclaredIndexes: vi.fn().mockResolvedValue(undefined),
+    }));
   });
 
   afterEach(() => {
@@ -108,6 +115,38 @@ describe("main", () => {
     expect(reportAccessTokenIdentity.mock.invocationCallOrder[0]).toBeLessThan(
       mockServer.start.mock.invocationCallOrder[0],
     );
+  });
+
+  it("checks the declared indexes once started, without waiting for the check", async () => {
+    const { checkDeclaredIndexes } =
+      await import("./common/buckets/indexes.js");
+    checkDeclaredIndexes.mockReturnValue(new Promise(() => {}));
+
+    await import("./main.js");
+
+    expect(checkDeclaredIndexes).toHaveBeenCalledWith({ name: "db" }, [
+      { id: "gas.outbox" },
+    ]);
+    expect(checkDeclaredIndexes.mock.invocationCallOrder[0]).toBeGreaterThan(
+      mockServer.start.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("logs a failed index check, and leaves the exit code alone", async () => {
+    const { checkDeclaredIndexes } =
+      await import("./common/buckets/indexes.js");
+    const failure = new Error("no primary");
+    checkDeclaredIndexes.mockRejectedValue(failure);
+
+    await import("./main.js");
+    await new Promise((resolve) => setImmediate(resolve));
+    const { logger } = await import("./common/logger.js");
+
+    expect(logger.error).toHaveBeenCalledWith(
+      failure,
+      "Declared index check failed",
+    );
+    expect(process.exitCode).toBeUndefined();
   });
 
   it("logs and sets exit code on unhandled rejection", async () => {

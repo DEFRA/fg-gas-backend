@@ -1,7 +1,10 @@
 import { agreements } from "./agreements/index.js";
 import { reportAccessTokenIdentity } from "./auth/access-token-identity.js";
+import { checkDeclaredIndexes } from "./common/buckets/indexes.js";
+import { listBuckets } from "./common/buckets/registry.js";
 import { assertDefinitionCheckRegistered } from "./common/config-broker/definition-checks.js";
 import { logger } from "./common/logger.js";
+import { db } from "./common/mongo-client.js";
 import { grantAdmin } from "./grant-admin/index.js";
 import { events } from "./events/index.js";
 import { grants } from "./grants/index.js";
@@ -31,3 +34,11 @@ assertDefinitionCheckRegistered("payment");
 // After register, which runs the migrations, and before any request is served.
 await reportAccessTokenIdentity();
 await server.start();
+// Behind start-up, so a gap is logged without holding the instance back.
+const checkIndexesBehind = () => {
+  checkDeclaredIndexes(db, listBuckets()).catch((error) =>
+    logger.error(error, "Declared index check failed"),
+  );
+};
+
+checkIndexesBehind();

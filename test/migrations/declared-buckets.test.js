@@ -427,6 +427,8 @@ describe("build bucket indexes", () => {
       "eventType,publicationDate,_id",
       "eventType,status,publicationDate,_id",
       "eventType,status,lastError.name,publicationDate,_id",
+      "status,lastError.name,publicationDate,_id",
+      "status,errorKey,publicationDate,_id",
       "status,errorKey,eventType,publicationDate,_id",
       "refs,publicationDate,_id",
     ]);

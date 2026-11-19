@@ -25,6 +25,7 @@ import {
 import { findCwApiTokens } from "../repositories/cw-clients.repository.js";
 import { GATEWAY_TIMEOUT, statusOf } from "../repositories/cw-http.js";
 import { buildApiClientAudit } from "../use-cases/api-client-audit.js";
+import { listOfGroupMember } from "./list-groups/catalogue.js";
 import { TOKENS_WITHIN_DAYS, isExpiringSoon } from "./token-expiry.js";
 
 // What each part of the Overview reads, from GAS's own collections and from
@@ -63,17 +64,11 @@ const CW_HOP = "CW-BE";
 
 const boxOf = (bucketId) => bucketId.split(".")[1];
 
-const deadLetterList = (bucket) => ({
-  path: bucket.path,
-  query: { [bucket.facts.status.param]: DEAD_LETTER },
-});
-
 const readGasDeadLetters = async ({ from, to }) => ({
   countCap: COUNT_CAP,
   boxes: await Promise.all(
     GAS_BOXES.map(findBucket).map(async (bucket) => ({
       box: boxOf(bucket.id),
-      list: deadLetterList(bucket),
       bins: await countBins(bucket, {
         where: { status: DEAD_LETTER },
         from,
@@ -92,11 +87,7 @@ const readCwDeadLetters = async ({ from, to, actor }) => {
 
   return {
     countCap,
-    boxes: buckets.map(({ id, list, bins }) => ({
-      box: boxOf(id),
-      list,
-      bins,
-    })),
+    boxes: buckets.map(({ id, bins }) => ({ box: boxOf(id), bins })),
   };
 };
 
@@ -107,7 +98,7 @@ const errorsOf = (summaries) =>
   (summaries ?? []).find(({ id }) => id === ERRORS);
 
 const ownBox = (bucket) => ({
-  path: bucket.path,
+  member: bucket.id,
   params: Object.fromEntries(
     Object.entries(bucket.facts).map(([name, { param }]) => [name, param]),
   ),
@@ -127,7 +118,7 @@ const cwBox = (entries, id) => {
   }
 
   return {
-    path: entry.path,
+    member: id,
     params: Object.fromEntries(
       entry.facts.map(({ name, param }) => [name, param]),
     ),
@@ -163,6 +154,21 @@ const readCwTopErrors = async ({ actor }) => {
     })),
   };
 };
+
+// Top errors are kept with the box each summary counts, and linked to the
+// list `catalogue` draws for each answer, so a link never outlives the shell
+// it was drawn in.
+const linkedBox =
+  (catalogue) =>
+  ({ box, summary }) => ({
+    box: { ...box, list: listOfGroupMember(catalogue, box.member) },
+    summary,
+  });
+
+export const linkTopErrors = ({ data, sourceError }, catalogue) => ({
+  data: data && { summaries: data.summaries.map(linkedBox(catalogue)) },
+  sourceError,
+});
 
 const failedQuery = (fact, definition) => ({
   where: { status: ACTIVE, [fact]: definition },

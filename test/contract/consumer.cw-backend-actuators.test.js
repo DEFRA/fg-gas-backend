@@ -12,6 +12,10 @@ import { describe, expect, it, vi } from "vitest";
 import { withRequestContext } from "../../src/common/get-request-context.js";
 import { MASKED_HASH } from "../../src/auth/models/masked-hash.js";
 import {
+  PAGE_SIZE,
+  queryRequestSchema,
+} from "../../src/common/buckets/schema.js";
+import {
   CASE_NOT_FOUND,
   countCwDeadLetters,
   findCwBuckets,
@@ -41,6 +45,7 @@ import {
   findCwWorkflowVersionExistence,
   findCwWorkflowVersions,
 } from "../../src/grant-admin/repositories/cw-workflows.repository.js";
+import { queryBucketUseCase } from "../../src/grant-admin/use-cases/query-bucket.use-case.js";
 
 const {
   atLeastLike,
@@ -63,6 +68,8 @@ vi.mock("../../src/common/config.js", () => ({
   config: {
     cwBackend,
     httpClient: { timeoutMs: 5000 },
+    events: {},
+    outbox: {},
     tracingHeader: "x-cdp-request-id",
   },
 }));
@@ -148,6 +155,52 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
       tab: null,
     };
 
+    // Each event box, as GAS joins the two into one list: its facts under
+    // their URL keys and the kinds it searches by. Anything else may differ.
+    const EVENT_FACTS = [
+      ["status", "status"],
+      ["eventType", "event"],
+      ["lastError.name", "errorname"],
+      ["errorKey", "error"],
+    ];
+    const EVENT_REFS = ["ref", "trace", "id"];
+
+    // page and tab aren't pinned: Caseworking may name either or neither.
+    const { page: _page, tab: _tab, ...unpaged } = bucketEntry;
+
+    const eventBoxEntry = (box) => ({
+      ...unpaged,
+      id: `cw.${box}`,
+      path: string(`events/cw/${box}`),
+      label: string(`CW ${box}`),
+      shortLabel: string(box),
+      icon: string("activity"),
+      noun: { one: string("event"), many: string("events") },
+      title: { label: string("Event"), format: string("eventType") },
+      audited: boolean(false),
+      timeline: boolean(true),
+      facts: EVENT_FACTS.map(([name, param]) => ({
+        name,
+        param,
+        label: string(name),
+        values:
+          name === "status" || name === "eventType"
+            ? eachLike({
+                value: string("COMPLETED"),
+                label: string("Completed"),
+              })
+            : null,
+      })),
+      refs: EVENT_REFS.map((kind) => ({ kind, label: string(kind) })),
+    });
+
+    // The body a list's first page sends, as the list query builds it.
+    const EVENT_LIST_QUERY = queryRequestSchema.validate({
+      where: { status: "COMPLETED", eventType: "ConfigVersionUpdated" },
+      limit: PAGE_SIZE,
+      count: true,
+    }).value;
+
     const bucketRow = {
       id: string("665f1c2e9a1b2c3d4e5f6a7b"),
       time: createdAt,
@@ -173,14 +226,92 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           },
           willRespondWith: {
             status: 200,
-            body: { buckets: eachLike(bucketEntry) },
+            body: {
+              buckets: MatchersV3.arrayContaining(
+                eventBoxEntry("outbox"),
+                eventBoxEntry("inbox"),
+                bucketEntry,
+              ),
+            },
           },
         },
         async () => {
-          const [entry] = await findCwBuckets();
+          const entries = await findCwBuckets();
+          const cases = entries.find(({ id }) => id === CASES_BUCKET);
+          const inbox = entries.find(({ id }) => id === "cw.inbox");
 
-          expect(entry.id).toBe(CASES_BUCKET);
-          expect(entry.audited).toBe(true);
+          expect(cases.audited).toBe(true);
+          expect(inbox.facts.map(({ name, param }) => [name, param])).toEqual(
+            EVENT_FACTS,
+          );
+          expect(inbox.refs.map(({ kind }) => kind)).toEqual(EVENT_REFS);
+        },
+      ));
+
+    it("answers a page of a CW event box as a list reads it", () =>
+      run(
+        {
+          states: [{ description: "config version events exist" }],
+          uponReceiving: "a page of a CW event box as a list reads it",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/buckets/cw.inbox/query",
+            headers: {
+              ...operatorHeaders,
+              "x-search-repeat": "1",
+              "x-read-time-left-ms": regex("^[1-9][0-9]*$", "2500"),
+            },
+            body: EVENT_LIST_QUERY,
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              bucket: "cw.inbox",
+              plan: {
+                kind: "exact",
+                index: eachLike("eventType"),
+                bound: like([]),
+                filled: like([]),
+                residual: like([]),
+                scans: integer(1),
+              },
+              rows: eachLike({
+                id: string("665f1c2e9a1b2c3d4e5f6a7b"),
+                time: createdAt,
+                title: string("ConfigVersionUpdated"),
+                subtitle: string("7c1e0bd2-5f0a-4c4e-9b1d-0000174876e8"),
+                cells: { status: string("COMPLETED") },
+                link: {
+                  kind: "event",
+                  service: "caseworking",
+                  box: "inbox",
+                  id: string("665f1c2e9a1b2c3d4e5f6a7b"),
+                },
+              }),
+              page: {
+                next: null,
+                keepLooking: null,
+                searchedTo: null,
+                complete: boolean(true),
+              },
+              groups: like([]),
+              total: { count: integer(1), capped: boolean(false) },
+            },
+          },
+        },
+        async () => {
+          const answer = await asOperator(() =>
+            queryBucketUseCase({
+              bucketId: "cw.inbox",
+              body: EVENT_LIST_QUERY,
+              actor: ACTOR,
+              repeat: true,
+              deadline: Date.now() + 3_000,
+            }),
+          );
+
+          expect(answer.rows[0].link.box).toBe("inbox");
+          expect(answer.total.capped).toBe(false);
         },
       ));
 
@@ -752,10 +883,6 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
               countCap: integer(10_000),
               buckets: eachLike({
                 id: regex("^cw\\.[a-z][a-z0-9-]*$", "cw.outbox"),
-                list: {
-                  path: string("events/cw/outbox"),
-                  query: { status: "DEAD_LETTER" },
-                },
                 bins: constrainedArrayLike(bin, 12, 12, 12),
               }),
             },
@@ -770,9 +897,7 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           );
 
           expect(answer.buckets[0].bins).toHaveLength(12);
-          expect(answer.buckets[0].list.query).toEqual({
-            status: "DEAD_LETTER",
-          });
+          expect(answer.buckets[0]).not.toHaveProperty("list");
         },
       ));
   });

@@ -176,6 +176,13 @@ export default [
                 "common/explore-sources/registry.js. See docs/MODULE_BOUNDARIES.md.",
             },
             {
+              target: "src/grant-admin/**/!(*.test).js",
+              from: ["src/{agreements,events,grants,payments}/lists/**"],
+              message:
+                "Grant Admin reads list groups only through " +
+                "common/list-groups/registry.js. See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
               target: "src/common/**/!(*.test).js",
               from: [
                 "src/agreements/**",

@@ -45,15 +45,6 @@ const deadLetters = Joi.object({
       }),
     )
     .required(),
-  lists: Joi.array()
-    .items(
-      Joi.object({
-        box: Joi.string().required(),
-        ...count,
-        list: listLink.required(),
-      }),
-    )
-    .required(),
 });
 
 const topErrors = Joi.object({
@@ -69,7 +60,7 @@ const topErrors = Joi.object({
           .required(),
         ...count,
         lastAt: isoDate.allow(null).required(),
-        list: listLink.required(),
+        list: listLink.allow(null).required(),
       }),
     )
     .required(),

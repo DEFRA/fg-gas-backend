@@ -165,21 +165,59 @@ describe("queryBucketUseCase", () => {
     expect(runQuery).toHaveBeenCalledWith(bucket, QUERY, 1_000);
   });
 
-  it("gives Caseworking no longer than the deadline leaves, and no less than a millisecond", async () => {
+  it("gives Caseworking no longer than the deadline leaves, and tells it how long it may read", async () => {
     vi.spyOn(Date, "now").mockReturnValue(10_000);
+    const { signal } = new AbortController();
 
-    await ask("cw.example", { deadline: 10_250 });
-    await ask("cw.example", { deadline: 9_000 });
+    await ask("cw.example", { deadline: 11_200, signal });
+    await ask("cw.example", { deadline: 20_000 });
 
     expect(queryCwBucket).toHaveBeenNthCalledWith(1, "cw.example", BODY, {
       actor: "Jo Operator",
       repeat: false,
-      timeout: 250,
+      signal,
+      timeout: 1_200,
+      timeLeftMs: 700,
     });
     expect(queryCwBucket).toHaveBeenNthCalledWith(2, "cw.example", BODY, {
       actor: "Jo Operator",
       repeat: false,
-      timeout: 1,
+      timeout: 4_000,
+      timeLeftMs: 9_500,
+    });
+  });
+
+  it("tells Caseworking no more time left than it takes", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(10_000);
+
+    await ask("cw.example", { deadline: 40_000 });
+
+    expect(queryCwBucket).toHaveBeenCalledWith("cw.example", BODY, {
+      actor: "Jo Operator",
+      repeat: false,
+      timeout: 4_000,
+      timeLeftMs: 10_000,
+    });
+  });
+
+  it.each([10_500, 10_250, 9_000])(
+    "times out without asking Caseworking when no more than its margin is left (deadline %i)",
+    async (deadline) => {
+      vi.spyOn(Date, "now").mockReturnValue(10_000);
+
+      await expect(ask("cw.example", { deadline })).rejects.toThrow(
+        reasonOf("TIMED_OUT"),
+      );
+      expect(queryCwBucket).not.toHaveBeenCalled();
+    },
+  );
+
+  it("sets Caseworking no time limit of its own on a read with no deadline", async () => {
+    await ask("cw.example");
+
+    expect(queryCwBucket).toHaveBeenCalledWith("cw.example", BODY, {
+      actor: "Jo Operator",
+      repeat: false,
     });
   });
 

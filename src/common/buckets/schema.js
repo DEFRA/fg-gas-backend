@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { MAX_KEY_LENGTH } from "./error-key.js";
 
 export const PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;
@@ -19,16 +20,27 @@ export const MAX_LINK_LENGTH = 4096;
 
 const value = Joi.string().min(1).max(MAX_VALUE_LENGTH);
 
+// An error key is cut to its length by code point, so any key a box stores
+// can be asked for, however wide its characters.
+const errorKey = Joi.string()
+  .min(1)
+  .custom((text, helpers) =>
+    Array.from(text).length > MAX_KEY_LENGTH
+      ? helpers.error("string.max", { limit: MAX_KEY_LENGTH })
+      : text,
+  );
+
 export const MAX_FILTER_VALUES = 20;
 
 // A fact is one value, or several for a fact whose values are offered.
-const filter = Joi.alternatives(
-  value,
-  Joi.array().items(value).min(1).max(MAX_FILTER_VALUES),
-);
+const filterOf = (one) =>
+  Joi.alternatives(one, Joi.array().items(one).min(1).max(MAX_FILTER_VALUES));
 
 export const queryRequestSchema = Joi.object({
-  where: Joi.object().pattern(Joi.string().max(100), filter).max(8).default({}),
+  where: Joi.object({ errorKey: filterOf(errorKey) })
+    .pattern(Joi.string().max(100), filterOf(value))
+    .max(8)
+    .default({}),
   show: Joi.array().items(Joi.string().max(100)).max(8).default([]),
   ref: Joi.string().max(MAX_LINK_LENGTH),
   from: Joi.string().isoDate(),

@@ -1,7 +1,19 @@
 import Boom from "@hapi/boom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { refuse } from "../../common/buckets/refusal.js";
-import { readShell } from "../services/shell-cache.js";
+import {
+  clearListGroups,
+  registerListGroup,
+} from "../../common/list-groups/registry.js";
+import { eventListGroups } from "../../events/lists/event-list-groups.js";
+import { CW_UNREACHABLE } from "../repositories/cw-http.js";
+import { composeListGroups } from "../services/list-groups/catalogue.js";
+import { encodeGroupCursor } from "../services/list-groups/cursor.js";
+import {
+  GAS_TYPES,
+  anEventEntry,
+} from "../services/list-groups/test-groups.js";
+import { readListShell } from "../services/shell-cache.js";
 import { queryBucketUseCase } from "./query-bucket.use-case.js";
 import { queryListUseCase } from "./query-list.use-case.js";
 
@@ -36,6 +48,7 @@ const OUTBOX = {
 
 const catalogue = (sourceErrors = []) => ({
   catalogue: { buckets: [OUTBOX], sourceErrors },
+  groups: new Map(),
 });
 
 const FROM = "2026-10-08T12:00:00.000Z";
@@ -88,11 +101,19 @@ const payloadOf = async (promise) => {
   return { statusCode: error.output.statusCode, ...error.output.payload };
 };
 
+const cwNotReached = () => {
+  const failure = Boom.serverUnavailable("CW-BE could not be reached");
+
+  failure.output.payload.errorCode = CW_UNREACHABLE;
+
+  return failure;
+};
+
 const bodies = () => queryBucketUseCase.mock.calls.map(([args]) => args.body);
 
 describe("queryListUseCase", () => {
   beforeEach(() => {
-    readShell.mockResolvedValue(catalogue());
+    readListShell.mockResolvedValue(catalogue());
     queryBucketUseCase.mockResolvedValue(pageOf(["a"]));
   });
 
@@ -208,13 +229,13 @@ describe("queryListUseCase", () => {
     });
 
     it("still reads a GAS list while Caseworking's could not be read", async () => {
-      readShell.mockResolvedValue(catalogue([{ hop: "CW-BE" }]));
+      readListShell.mockResolvedValue(catalogue([{ hop: "CW-BE" }]));
 
       expect((await run({})).bucket).toBe("gas.outbox");
     });
 
     it("answers CATALOGUE_UNAVAILABLE when there is no catalogue at all", async () => {
-      readShell.mockResolvedValue(null);
+      readListShell.mockResolvedValue(null);
 
       expect(await payloadOf(run({}))).toEqual(
         expect.objectContaining({
@@ -228,7 +249,7 @@ describe("queryListUseCase", () => {
       const many = Object.fromEntries(
         Array.from({ length: 9 }, (_, n) => [`f${n}`, { param: `f${n}` }]),
       );
-      readShell.mockResolvedValue({
+      readListShell.mockResolvedValue({
         catalogue: {
           buckets: [
             {
@@ -243,6 +264,7 @@ describe("queryListUseCase", () => {
           ],
           sourceErrors: [],
         },
+        groups: new Map(),
       });
 
       const refused = await payloadOf(
@@ -364,6 +386,17 @@ describe("queryListUseCase", () => {
       });
     });
 
+    it("passes Caseworking not reached on a list that is no group on as it failed", async () => {
+      queryBucketUseCase.mockRejectedValue(cwNotReached());
+
+      expect(await payloadOf(run({}))).toEqual({
+        statusCode: 503,
+        error: "Service Unavailable",
+        message: "CW-BE could not be reached",
+        errorCode: "CW_UNREACHABLE",
+      });
+    });
+
     it("throws the first page's failure", async () => {
       queryBucketUseCase.mockRejectedValue(refuse("TIMED_OUT"));
 
@@ -431,6 +464,242 @@ describe("queryListUseCase", () => {
 
       await expect(run({ search: "ref:abc" })).rejects.toThrow("CW-BE down");
       expect(queryBucketUseCase).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+describe("queryListUseCase for a list group", () => {
+  let composed;
+
+  const groupPage = (bucket, ids) => ({
+    ...pageOf(ids),
+    bucket,
+    rows: ids.map((id, n) => ({
+      id,
+      time: `2026-10-15T10:00:0${n}.000Z`,
+      title: "Event",
+      subtitle: null,
+      cells: {},
+      link: null,
+    })),
+  });
+
+  const runGroup = (ask) => run({ path: "events/gas", ...ask });
+
+  beforeEach(() => {
+    clearListGroups();
+    eventListGroups().forEach(registerListGroup);
+    composed = composeListGroups(
+      [
+        anEventEntry("gas.outbox", GAS_TYPES.outbox),
+        anEventEntry("gas.inbox", GAS_TYPES.inbox),
+      ],
+      { cwRead: false },
+    );
+    readListShell.mockResolvedValue({
+      catalogue: { buckets: composed.buckets, sourceErrors: [] },
+      groups: composed.views,
+    });
+    queryBucketUseCase.mockImplementation(async ({ bucketId }) =>
+      groupPage(bucketId, bucketId === "gas.outbox" ? ["0a"] : ["0b"]),
+    );
+  });
+
+  afterEach(() => {
+    clearListGroups();
+  });
+
+  it("reads each picked box as the list's own read, with the operator, the deadline and one signal", async () => {
+    const { bucket, list } = await runGroup({
+      params: { queue: ["outbox", "inbox"], status: "DEAD_LETTER" },
+      repeat: true,
+      count: true,
+    });
+    const calls = queryBucketUseCase.mock.calls.map(([args]) => args);
+
+    expect(bucket).toBe("gas.events");
+    expect(list.rows.map(({ cells }) => cells.box)).toEqual([
+      "inbox",
+      "outbox",
+    ]);
+    expect(
+      calls.map(({ bucketId, body, caller, actor, repeat }) => ({
+        bucketId,
+        where: body.where,
+        caller,
+        actor,
+        repeat,
+      })),
+    ).toEqual([
+      {
+        bucketId: "gas.outbox",
+        where: { status: "DEAD_LETTER" },
+        caller: "fg-grants-platform-admin",
+        actor: "Jo Operator",
+        repeat: true,
+      },
+      {
+        bucketId: "gas.inbox",
+        where: { status: "DEAD_LETTER" },
+        caller: "fg-grants-platform-admin",
+        actor: "Jo Operator",
+        repeat: true,
+      },
+    ]);
+    expect(calls[0].deadline).toBe(calls[1].deadline);
+    expect(calls[0].signal).toBe(calls[1].signal);
+  });
+
+  it("names no queue when Caseworking can't be reached at all", async () => {
+    queryBucketUseCase.mockImplementation(async ({ bucketId }) => {
+      if (bucketId === "gas.inbox") {
+        throw cwNotReached();
+      }
+
+      return groupPage(bucketId, ["0a"]);
+    });
+
+    const refused = await payloadOf(runGroup({}));
+
+    expect(refused).toEqual({
+      statusCode: 503,
+      error: "Service Unavailable",
+      message: "CW-BE lists could not be read",
+      code: "CW_UNREACHABLE",
+    });
+  });
+
+  it("fails a later page Caseworking can't be reached for as that queue's read", async () => {
+    queryBucketUseCase.mockImplementation(async ({ bucketId }) => {
+      if (bucketId === "gas.inbox") {
+        throw cwNotReached();
+      }
+
+      return groupPage(bucketId, ["0a"]);
+    });
+    const cursor = encodeGroupCursor({
+      positions: {
+        "gas.outbox": { t: "2026-10-08T12:00:00.000Z", i: "0".repeat(24) },
+        "gas.inbox": { t: "2026-10-08T12:00:00.000Z", i: "0".repeat(24) },
+      },
+      bounded: [],
+    });
+
+    const refused = await payloadOf(runGroup({ cursor }));
+
+    expect(refused).toMatchObject({
+      statusCode: 503,
+      errorCode: "CW_UNREACHABLE",
+      queue: "inbox",
+    });
+    expect(refused).not.toHaveProperty("code");
+  });
+
+  it("refuses a queue it doesn't offer, and takes one given twice", async () => {
+    expect(
+      (await payloadOf(runGroup({ params: { queue: "foo" } }))).problems,
+    ).toEqual({ unknownKeys: [], repeatedKeys: [], unknownValues: ["queue"] });
+
+    await expect(
+      runGroup({ params: { queue: ["inbox", "inbox"] } }),
+    ).resolves.toMatchObject({ bucket: "gas.events" });
+  });
+
+  it("refuses a queue on a list that is no group", async () => {
+    readListShell.mockResolvedValue(catalogue());
+
+    expect(
+      (await payloadOf(run({ params: { queue: "inbox" } }))).problems
+        .unknownKeys,
+    ).toEqual(["queue"]);
+  });
+
+  it("refuses a cursor it can't read as a failed list, never a refused search", async () => {
+    const refused = await payloadOf(
+      runGroup({ cursor: "bad", search: "ref:abc" }),
+    );
+
+    expect(refused).toMatchObject({
+      statusCode: 400,
+      reason: "INVALID_CURSOR",
+    });
+    expect(queryBucketUseCase).not.toHaveBeenCalled();
+  });
+
+  it("reads a list again without a search no box may take, and says so", async () => {
+    const { list } = await runGroup({ search: "config:woodland@1.0.0" });
+
+    expect(list.refusedSearch).toEqual({
+      refusal:
+        "The search names an identifier kind this bucket does not declare",
+    });
+    expect(list.rows).toHaveLength(2);
+    expect(bodies().every((body) => body.ref === undefined)).toBe(true);
+  });
+
+  it("restores pages 1 to N of a group under the one deadline", async () => {
+    queryBucketUseCase.mockImplementation(async ({ bucketId, body }) => {
+      const offset = body.cursor === undefined ? 0 : 20;
+      const ids = Array.from({ length: 20 }, (_, n) =>
+        (bucketId === "gas.outbox" ? n + offset : 50 + n + offset)
+          .toString(16)
+          .padStart(24, "0"),
+      );
+
+      return {
+        ...groupPage(bucketId, []),
+        rows: ids.map((id, n) => ({
+          id,
+          time: new Date(
+            Date.UTC(2026, 9, 15, 10) - (n + offset) * 1000,
+          ).toISOString(),
+          title: "Event",
+          subtitle: null,
+          cells: {},
+          link: null,
+        })),
+        page: {
+          next: offset === 0 ? "more" : null,
+          keepLooking: null,
+          searchedTo: null,
+          complete: offset !== 0,
+        },
+      };
+    });
+
+    const { list } = await runGroup({ pages: 2 });
+
+    expect(list.pageRows).toEqual([20, 20]);
+    expect(list.stopped).toBeNull();
+  });
+
+  it("names the queue that failed a group's restore, and keeps the pages before it", async () => {
+    queryBucketUseCase.mockImplementation(async ({ bucketId, body }) => {
+      if (body.cursor !== undefined && bucketId === "gas.inbox") {
+        throw refuse("TIMED_OUT");
+      }
+
+      return {
+        ...groupPage(bucketId, [
+          (bucketId === "gas.outbox" ? "a" : "b").padStart(24, "0"),
+        ]),
+        page: {
+          next: "more",
+          keepLooking: null,
+          searchedTo: null,
+          complete: false,
+        },
+      };
+    });
+
+    const { list } = await runGroup({ pages: 2 });
+
+    expect(list.pageRows).toEqual([1]);
+    expect(list.stopped).toEqual({
+      cursor: expect.any(String),
+      statusCode: 504,
+      code: "TIMED_OUT",
+      queue: "inbox",
     });
   });
 });

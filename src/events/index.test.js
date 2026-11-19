@@ -6,6 +6,7 @@ import {
   listExploreSources,
 } from "../common/explore-sources/registry.js";
 import { config } from "../common/config.js";
+import { clearListGroups, listGroups } from "../common/list-groups/registry.js";
 import { DeadLetterGauge } from "./dead-letter-gauge.js";
 import { events } from "./index.js";
 import { countDeadLetters as countInboxDeadLetters } from "./repositories/inbox.repository.js";
@@ -31,6 +32,7 @@ describe("events", () => {
     vi.clearAllMocks();
     clearBuckets();
     clearExploreSources();
+    clearListGroups();
   });
 
   it("registers the outbox and inbox buckets", async () => {
@@ -46,6 +48,29 @@ describe("events", () => {
     await server.register(events);
 
     expect(listExploreSources().map(({ name }) => name)).toEqual(["events"]);
+  });
+
+  it("defines each service's events as one list over its outbox and inbox", async () => {
+    await server.register(events);
+
+    expect(
+      listGroups().map(({ id, path, members }) => ({
+        id,
+        path,
+        members: members.map(({ bucket }) => bucket),
+      })),
+    ).toEqual([
+      {
+        id: "gas.events",
+        path: "events/gas",
+        members: ["gas.outbox", "gas.inbox"],
+      },
+      {
+        id: "cw.events",
+        path: "events/cw",
+        members: ["cw.outbox", "cw.inbox"],
+      },
+    ]);
   });
 
   it("owns the durable event subscriber lifecycle", async () => {

@@ -3,7 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { describeBucket } from "../../common/buckets/catalogue.js";
 import { listBuckets } from "../../common/buckets/registry.js";
 import { logger } from "../../common/logger.js";
+import {
+  clearListGroups,
+  registerListGroup,
+} from "../../common/list-groups/registry.js";
+import { eventListGroups } from "../../events/lists/event-list-groups.js";
 import { findCwBuckets } from "../repositories/cw-actuators.repository.js";
+import { eventEntries } from "../services/list-groups/test-groups.js";
 import { listBucketsUseCase } from "./list-buckets.use-case.js";
 
 vi.mock("../../common/logger.js");
@@ -51,6 +57,23 @@ describe("listBucketsUseCase", () => {
       "List buckets: caseworking unavailable (HTTP 502)",
     );
     expect(JSON.stringify(logger.warn.mock.calls)).not.toContain("SECRET");
+  });
+
+  it("lists each group in place of its boxes, and never a box on its own", async () => {
+    clearListGroups();
+    eventListGroups().forEach(registerListGroup);
+    const [gas, cw] = [
+      eventEntries().filter(({ id }) => id.startsWith("gas.")),
+      eventEntries().filter(({ id }) => id.startsWith("cw.")),
+    ];
+    listBuckets.mockReturnValue(gas);
+    describeBucket.mockImplementation(async (bucket) => bucket);
+    findCwBuckets.mockResolvedValue(cw.slice(0, 1));
+
+    const { buckets } = await listBucketsUseCase();
+
+    expect(buckets.map(({ id }) => id)).toEqual(["gas.events"]);
+    clearListGroups();
   });
 
   it("fails when one of its own buckets cannot be described", async () => {

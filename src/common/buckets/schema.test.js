@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { toErrorKey } from "./error-key.js";
 import { toConfigLink } from "../../events/case-refs.js";
 import {
   MAX_GROUPINGS,
@@ -143,6 +144,26 @@ describe("queryRequestSchema", () => {
     ).toBeDefined();
   });
 
+  it("accepts an error key as long as any stored one, of 4-byte characters", () => {
+    const errorKey = "\u{1F600}".repeat(120);
+
+    expect(queryRequestSchema.validate({ where: { errorKey } })).toEqual({
+      value: { where: { errorKey }, show: [], limit: 20, groupBy: [] },
+    });
+  });
+
+  it("accepts the key of the longest error a box stores", () => {
+    const errorKey = toErrorKey({
+      name: "Error",
+      message: "\u{1F600}".repeat(500),
+    });
+
+    expect(Array.from(errorKey)).toHaveLength(120);
+    expect(
+      queryRequestSchema.validate({ where: { errorKey } }).error,
+    ).toBeUndefined();
+  });
+
   it("accepts every key", () => {
     const body = {
       where: { status: "DEAD_LETTER", source: "AS" },
@@ -181,6 +202,18 @@ describe("queryRequestSchema", () => {
     ["a boolean filter value", { where: { status: true } }],
     ["a list of numbers as a filter value", { where: { status: [1, 2] } }],
     ["a filter value over 200 characters", { where: { a: "x".repeat(201) } }],
+    [
+      "a filter value of 101 4-byte characters, over 200 UTF-16 units",
+      { where: { a: "\u{1F600}".repeat(101) } },
+    ],
+    [
+      "an error key longer than any stored one",
+      { where: { errorKey: "\u{1F600}".repeat(121) } },
+    ],
+    [
+      "an error key of more characters than any stored one",
+      { where: { errorKey: "x".repeat(121) } },
+    ],
     [
       "more than 8 filters",
       {

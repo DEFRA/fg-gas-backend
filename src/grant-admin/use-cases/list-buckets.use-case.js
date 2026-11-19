@@ -3,6 +3,7 @@ import { listBuckets } from "../../common/buckets/registry.js";
 import { logger } from "../../common/logger.js";
 import { findCwBuckets } from "../repositories/cw-actuators.repository.js";
 import { describeError } from "../repositories/cw-http.js";
+import { composeListGroups } from "../services/list-groups/catalogue.js";
 
 const CW_UNAVAILABLE = { buckets: [], sourceErrors: [{ hop: "CW-BE" }] };
 
@@ -26,7 +27,9 @@ export const listBucketsUseCase = async () => {
     Promise.all(listBuckets().map(describeBucket)),
     readCwBuckets(),
   ]);
-  const buckets = [...own, ...cw.buckets].sort((a, b) => a.order - b.order);
+  const { buckets } = composeListGroups([...own, ...cw.buckets], {
+    cwRead: cw.sourceErrors.length === 0,
+  });
 
   logger.info(`Finished: List buckets (${buckets.length} buckets)`);
 

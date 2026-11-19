@@ -67,6 +67,7 @@ event administration enters the shared event module directly:
 | `grant-admin` | `events/repositories/outbox.repository.js`                           | Event admin: inspect, redrive, purge and edit GAS outbound events                                                                                                                                                                                                 |
 | `grant-admin` | `common/buckets/registry.js`, `engine.js` and `bins.js`              | Every list: the catalogue and one query route over the declared buckets, and the Overview's dead-letter bins                                                                                                                                                      |
 | `grant-admin` | `common/explore-sources/registry.js`                                 | Explore: the sources a query may name, as their modules registered them                                                                                                                                                                                           |
+| `grant-admin` | `common/list-groups/registry.js`                                     | Lists over several buckets, such as each service's events, as their modules registered them                                                                                                                                                                       |
 
 Who may see or change a grant's Claims is Grants' rule, not the BFF's. The grant
 configures the roles it requires; `grants/models/claims-access.js` turns them
@@ -338,9 +339,10 @@ Caseworking by that id.
 
 `GET /grant-admin/overview` is the admin's Overview page in one answer: each
 service's dead letters of the last 24 hours in two-hour bins (`bins.js`, one
-aggregation per box; Caseworking's from `GET /actuators/dead-letters`), with
-each box's own count and list; its top errors among every current dead letter
-(each box's `errors` summary, with no window); its active versions whose
+aggregation per box; Caseworking's from `GET /actuators/dead-letters`), added
+bar by bar; its top errors among every current dead letter (each box's
+`errors` summary, with no window, each linked to its box's group, picked to
+that box, or to no list while the shell doesn't list the group); its active versions whose
 definition failed; and its tokens expiring within 30 days. `services/overview-reads.js`
 reads the eight parts side by side, within one time budget for the call, and
 one that cannot be read says who did not answer and why while the rest stand.
@@ -362,6 +364,37 @@ A new bucket is a declaration, one `registerBucket` line, `refs` built by the
 collection's writer, and one migration that backfills `refs` and calls
 `ensureIndexes`. A migration imports a bucket factory by path and never reads
 the registry, which is empty until the plugins have started.
+
+### List groups
+
+A list group is one list over several buckets, each a value of one fact the
+group adds (its `pick`): each service's events are one list over its outbox
+and inbox, the box picked as the Queue. A group is registered with
+`registerListGroup` by the module that owns its members' vocabulary, and
+`grant-admin` reads it only through `common/list-groups/registry.js`:
+
+| Group        | Members                   | Declared in                         | Registered by     |
+| ------------ | ------------------------- | ----------------------------------- | ----------------- |
+| `gas.events` | `gas.outbox`, `gas.inbox` | `events/lists/event-list-groups.js` | `events/index.js` |
+| `cw.events`  | `cw.outbox`, `cw.inbox`   | `events/lists/event-list-groups.js` | `events/index.js` |
+
+GAS's events module declares Caseworking's group too: the queue values must be
+the box codes event URLs and Explore already use, which the members' own
+labels don't carry, and the events module owns that vocabulary for both
+services (`event-boxes.js`), as Explore's federation does. Caseworking's
+members are still its own buckets, read from its catalogue. The members stay
+registered, so Explore, timelines and the Overview read them by id.
+
+`grant-admin/services/list-groups/` builds and reads a group. `catalogue.js`
+joins the members' catalogue entries into the group's when the shell is read,
+Caseworking's part at run time, and always hides the members, which are never
+lists of their own; the join never throws, so a member missing or two facts
+that disagree on their URL key build no group, which is logged as an error and
+not listed. `split.js` reads an address
+as one per member, leaving out a member that holds none of a value asked;
+`page.js` reads them side by side and merges them newest first with Explore's
+`mergeWindowed`, so a page shows every member's rows or none; `cursor.js`
+holds each member's position.
 
 ### Explore
 
