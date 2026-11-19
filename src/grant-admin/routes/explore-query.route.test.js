@@ -51,7 +51,7 @@ describe("exploreQueryRoute", () => {
       payload,
     });
 
-  it("answers the query, never to be stored, with the operator and caller", async () => {
+  it("answers the query, never to be stored, with the operator", async () => {
     exploreQueryUseCase.mockResolvedValue(ANSWER);
 
     const response = await post({
@@ -73,21 +73,20 @@ describe("exploreQueryRoute", () => {
       },
       actorId: OID,
       actor: "Jo Operator",
-      roles: undefined,
-      caller: "fg-grants-platform-admin",
       signal: expect.any(AbortSignal),
     });
   });
 
-  it("passes the user's roles", async () => {
+  it("ignores a roles header", async () => {
     exploreQueryUseCase.mockResolvedValue({ ok: true, source: "payments" });
 
-    await post(
+    const response = await post(
       { query: "db.x", check: true },
-      { ...HEADERS, "x-actor-roles": "a, b" },
+      { ...HEADERS, "x-actor-roles": "r".repeat(2_001) },
     );
 
-    expect(exploreQueryUseCase.mock.calls[0][0].roles).toBe("a, b");
+    expect(response.statusCode).toBe(200);
+    expect(exploreQueryUseCase.mock.calls[0][0]).not.toHaveProperty("roles");
   });
 
   it("refuses text far over a query's length", async () => {

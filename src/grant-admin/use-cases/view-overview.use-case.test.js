@@ -494,7 +494,7 @@ describe("the Overview, read and shaped", () => {
       );
     });
 
-    it.each(["UNREACHABLE", "TIMED_OUT", "NOT_OFFERED", "ERRORED"])(
+    it.each(["UNREACHABLE", "TIMED_OUT", "ERRORED"])(
       "says why Caseworking gave no answer: %s",
       async (cwReason) => {
         summariseCwBucket.mockRejectedValue(cwUnanswered(cwReason));
@@ -512,16 +512,11 @@ describe("the Overview, read and shaped", () => {
           { ...cwEntry("cw.inbox", "y"), summaries: undefined },
         ],
       ],
-    ])(
-      "says a Caseworking %s does not offer its errors",
-      async (_, entries) => {
-        findCwBuckets.mockResolvedValue(entries());
+    ])("says a Caseworking %s errored on its errors", async (_, entries) => {
+      findCwBuckets.mockResolvedValue(entries());
 
-        expect((await view()).topErrors.cw).toEqual(
-          notRead("CW-BE", "NOT_OFFERED"),
-        );
-      },
-    );
+      expect((await view()).topErrors.cw).toEqual(notRead("CW-BE", "ERRORED"));
+    });
 
     describe("out of time", () => {
       // As the driver does: a transaction given a timeoutMS fails once it runs
@@ -811,16 +806,6 @@ describe("the Overview, read and shaped", () => {
         expect.any(Object),
         { from: FROM, to: TO },
       );
-    });
-
-    it("does not ask again, until the answer expires, for a part Caseworking does not offer", async () => {
-      countCwDeadLetters.mockRejectedValue(cwUnanswered("NOT_OFFERED"));
-      await view();
-
-      vi.setSystemTime(AT.getTime() + CACHE_MS - 1);
-      await view();
-
-      expect(countCwDeadLetters).toHaveBeenCalledOnce();
     });
   });
 

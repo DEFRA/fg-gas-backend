@@ -87,7 +87,7 @@ const OVERVIEW = {
       ],
       more: false,
     }),
-    cw: { data: null, sourceError: { hop: "CW-BE", reason: "NOT_OFFERED" } },
+    cw: { data: null, sourceError: { hop: "CW-BE", reason: "ERRORED" } },
   },
   tokensExpiring: {
     gas: read({

@@ -436,30 +436,6 @@ export const readCount = async (read, cap = COUNT_CAP) => {
 const leadLine = (bucket, fact) =>
   bucket.indexes.find((line) => line[0] === fact);
 
-// How many records hold each value of a fact, capped, each counted through
-// the index the fact leads: null where no index leads with it.
-export const readValueCounts = async (bucket, fact, values, maxTimeMS) => {
-  const line = leadLine(bucket, fact);
-
-  if (!line) {
-    return null;
-  }
-
-  const counts = await Promise.all(
-    values.map((value) =>
-      db
-        .collection(bucket.collection)
-        .countDocuments(
-          { [fact]: value },
-          { hint: keyOf(bucket, line), limit: COUNT_CAP, maxTimeMS },
-        )
-        .catch(refuseTimedOut),
-    ),
-  );
-
-  return new Map(values.map((value, n) => [value, counts[n]]));
-};
-
 export const readStoredValues = async (bucket, fact, maxTimeMS) => {
   const groups = await db
     .collection(bucket.collection)

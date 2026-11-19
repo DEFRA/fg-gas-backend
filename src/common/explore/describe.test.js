@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { readStoredValues, readValueCounts } from "../buckets/engine.js";
+import { readStoredValues } from "../buckets/engine.js";
 import { describeSource, knownValuesOf } from "./describe.js";
 import { testSource } from "./test-source.js";
 
 vi.mock("../buckets/engine.js", () => ({
   readStoredValues: vi.fn(),
-  readValueCounts: vi.fn(),
   readTimeoutMs: () => 1000,
 }));
 
@@ -30,7 +29,6 @@ describe("describeSource", () => {
       time: "publicationDate",
       star: ["publicationDate", "box", "eventType", "status"],
       answersAt: "payload.answers",
-      listedAt: null,
     });
     expect(described.roots).toEqual([...testSource().roots, "box"]);
     expect(described.paths).toEqual([
@@ -94,40 +92,16 @@ describe("knownValuesOf", () => {
     );
   });
 
-  it("puts the values most used first where the index counts them", async () => {
-    readStoredValues.mockResolvedValue(["g1", "g2", "g3"]);
-    readValueCounts.mockImplementation(async (bucket, fact, values) =>
-      fact === "code"
-        ? new Map([
-            ["g1", 1],
-            ["g2", 30],
-            ["g3", 5],
-          ])
-        : new Map(values.map((value) => [value, 0])),
-    );
+  it("keeps stored values in the order the index holds them", async () => {
+    readStoredValues.mockResolvedValue(["g2", "g1", "g3"]);
 
     const values = await knownValuesOf(testSource());
 
     expect(values.get("code").map(({ value }) => value)).toEqual([
       "g2",
-      "g3",
       "g1",
+      "g3",
     ]);
-    expect(readValueCounts).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "test.outbox" }),
-      "code",
-      ["g1", "g2", "g3"],
-      1000,
-    );
-  });
-
-  it("keeps the declared order where no index leads with the fact", async () => {
-    readStoredValues.mockResolvedValue(["g1"]);
-    readValueCounts.mockResolvedValue(null);
-
-    const values = await knownValuesOf(testSource());
-
-    expect(values.get("code")).toEqual([{ value: "g1", label: "g1" }]);
   });
 
   it("gives a stored field with too many values to list none", async () => {

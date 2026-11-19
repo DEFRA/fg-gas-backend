@@ -1,5 +1,3 @@
-import { answerListOf } from "../../src/common/explore/paths.js";
-
 // A vocabulary as GAS builds it, small enough to read: the language tests
 // and the corpus read queries against it.
 const known = (path, type, extra = {}) => ({
@@ -21,8 +19,6 @@ const source = (name, size, { roots, paths, star, time, ...rest }) => ({
   time,
   roots,
   answersAt: null,
-  listedAt: null,
-  requires: null,
   paths: new Map(paths.map((entry) => [entry.path, entry])),
   ...rest,
 });
@@ -74,8 +70,6 @@ export const exploreVocabulary = () => ({
           "payload",
         ],
         answersAt: "payload.answers",
-        listedAt: "payload.answers",
-        isListed: answerListOf(["applicant.business.name"]),
         time: "createdAt",
         star: ["caseRef", "workflowCode", "currentStatus", "createdAt"],
         paths: [

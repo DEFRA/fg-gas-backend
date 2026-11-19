@@ -1,10 +1,6 @@
 import { STORED } from "../buckets/bucket.js";
 import { REFS, scansOf } from "../buckets/plan.js";
-import {
-  readStoredValues,
-  readTimeoutMs,
-  readValueCounts,
-} from "../buckets/engine.js";
+import { readStoredValues, readTimeoutMs } from "../buckets/engine.js";
 
 const declares = {
   fact: (bucket, { fact }) => Object.hasOwn(bucket.facts, fact),
@@ -97,8 +93,6 @@ export const describeSource = (source) => ({
   time: source.time,
   roots: rootsOf(source),
   answersAt: source.answersAt ?? null,
-  listedAt: source.listedAt ?? null,
-  requires: source.requires ?? null,
   paths: source.paths.map(describePath(source, bucketOf(source))),
 });
 
@@ -143,44 +137,21 @@ const listedOf = (bucket, field) =>
     ? storedOf(bucket, field)
     : Promise.resolve(declaredOf(bucket, field));
 
-const isFact = (bucket, field) =>
-  Boolean(bucket) && Object.hasOwn(bucket.facts, factNameOf(field));
-
-const byUse = (counts) => (a, b) => counts.get(b.value) - counts.get(a.value);
-
-// Most used first where a fact's index counts them cheaply; otherwise as
-// declared, or as stored.
-const inUseOrder = async (bucket, field, values) => {
-  const counts = isFact(bucket, field)
-    ? await readValueCounts(
-        bucket,
-        factNameOf(field),
-        values.map(({ value }) => value),
-        readTimeoutMs(),
-      )
-    : null;
-
-  return counts ? [...values].sort(byUse(counts)) : values;
-};
-
-const orderedOf = async (bucket, field) => {
+const knownOf = async (bucket, field) => {
   const values = await listedOf(bucket, field);
 
-  return values && values.length <= MAX_KNOWN
-    ? inUseOrder(bucket, field, values)
-    : null;
+  return values && values.length <= MAX_KNOWN ? values : null;
 };
 
-// The values each closed path is known to hold, declared or read from the
-// index (bounded, as the lists read them), most used first where the index
-// counts them, for the editor to suggest. Open paths, and stored ones with
-// too many values, have none.
+// The values each closed path is known to hold, as declared or as read from
+// the index (bounded, as the lists read them), for the editor to suggest.
+// Open paths, and stored ones with too many values, have none.
 export const knownValuesOf = async (source) => {
   const bucket = bucketOf(source);
   const listed = await Promise.all(
     source.paths.map(async (entry) => [
       entry.path,
-      await orderedOf(bucket, entry),
+      await knownOf(bucket, entry),
     ]),
   );
 

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { answerListOf } from "./paths.js";
 import { keepsRules, refusedPathsOf } from "./query-rules.js";
 
 const source = {
@@ -85,13 +84,7 @@ describe("keepsRules", () => {
 });
 
 describe("refusedPathsOf", () => {
-  const lists = {
-    roots: ["caseRef", "currentStatus", "payload"],
-    answers: {
-      at: "payload.answers",
-      isListed: answerListOf(["applicant.business.name"]),
-    },
-  };
+  const lists = { roots: ["caseRef", "currentStatus", "payload"] };
 
   it("counts no path a source may read", () => {
     expect(
@@ -124,7 +117,7 @@ describe("refusedPathsOf", () => {
     ).toBe(1);
   });
 
-  it("counts each path off its roots, denied, or off its answer list, wherever it is", () => {
+  it("counts each path off its roots, or denied, wherever it is", () => {
     expect(
       refusedPathsOf(
         query({
@@ -133,7 +126,7 @@ describe("refusedPathsOf", () => {
           },
           columns: [
             { path: "payload.bank" },
-            { path: "payload.answers.other" },
+            { path: "payload.answers.sortCode" },
           ],
           groupBy: null,
           orderBy: { path: "timeline", fn: null, desc: true },

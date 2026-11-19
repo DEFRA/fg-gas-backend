@@ -348,8 +348,7 @@ one that cannot be read says who did not answer and why while the rest stand.
 and requests that arrive while it is read share that read. A part that failed
 is never kept as data: the next request reads it again, within its own budget
 and over the kept answer's window, while the parts that answered are served as
-kept. A part Caseworking does not offer is not asked again until the answer
-expires. `view-models/build-overview-view.js` shapes the answer for the
+kept. `view-models/build-overview-view.js` shapes the answer for the
 page. The tokens are never kept, and each service's are released only once
 their view is audited as `VIEW_API_CLIENT` through `auditedRead`, as the tokens
 page audits it, for each service that lists any; a failed read is audited as
@@ -378,10 +377,10 @@ it suggests come from the grants' question schemas, read through
 `config-version.service.js`.
 
 An answer's cell shows an object, other than a name, inline as text: every
-field of it that may be read, with denied names and answers off the answer list
-left out, up to 2,000 characters. The `EXPLORE_QUERY` audit records the columns
-asked for, not what each object showed: the deny list fixes what may be read
-below a column, so the column is enough to say what could be shown.
+field of it that may be read, with denied names left out, up to 2,000
+characters. The `EXPLORE_QUERY` audit records that the operator queried a
+source, the outcome, the rows returned and whether it was a CSV, never what
+was asked.
 
 A source is what a query may read of one collection: its roots, its paths and
 how each is read through an index. Like a bucket, it is declared in the module

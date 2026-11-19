@@ -35,9 +35,6 @@ const SOURCES = {
       time: "createdAt",
       roots: ["caseRef", "payload", "definition.phases"],
       answersAt: "payload.answers",
-      listedAt: "payload.answers",
-      requires: null,
-      answerPaths: ["applicant.business.name"],
       paths: [
         {
           path: "caseRef",
@@ -98,7 +95,7 @@ describe("findCwExploreSources", () => {
     );
   });
 
-  it("says Caseworking doesn't offer queries when it has no route", async () => {
+  it("says Caseworking errored when it has no route", async () => {
     wreck.get.mockRejectedValue(httpError(404));
 
     expect(
@@ -106,7 +103,7 @@ describe("findCwExploreSources", () => {
     ).toMatchObject({
       statusCode: 502,
       hop: "CW-BE",
-      reason: "NOT_OFFERED",
+      reason: "ERRORED",
     });
   });
 

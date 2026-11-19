@@ -362,37 +362,3 @@ describe("config METRICS_ENABLED", () => {
     expect((await loadConfig()).metrics.enabled).toBe(true);
   });
 });
-
-describe("config SEARCH_AUDIT_KEY", () => {
-  afterEach(() => {
-    delete process.env.SEARCH_AUDIT_KEY;
-  });
-
-  const loadConfig = async () => {
-    vi.resetModules();
-    return (await import("./config.js")).config;
-  };
-
-  it("is optional", async () => {
-    expect((await loadConfig()).searchAuditKey).toBeUndefined();
-  });
-
-  it("takes a key of at least 32 characters", async () => {
-    process.env.SEARCH_AUDIT_KEY = "k".repeat(32);
-
-    expect((await loadConfig()).searchAuditKey).toBe("k".repeat(32));
-  });
-
-  it("refuses to start on a shorter key", async () => {
-    const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit called");
-    });
-
-    process.env.SEARCH_AUDIT_KEY = "short";
-
-    await expect(loadConfig()).rejects.toThrow("process.exit called");
-    expect(exitSpy).toHaveBeenCalledWith(1);
-
-    exitSpy.mockRestore();
-  });
-});

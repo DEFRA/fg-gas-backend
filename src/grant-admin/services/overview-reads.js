@@ -61,9 +61,6 @@ const FAILED_DEFINITIONS = [
 const GAS_HOP = "GAS";
 const CW_HOP = "CW-BE";
 
-const notOffered = (message) =>
-  Object.assign(new Error(message), { cwReason: "NOT_OFFERED" });
-
 const boxOf = (bucketId) => bucketId.split(".")[1];
 
 const deadLetterList = (bucket) => ({
@@ -124,7 +121,9 @@ const cwBox = (entries, id) => {
   const errors = errorsOf(entry?.summaries);
 
   if (!errors) {
-    throw notOffered(`CW-BE has no ${id} errors summary`);
+    throw Object.assign(new Error(`CW-BE has no ${id} errors summary`), {
+      cwReason: "ERRORED",
+    });
   }
 
   return {
