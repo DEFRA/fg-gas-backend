@@ -45,4 +45,30 @@ describe("GrantAdminAccess", () => {
       ).toThrow(forbidden);
     },
   );
+
+  it("permits a user holding the configured role", () => {
+    expect(
+      new GrantAdminAccess({ role: "ROLE_WOODLAND_ADMIN" }).permits([
+        "OTHER",
+        "ROLE_WOODLAND_ADMIN",
+      ]),
+    ).toBe(true);
+  });
+
+  it.each([undefined, null, [], ["ROLE_WOODLAND_READER"]])(
+    "does not permit a user without the role: %j",
+    (roles) => {
+      expect(
+        new GrantAdminAccess({ role: "ROLE_WOODLAND_ADMIN" }).permits(roles),
+      ).toBe(false);
+    },
+  );
+
+  it.each(MISSING_ROLES)(
+    "permits no one when the admin role is missing: %j",
+    (admin) => {
+      expect(new GrantAdminAccess(admin).permits([""])).toBe(false);
+      expect(new GrantAdminAccess(admin).isConfigured()).toBe(false);
+    },
+  );
 });

@@ -83,6 +83,13 @@ const emptyClients = () => ({
   refusal: null,
 });
 
+// The user routes: `roles` answers each user's app role names by Entra id; a
+// user missing from it holds none, as Caseworking answers for one it does not know.
+const emptyUsers = () => ({
+  mode: "ok",
+  roles: {},
+});
+
 const defaultState = () => ({
   inbox: emptyBox(),
   outbox: emptyBox(),
@@ -90,6 +97,7 @@ const defaultState = () => ({
   buckets: emptyBuckets(),
   workflows: emptyWorkflows(),
   clients: emptyClients(),
+  users: emptyUsers(),
 });
 
 let server;
@@ -123,6 +131,7 @@ const handleControl = async (request, response) => {
     buckets: { ...state.buckets, ...(patch.buckets ?? {}) },
     workflows: { ...state.workflows, ...(patch.workflows ?? {}) },
     clients: { ...state.clients, ...(patch.clients ?? {}) },
+    users: { ...state.users, ...(patch.users ?? {}) },
   };
 
   send(response, OK, { ok: true });
@@ -560,8 +569,36 @@ const handleClients = async (pathname, request, response) => {
   return answerClients(pathname, request.method, clients, response);
 };
 
+const USER_ROLES_PATH = /^\/api\/users\/([^/]+)\/roles$/;
+
+// GET /api/users/{entraId}/roles - the user's active app roles.
+const handleUserRoles = async (pathname, request, response) => {
+  await record("users", request);
+
+  if (!isAuthorised(request)) {
+    return send(response, UNAUTHORIZED, { message: "bad token" });
+  }
+
+  const { users } = state;
+
+  if (users.mode !== "ok") {
+    return respondForMode(users, response);
+  }
+
+  const [, entraId] = USER_ROLES_PATH.exec(pathname);
+  const roleNames = users.roles[decodeURIComponent(entraId)] ?? [];
+
+  return send(response, OK, {
+    appRoles: roleNames.map((roleName) => ({ roleName })),
+  });
+};
+
 const route = async (request, response) => {
   const { pathname } = new URL(request.url, "http://stub.local");
+
+  if (USER_ROLES_PATH.test(pathname)) {
+    return handleUserRoles(pathname, request, response);
+  }
 
   if (pathname === CONTROL_PATH) {
     return handleControl(request, response);

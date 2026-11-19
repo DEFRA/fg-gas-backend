@@ -9,7 +9,7 @@ export class GrantAdminAccess {
   }
 
   assertConfigured() {
-    if (!this.#hasConfiguredRole()) {
+    if (!this.isConfigured()) {
       throw forbidden();
     }
   }
@@ -17,16 +17,20 @@ export class GrantAdminAccess {
   assertAccess(heldRoles) {
     this.assertConfigured();
 
-    if (!this.#holdsRole(heldRoles)) {
+    if (!this.permits(heldRoles)) {
       throw forbidden();
     }
   }
 
-  #hasConfiguredRole() {
+  isConfigured() {
     return typeof this.role === "string" && this.role.trim().length > 0;
   }
 
-  #holdsRole(heldRoles) {
-    return Array.isArray(heldRoles) && heldRoles.includes(this.role);
+  permits(heldRoles) {
+    return (
+      this.isConfigured() &&
+      Array.isArray(heldRoles) &&
+      heldRoles.includes(this.role)
+    );
   }
 }
