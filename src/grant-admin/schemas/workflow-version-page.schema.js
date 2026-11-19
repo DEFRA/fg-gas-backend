@@ -4,6 +4,7 @@ import {
   nullableString,
   recordEventsSchema,
   recordPageSchema,
+  versionEventsSchema,
   storedBytesSchema as storedBytes,
 } from "./admin-record.schema.js";
 import {
@@ -13,6 +14,7 @@ import {
   versionStatus,
   versionsSchema,
 } from "./config-version.schema.js";
+import { grantLifecycleSchema } from "./grant-version-page.schema.js";
 import { version } from "./version.js";
 import { workflowCode as code } from "./workflow-code.js";
 
@@ -77,22 +79,49 @@ const definitionSchema = Joi.object({
   .required()
   .label("WorkflowVersionDefinition");
 
+// What GAS does with the statuses the workflow sends, as the grant of the same
+// code and version says; null beside no definition.
+const grantStatusMapSchema = Joi.alternatives()
+  .try(
+    Joi.object({
+      outcome: Joi.string().valid("found").required(),
+      lifecycle: grantLifecycleSchema,
+    }),
+    Joi.object({
+      outcome: Joi.string()
+        .valid("no-grant", "not-stored", "unreadable", "unavailable")
+        .required(),
+    }),
+  )
+  .allow(null)
+  .required()
+  .label("GrantStatusMap");
+
 // The stored workflow as Caseworking keeps it: never validated.
 const rawSchema = Joi.object().unknown(true).allow(null).required();
 
-const pageSchema = (tab, keys, label) =>
-  recordPageSchema(workflowVersionHeaderSchema, tab, keys, label);
+const pageSchema = (tab, keys, label, sections) =>
+  recordPageSchema(workflowVersionHeaderSchema, tab, keys, label, sections);
 
 export const workflowVersionPageSchemas = {
   overview: pageSchema(
     "overview",
-    { overview: overviewSchema },
+    {
+      overview: overviewSchema,
+      versionEvents: versionEventsSchema("WorkflowVersionOverviewEvents"),
+    },
     "WorkflowVersionOverviewPage",
   ),
   definition: pageSchema(
     "definition",
     { definition: definitionSchema },
     "WorkflowVersionDefinitionPage",
+  ),
+  phases: pageSchema(
+    "phases",
+    { definition: definitionSchema, grantStatusMap: grantStatusMapSchema },
+    "WorkflowVersionPhasesPage",
+    ["phases", "definition"],
   ),
   events: pageSchema(
     "events",

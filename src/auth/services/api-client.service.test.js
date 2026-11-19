@@ -96,7 +96,6 @@ describe("issueApiToken", () => {
         tokenHash: HASH,
         tokenHint: "wxyz",
         expiresAt: null,
-        newClient: true,
         by: "Ann",
         ...fields,
       },
@@ -134,16 +133,25 @@ describe("issueApiToken", () => {
         revokedBy: null,
         inUse: false,
       },
+      newClient: true,
     });
     expect(JSON.stringify(answer)).not.toContain(HASH);
   });
 
-  it("writes nothing when the model refuses", async () => {
-    findClientTokens.mockResolvedValue([row(A)]);
+  it("answers that a client with rows read in the session is not new", async () => {
+    findClientTokens.mockResolvedValue([row(B)]);
+    insertToken.mockResolvedValue(A);
 
-    expect(errorCodeOf(await issue().catch((e) => e))).toBe(
-      "API_CLIENT_EXISTS",
-    );
+    expect((await issue()).newClient).toBe(false);
+  });
+
+  it("writes nothing when the model refuses", async () => {
+    findClientTokens.mockResolvedValue([row(B)]);
+
+    const error = await issue({ confirmed: false }).catch((e) => e);
+
+    expect(errorCodeOf(error)).toBe("HAS_ACTIVE");
+    expect(error.output.payload.active).toBe(1);
     expect(insertToken).not.toHaveBeenCalled();
   });
 
@@ -151,11 +159,7 @@ describe("issueApiToken", () => {
     findClientTokens.mockResolvedValue([row(A, { clientId: "Grants_UI" })]);
 
     expect(
-      errorCodeOf(
-        await issue({ clientId: "Grants_UI", newClient: false }).catch(
-          (e) => e,
-        ),
-      ),
+      errorCodeOf(await issue({ clientId: "Grants_UI" }).catch((e) => e)),
     ).toBe("API_CLIENT_INVALID_NAME");
   });
 });
@@ -358,9 +362,18 @@ describe("changeApiTokenExpiry", () => {
     findClientToken.mockResolvedValue(row(A));
     changeTokenExpiry.mockResolvedValue(false);
 
+    expect(
+      errorCodeOf(await change(new Date("2027-01-01")).catch((e) => e)),
+    ).toBe("API_TOKEN_NOT_ACTIVE");
+  });
+
+  it("refuses an active token's expiry left as it is, writing nothing", async () => {
+    findClientToken.mockResolvedValue(row(A));
+
     expect(errorCodeOf(await change(null).catch((e) => e))).toBe(
-      "API_TOKEN_NOT_ACTIVE",
+      "EXPIRY_UNCHANGED",
     );
+    expect(changeTokenExpiry).not.toHaveBeenCalled();
   });
 });
 

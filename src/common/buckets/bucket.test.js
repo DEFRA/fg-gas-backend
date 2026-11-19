@@ -34,9 +34,9 @@ describe("defineBucket", () => {
     expect(bucket.facts.grantCode).toEqual({
       label: "Grant",
       values: null,
-      toggle: null,
       within: null,
       param: "grant",
+      nullAs: null,
     });
     expect(bucket.audited).toBe(false);
     expect(bucket.timeline).toBe(false);
@@ -92,7 +92,7 @@ describe("defineBucket", () => {
     expect(() =>
       testBucket({ facts: { ...testBucket().facts, ...facts } }),
     ).toThrow(
-      "has a fact or toggle without a URL key of its own, or with a reserved one",
+      "has a fact without a URL key of its own, or with a reserved one",
     );
   });
 
@@ -182,44 +182,6 @@ describe("defineBucket", () => {
     },
   );
 
-  it("keeps a fact's toggle and the values it hides", () => {
-    const { toggle, values } = ledBucket().facts.eventType;
-
-    expect(toggle).toEqual({ label: "Show audit events", param: "audit" });
-    expect(values.filter(({ hidden }) => hidden)).toEqual([
-      { value: "audit", label: "audit", hidden: true },
-    ]);
-  });
-
-  it.each([
-    ["an open fact", { values: undefined }],
-    ["a stored fact", { values: STORED }],
-  ])("refuses a toggle on %s", (_, overrides) => {
-    expect(() =>
-      testBucket({
-        facts: {
-          shown: {
-            label: "Shown",
-            param: "shown",
-            toggle: { label: "Show hidden", param: "hidden" },
-            ...overrides,
-          },
-        },
-        indexes: [],
-        groupings: [],
-        columns: [],
-      }),
-    ).toThrow("has a toggle on a fact without closed values");
-  });
-
-  it("refuses a hidden value on a fact with no toggle to show it", () => {
-    const { toggle: _, ...eventType } = ledBucket().facts.eventType;
-
-    expect(() =>
-      ledBucket({ facts: { ...ledBucket().facts, eventType } }),
-    ).toThrow("hides a value of a fact that has no toggle to show it");
-  });
-
   it("refuses a fact named show", () => {
     expect(() =>
       testBucket({
@@ -264,6 +226,35 @@ describe("defineBucket", () => {
     ])("is refused with %s", (_, indexes) => {
       expect(() => withVersion({ indexes })).toThrow(
         "has a fact within another with no index line of the two",
+      );
+    });
+  });
+
+  describe("a fact read as a value where it holds none", () => {
+    const withNullAs = (among) =>
+      testBucket({
+        facts: {
+          ...testBucket().facts,
+          grantCode: {
+            label: "Grant",
+            param: "grant",
+            nullAs: { value: "NONE", among },
+          },
+        },
+      });
+
+    it("is declared among a fact with closed values", () => {
+      expect(
+        withNullAs({ status: ["DEAD_LETTER"] }).facts.grantCode.nullAs,
+      ).toEqual({
+        value: "NONE",
+        among: { status: ["DEAD_LETTER"] },
+      });
+    });
+
+    it.each(["colour", "code"])("is refused among %s", (fact) => {
+      expect(() => withNullAs({ [fact]: ["x"] })).toThrow(
+        "reads a missing value among a fact that is undeclared or has no closed values",
       );
     });
   });
@@ -326,29 +317,6 @@ describe("defineBucket", () => {
       ).toThrow("has a summary among a fact without closed values");
     });
 
-    it("is refused on a bucket that hides values of a fact it does not lead with", () => {
-      expect(() =>
-        testBucket({
-          indexes,
-          facts: {
-            ...testBucket().facts,
-            status: {
-              label: "Status",
-              param: "status",
-              values: [
-                { value: "DEAD_LETTER", label: "Dead letter" },
-                { value: "HIDDEN", label: "Hidden", hidden: true },
-              ],
-              toggle: { label: "Show hidden", param: "hidden" },
-            },
-          },
-          summaries: [summary],
-        }),
-      ).toThrow(
-        "has a summary, and hides values of a fact it does not lead with",
-      );
-    });
-
     it("is refused counting by no fact", () => {
       expect(() =>
         testBucket({ indexes, summaries: [{ ...summary, by: [] }] }),
@@ -373,6 +341,33 @@ describe("defineBucket", () => {
       expect(() =>
         testBucket({ indexes, summaries: [summary], audited: true }),
       ).toThrow("is audited and declares a summary");
+    });
+  });
+
+  describe("bins", () => {
+    const bins = { among: { status: "DEAD_LETTER" } };
+
+    it("are declared among facts an index line reads exactly", () => {
+      const bucket = testBucket({ bins });
+
+      expect(bucket.bins).toEqual(bins);
+      expect(Object.isFrozen(bucket.bins.among)).toBe(true);
+    });
+
+    it("are none unless declared", () => {
+      expect(testBucket().bins).toBeNull();
+    });
+
+    it("are refused among an undeclared fact", () => {
+      expect(() => testBucket({ bins: { among: { colour: "red" } } })).toThrow(
+        "has bins among an undeclared fact",
+      );
+    });
+
+    it("are refused without an index line that reads them exactly", () => {
+      expect(() => testBucket({ bins, indexes: [["code"]] })).toThrow(
+        "has bins with no index line that reads them exactly",
+      );
     });
   });
 

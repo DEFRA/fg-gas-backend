@@ -13,6 +13,7 @@ import { withRequestContext } from "../../src/common/get-request-context.js";
 import { MASKED_HASH } from "../../src/auth/models/masked-hash.js";
 import {
   CASE_NOT_FOUND,
+  countCwDeadLetters,
   findCwBuckets,
   findCwCase,
   findCwCaseExistence,
@@ -20,6 +21,10 @@ import {
   queryCwBucket,
   readCwBucketTimeline,
 } from "../../src/grant-admin/repositories/cw-actuators.repository.js";
+import {
+  findCwExploreSources,
+  queryCwExplore,
+} from "../../src/grant-admin/repositories/cw-explore.repository.js";
 import {
   changeCwApiTokenExpiry,
   deleteCwApiToken,
@@ -37,8 +42,16 @@ import {
   findCwWorkflowVersions,
 } from "../../src/grant-admin/repositories/cw-workflows.repository.js";
 
-const { atLeastLike, boolean, eachLike, integer, like, regex, string } =
-  MatchersV3;
+const {
+  atLeastLike,
+  boolean,
+  constrainedArrayLike,
+  eachLike,
+  integer,
+  like,
+  regex,
+  string,
+} = MatchersV3;
 
 const { cwBackend } = vi.hoisted(() => ({
   cwBackend: { url: undefined, token: "gas-token", timeoutMs: 5000 },
@@ -385,6 +398,421 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
       ));
   });
 
+  describe("the Explore actuators", () => {
+    const QUERY = {
+      v: 2,
+      source: "cases",
+      mode: "rows",
+      columns: [
+        { path: "caseRef" },
+        {
+          fn: "count",
+          path: "payload.answers.application.parcel.parcelId",
+          as: "parcels",
+        },
+      ],
+      where: {
+        all: [
+          { path: "workflowCode", op: "eq", values: [WORKFLOW] },
+          {
+            not: {
+              path: "currentStatus",
+              op: "regex",
+              values: [{ pattern: "^withdrawn", flags: "i" }],
+            },
+          },
+        ],
+      },
+      groupBy: null,
+      orderBy: null,
+      limit: 50,
+      positions: null,
+    };
+
+    const exploreHeaders = {
+      ...operatorHeaders,
+      "x-explore-time-left-ms": regex("^\\d+$", "4500"),
+    };
+
+    const known = {
+      path: like("caseRef"),
+      type: regex("^(text|number|boolean|date)$", "text"),
+      index: like("ref"),
+      closed: boolean(false),
+      within: null,
+    };
+
+    it("lists the Query versions it reads and its sources, with what each may read", () =>
+      run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "a read of the Explore sources",
+          withRequest: {
+            method: "GET",
+            path: "/actuators/explore/sources",
+            headers: { authorization },
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              versions: eachLike(integer(2)),
+              sources: eachLike({
+                name: like("cases"),
+                label: like("Cases, in Caseworking"),
+                service: like("CW"),
+                size: regex("^(big|small)$", "big"),
+                noun: { one: like("case"), many: like("cases") },
+                star: eachLike("caseRef"),
+                time: like("createdAt"),
+                roots: eachLike("caseRef"),
+                answersAt: like("payload.answers"),
+                listedAt: like("payload.answers"),
+                requires: null,
+                answerPaths: eachLike("applicant.business.name"),
+                paths: eachLike(known),
+              }),
+            },
+          },
+        },
+        async () => {
+          const { versions, sources } = await findCwExploreSources();
+
+          expect(versions).toContain(2);
+          expect(sources[0].name).toBe("cases");
+        },
+      ));
+
+    it("answers its part of a query, rows per box", () =>
+      run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "an Explore query of cases",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/explore/query",
+            headers: exploreHeaders,
+            body: QUERY,
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              read: regex("^(exact|windowed|full)$", "exact"),
+              boxes: eachLike({
+                id: like("cw.cases"),
+                rows: eachLike({
+                  key: {
+                    t: regex(ISO, "2026-10-13T10:00:00.000Z"),
+                    i: like("6650c1e2a1b2c3d4e5f60718"),
+                  },
+                  open: {
+                    kind: like("case"),
+                    code: like(WORKFLOW),
+                    ref: like("client-ref-1"),
+                  },
+                  cells: like({ c0: "client-ref-1", c1: 2 }),
+                  order: null,
+                }),
+                to: null,
+                end: boolean(true),
+                count: { n: integer(1), capped: boolean(false) },
+              }),
+              groups: null,
+            },
+          },
+        },
+        async () => {
+          const part = await asOperator(() =>
+            queryCwExplore(QUERY, { actor: ACTOR, timeLeftMs: 5000 }),
+          );
+
+          expect(part.boxes[0].rows[0].open.kind).toBe("case");
+        },
+      ));
+
+    it("counts the records a query matches, capped", () => {
+      const counted = {
+        ...QUERY,
+        mode: "count",
+        columns: [{ fn: "count", path: "*" }],
+        where: { path: "workflowCode", op: "eq", values: [WORKFLOW] },
+        orderBy: null,
+        limit: 1,
+      };
+
+      return run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "an Explore count of cases",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/explore/query",
+            headers: exploreHeaders,
+            body: counted,
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              read: regex("^(exact|full)$", "exact"),
+              boxes: eachLike({
+                id: like("cw.cases"),
+                rows: [],
+                to: null,
+                end: boolean(true),
+                count: { n: integer(1), capped: boolean(false) },
+              }),
+              groups: null,
+            },
+          },
+        },
+        async () => {
+          const part = await asOperator(() =>
+            queryCwExplore(counted, { actor: ACTOR, timeLeftMs: 5000 }),
+          );
+
+          expect(part.boxes[0].count.n).toBeGreaterThan(0);
+        },
+      );
+    });
+
+    it("refuses a Query in a version it doesn't read", () =>
+      run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "an Explore query in version 1",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/explore/query",
+            headers: exploreHeaders,
+            body: { ...QUERY, v: 1 },
+          },
+          willRespondWith: {
+            status: 400,
+            body: { reason: "EXPLORE_QUERY_INVALID" },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            queryCwExplore(
+              { ...QUERY, v: 1 },
+              { actor: ACTOR, timeLeftMs: 5000 },
+            ),
+          ).catch((e) => e);
+
+          expect(error.output.payload).toMatchObject({
+            hop: "CW-BE",
+            reason: "EXPLORE_QUERY_INVALID",
+          });
+        },
+      ));
+
+    it("refuses a path off its own roots or answer list, reading nothing", () => {
+      const offList = {
+        ...QUERY,
+        columns: [{ path: "comments.text" }],
+      };
+
+      return run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "an Explore query reading a path Caseworking refuses",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/explore/query",
+            headers: exploreHeaders,
+            body: offList,
+          },
+          willRespondWith: {
+            status: 400,
+            body: {
+              reason: "EXPLORE_QUERY_REFUSED",
+              refusal: "PATH_NOT_ALLOWED",
+            },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            queryCwExplore(offList, { actor: ACTOR, timeLeftMs: 5000 }),
+          ).catch((e) => e);
+
+          expect(error).toMatchObject({
+            refusal: "PATH_NOT_ALLOWED",
+            service: "CW",
+          });
+        },
+      );
+    });
+
+    it("refuses a query it can't read exactly by its code and why, for GAS to word", () => {
+      const grouped = {
+        ...QUERY,
+        mode: "groups",
+        columns: [{ path: "currentStatus" }],
+        where: {
+          path: "payload.answers.applicant.business.name",
+          op: "regex",
+          values: [{ pattern: "x", flags: "" }],
+        },
+        groupBy: { path: "currentStatus" },
+        orderBy: null,
+      };
+
+      return run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "an Explore query grouping a windowed read",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/explore/query",
+            headers: exploreHeaders,
+            body: grouped,
+          },
+          willRespondWith: {
+            status: 400,
+            body: {
+              reason: "EXPLORE_QUERY_REFUSED",
+              refusal: "GROUP_NEEDS_EXACT",
+              detail: {
+                why: like("NOT_INDEXED"),
+                path: like("payload.answers.applicant.business.name"),
+              },
+            },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            queryCwExplore(grouped, { actor: ACTOR, timeLeftMs: 5000 }),
+          ).catch((e) => e);
+
+          expect(error).toMatchObject({
+            refusal: "GROUP_NEEDS_EXACT",
+            service: "CW",
+            detail: {
+              why: "NOT_INDEXED",
+              path: "payload.answers.applicant.business.name",
+            },
+          });
+        },
+      );
+    });
+
+    it("refuses an operator's second query while the first runs", () =>
+      run(
+        {
+          states: [
+            { description: "an Explore query of the operator is running" },
+          ],
+          uponReceiving: "a second Explore query of one operator",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/explore/query",
+            headers: exploreHeaders,
+            body: QUERY,
+          },
+          willRespondWith: {
+            status: 429,
+            body: { reason: "EXPLORE_QUERY_BUSY", refusal: "BUSY" },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            queryCwExplore(QUERY, { actor: ACTOR, timeLeftMs: 5000 }),
+          ).catch((e) => e);
+
+          expect(error).toMatchObject({ refusal: "BUSY", service: "CW" });
+        },
+      ));
+  });
+
+  describe("the dead letters actuator", () => {
+    const WINDOW = {
+      from: "2026-06-15T10:00:00.000Z",
+      to: "2026-06-16T10:00:00.000Z",
+    };
+
+    const bin = {
+      from: regex(ISO, "2026-06-15T10:00:00.000Z"),
+      to: regex(ISO, "2026-06-15T12:00:00.000Z"),
+      count: integer(2),
+      capped: boolean(false),
+    };
+
+    it("counts each box's dead letters in two-hour bins over the window", () =>
+      run(
+        {
+          states: [{ description: "dead letters exist" }],
+          uponReceiving: "a count of the dead letters of a day",
+          withRequest: {
+            method: "GET",
+            path: "/actuators/dead-letters",
+            query: WINDOW,
+            headers: operatorHeaders,
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              from: WINDOW.from,
+              to: WINDOW.to,
+              countCap: integer(10_000),
+              buckets: eachLike({
+                id: regex("^cw\\.[a-z][a-z0-9-]*$", "cw.outbox"),
+                list: {
+                  path: string("events/cw/outbox"),
+                  query: { status: "DEAD_LETTER" },
+                },
+                bins: constrainedArrayLike(bin, 12, 12, 12),
+              }),
+            },
+          },
+        },
+        async () => {
+          const answer = await asOperator(() =>
+            countCwDeadLetters(
+              { ...WINDOW, binMs: 2 * 60 * 60 * 1000 },
+              { actor: ACTOR },
+            ),
+          );
+
+          expect(answer.buckets[0].bins).toHaveLength(12);
+          expect(answer.buckets[0].list.query).toEqual({
+            status: "DEAD_LETTER",
+          });
+        },
+      ));
+
+    // What an older Caseworking answers, without the route: GAS reads it as
+    // a part Caseworking does not offer yet.
+    it("answers a bare 404 when it has no dead letters actuator", () =>
+      run(
+        {
+          states: [
+            { description: "the dead letters actuator is not deployed" },
+          ],
+          uponReceiving:
+            "a count of dead letters from a Caseworking without it",
+          withRequest: {
+            method: "GET",
+            path: "/actuators/dead-letters",
+            query: WINDOW,
+            headers: operatorHeaders,
+          },
+          willRespondWith: {
+            status: 404,
+            body: { statusCode: 404, error: "Not Found", message: "Not Found" },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            countCwDeadLetters(
+              { ...WINDOW, binMs: 2 * 60 * 60 * 1000 },
+              { actor: ACTOR },
+            ),
+          ).catch((e) => e);
+
+          expect(error.cwReason).toBe("NOT_OFFERED");
+        },
+      ));
+  });
+
   describe("C2: GET /actuators/cases/{workflowCode}/{caseRef}", () => {
     // The seeded case is a series of one, which lists no members.
     const summary = {
@@ -399,6 +827,12 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           0,
           0,
         ),
+      },
+      // Where the case is, as its workflow version's definition names it.
+      names: {
+        phases: eachLike({ code: like("PRE_AWARD"), name: like("Pre award") }),
+        stage: like("Review"),
+        status: like("Received"),
       },
     };
 
@@ -431,7 +865,11 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           );
 
           expect(answer.summary.caseRef).toBe("ref-1");
+          expect(answer.summary.currentConfigVersion).toBe("1.1.0");
           expect(answer.summary.series.members).toBeInstanceOf(Array);
+          expect(answer.summary.names.phases).toEqual([
+            { code: "PRE_AWARD", name: "Pre award" },
+          ]);
           expect(answer.document).toBeNull();
         },
       ));
@@ -926,7 +1364,7 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
             method: "POST",
             path: "/actuators/clients/role-reader/tokens",
             headers: operatorHeaders,
-            body: { tokenHash, tokenHint, expiresAt: null, newClient: true },
+            body: { tokenHash, tokenHint, expiresAt: null, confirmed: false },
           },
           willRespondWith: {
             status: 201,
@@ -943,18 +1381,19 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
                 revokedBy: null,
                 inUse: false,
               },
+              newClient: true,
             },
           },
         },
         async () => {
-          const { token } = await asOperator(() =>
+          const { token, newClient } = await asOperator(() =>
             issueCwApiToken(
               "role-reader",
               {
                 tokenHash: HASH,
                 tokenHint: HINT,
                 expiresAt: null,
-                newClient: true,
+                confirmed: false,
               },
               { actor: ACTOR },
             ),
@@ -966,58 +1405,51 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
             inUse: false,
           });
           expect(token.createdAt).toBeInstanceOf(Date);
+          expect(newClient).toBe(true);
         },
       ));
 
-    it.each([
-      [
-        "a new client whose name is taken",
-        CLIENT,
-        true,
-        409,
-        "API_CLIENT_EXISTS",
-      ],
-      [
-        "a client that does not exist",
-        "no-such-client",
-        false,
-        404,
-        "API_CLIENT_NOT_FOUND",
-      ],
-    ])(
-      "refuses an issue to %s",
-      (description, clientId, newClient, status, errorCode) =>
-        run(
-          {
-            states: callsWithItsToken,
-            uponReceiving: `an issue to ${description}`,
-            withRequest: {
-              method: "POST",
-              path: `/actuators/clients/${clientId}/tokens`,
-              headers: operatorHeaders,
-              body: { tokenHash, tokenHint, expiresAt: null, newClient },
+    it("refuses an unconfirmed issue to a client with an active token", () =>
+      run(
+        {
+          states: callsWithItsToken,
+          uponReceiving: "an unconfirmed issue to a client with active tokens",
+          withRequest: {
+            method: "POST",
+            path: `/actuators/clients/${CLIENT}/tokens`,
+            headers: operatorHeaders,
+            body: { tokenHash, tokenHint, expiresAt: null, confirmed: false },
+          },
+          willRespondWith: {
+            status: 409,
+            body: {
+              statusCode: 409,
+              errorCode: "HAS_ACTIVE",
+              active: integer(1),
             },
-            willRespondWith: refusal(status, errorCode),
           },
-          async () => {
-            const error = await errorOf(() =>
-              issueCwApiToken(
-                clientId,
-                {
-                  tokenHash: HASH,
-                  tokenHint: HINT,
-                  expiresAt: null,
-                  newClient,
-                },
-                { actor: ACTOR },
-              ),
-            );
+        },
+        async () => {
+          const error = await errorOf(() =>
+            issueCwApiToken(
+              CLIENT,
+              {
+                tokenHash: HASH,
+                tokenHint: HINT,
+                expiresAt: null,
+                confirmed: false,
+              },
+              { actor: ACTOR },
+            ),
+          );
 
-            expect(error.output.statusCode).toBe(status);
-            expect(error.output.payload.errorCode).toBe(errorCode);
-          },
-        ),
-    );
+          expect(error.output.statusCode).toBe(409);
+          expect(error.output.payload).toMatchObject({
+            errorCode: "HAS_ACTIVE",
+            active: 1,
+          });
+        },
+      ));
 
     it("revokes another active token of a client", () =>
       run(

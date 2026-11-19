@@ -13,6 +13,8 @@ import {
 } from "./routes/api-clients.route.js";
 import { createEntitlementRoute } from "./routes/create-entitlement.route.js";
 import { editPayloadRoute } from "./routes/edit-payload.route.js";
+import { exploreQueryRoute } from "./routes/explore-query.route.js";
+import { exploreVocabularyRoute } from "./routes/explore-vocabulary.route.js";
 import { getClaimRoute } from "./routes/get-claim.route.js";
 import { getClaimsRoute } from "./routes/get-claims.route.js";
 import { getEntitlementRoute } from "./routes/get-entitlement.route.js";
@@ -25,6 +27,7 @@ import { listGrantVersionsRoute } from "./routes/list-grant-versions.route.js";
 import { listBucketsRoute } from "./routes/list-buckets.route.js";
 import { purgeEventRoute } from "./routes/purge-event.route.js";
 import { queryBucketRoute } from "./routes/query-bucket.route.js";
+import { queryListRoute } from "./routes/query-list.route.js";
 import { summariseBucketRoute } from "./routes/summarise-bucket.route.js";
 import { viewApplicationEventsRoute } from "./routes/view-application-events.route.js";
 import { viewApplicationOverviewRoute } from "./routes/view-application-overview.route.js";
@@ -44,10 +47,14 @@ import { viewGrantVersionPaymentRoute } from "./routes/view-grant-version-paymen
 import { viewWorkflowVersionDefinitionRoute } from "./routes/view-workflow-version-definition.route.js";
 import { viewWorkflowVersionEventsRoute } from "./routes/view-workflow-version-events.route.js";
 import { viewWorkflowVersionOverviewRoute } from "./routes/view-workflow-version-overview.route.js";
+import { viewWorkflowVersionPhasesRoute } from "./routes/view-workflow-version-phases.route.js";
 import { viewWorkflowVersionRawRoute } from "./routes/view-workflow-version-raw.route.js";
+import { viewOverviewRoute } from "./routes/view-overview.route.js";
+import { viewShellRoute } from "./routes/view-shell.route.js";
 import { viewWorkflowVersionsRoute } from "./routes/view-workflow-versions.route.js";
 import { updateEntitlementRoute } from "./routes/update-entitlement.route.js";
 import { setAuditActor } from "./set-audit-actor.js";
+import { addShell, startShell } from "./shell.js";
 
 export const grantAdmin = {
   name: "grant-admin",
@@ -55,6 +62,8 @@ export const grantAdmin = {
     // Every route here answers the admin frontend alone; sandboxed to this plugin.
     server.ext("onPostAuth", requireAdminClient, { sandbox: "plugin" });
     server.ext("onPostAuth", setAuditActor, { sandbox: "plugin" });
+    server.ext("onPostAuth", startShell, { sandbox: "plugin" });
+    server.ext("onPreResponse", addShell, { sandbox: "plugin" });
 
     server.route([
       getClaimsRoute,
@@ -62,9 +71,14 @@ export const grantAdmin = {
       getEntitlementRoute,
       createEntitlementRoute,
       updateEntitlementRoute,
+      viewOverviewRoute,
+      viewShellRoute,
       listBucketsRoute,
       queryBucketRoute,
+      queryListRoute,
       summariseBucketRoute,
+      exploreQueryRoute,
+      exploreVocabularyRoute,
       getEventRoute,
       getAllowListRoute,
       getGrantSettingsRoute,
@@ -92,6 +106,7 @@ export const grantAdmin = {
       viewWorkflowVersionsRoute,
       viewWorkflowVersionOverviewRoute,
       viewWorkflowVersionDefinitionRoute,
+      viewWorkflowVersionPhasesRoute,
       viewWorkflowVersionEventsRoute,
       viewWorkflowVersionRawRoute,
       fetchWorkflowDefinitionRoute,

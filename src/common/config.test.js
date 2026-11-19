@@ -299,6 +299,38 @@ describe("config admin timeout ladder", () => {
   });
 });
 
+describe("config ADMIN_SHELL_CACHE_MS", () => {
+  let saved;
+
+  const loadConfig = async () => {
+    vi.resetModules();
+    return (await import("./config.js")).config;
+  };
+
+  beforeEach(() => {
+    saved = process.env.ADMIN_SHELL_CACHE_MS;
+    delete process.env.ADMIN_SHELL_CACHE_MS;
+  });
+
+  afterEach(() => {
+    if (saved === undefined) {
+      delete process.env.ADMIN_SHELL_CACHE_MS;
+    } else {
+      process.env.ADMIN_SHELL_CACHE_MS = saved;
+    }
+  });
+
+  it("keeps the admin's catalogue for 60 seconds by default", async () => {
+    expect((await loadConfig()).adminShellCacheMs).toBe(60_000);
+  });
+
+  it("keeps it for no time when set to 0", async () => {
+    process.env.ADMIN_SHELL_CACHE_MS = "0";
+
+    expect((await loadConfig()).adminShellCacheMs).toBe(0);
+  });
+});
+
 describe("config METRICS_ENABLED", () => {
   let saved;
 
@@ -328,5 +360,39 @@ describe("config METRICS_ENABLED", () => {
     process.env.METRICS_ENABLED = "true";
 
     expect((await loadConfig()).metrics.enabled).toBe(true);
+  });
+});
+
+describe("config SEARCH_AUDIT_KEY", () => {
+  afterEach(() => {
+    delete process.env.SEARCH_AUDIT_KEY;
+  });
+
+  const loadConfig = async () => {
+    vi.resetModules();
+    return (await import("./config.js")).config;
+  };
+
+  it("is optional", async () => {
+    expect((await loadConfig()).searchAuditKey).toBeUndefined();
+  });
+
+  it("takes a key of at least 32 characters", async () => {
+    process.env.SEARCH_AUDIT_KEY = "k".repeat(32);
+
+    expect((await loadConfig()).searchAuditKey).toBe("k".repeat(32));
+  });
+
+  it("refuses to start on a shorter key", async () => {
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit called");
+    });
+
+    process.env.SEARCH_AUDIT_KEY = "short";
+
+    await expect(loadConfig()).rejects.toThrow("process.exit called");
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
   });
 });

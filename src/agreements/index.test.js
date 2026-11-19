@@ -8,6 +8,10 @@ import {
 } from "../common/config-broker/definition-stores.js";
 import { config } from "../common/config.js";
 import {
+  clearExploreSources,
+  listExploreSources,
+} from "../common/explore-sources/registry.js";
+import {
   canHandleInternalCommand,
   clearInternalCommandHandlers,
   getInternalCommandHandler,
@@ -34,6 +38,7 @@ describe("agreements", () => {
   afterEach(() => {
     clearInternalCommandHandlers();
     clearDefinitionStores();
+    clearExploreSources();
     config.legacyAgreementGrantCodes = originalLegacyCodes;
     vi.resetAllMocks();
   });
@@ -42,6 +47,14 @@ describe("agreements", () => {
     const server = hapi.server();
     await server.register(agreements);
     expect(server.registrations.agreements).toBeDefined();
+  });
+
+  it("registers the agreements Explore source", async () => {
+    await hapi.server().register(agreements);
+
+    expect(listExploreSources().map(({ name }) => name)).toEqual([
+      "agreements",
+    ]);
   });
 
   it("registers current-page and Agreement action endpoints", async () => {

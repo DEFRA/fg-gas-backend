@@ -2,7 +2,11 @@ import { MongoClient, ObjectId } from "mongodb";
 import { env } from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
+import {
+  cwStubRequestsBesideCatalogue,
+  resetCwStub,
+  setCwStub,
+} from "../helpers/cw-stub.js";
 import { wreck } from "../helpers/wreck.js";
 
 let client;
@@ -178,6 +182,25 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
       ["inbox", () => inbox, aDeadInboxDoc],
       ["outbox", () => outbox, aDeadOutboxDoc],
     ])(
+      "drops the %s row's key of a death with no error recorded",
+      async (box, collectionOf, aDoc) => {
+        const doc = aDoc({ lastError: null, errorKey: "No error recorded" });
+        await collectionOf().insertOne(doc);
+
+        await redrive("gas", box, doc._id.toHexString());
+
+        // The poller may already have run the row again, keying a new error.
+        const stored = await collectionOf().findOne({ _id: doc._id });
+
+        expect(stored.status).not.toBe("DEAD_LETTER");
+        expect(stored.errorKey).not.toBe("No error recorded");
+      },
+    );
+
+    it.each([
+      ["inbox", () => inbox, aDeadInboxDoc],
+      ["outbox", () => outbox, aDeadOutboxDoc],
+    ])(
       "clears the %s row's attempt history as it resets the count",
       async (box, collectionOf, aDoc) => {
         const doc = aDoc({ status: "DEAD_LETTER" });
@@ -310,7 +333,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
 
       await redrive("caseworking", "outbox", UNKNOWN_ID);
 
-      const [request] = await cwStubRequests();
+      const [request] = await cwStubRequestsBesideCatalogue();
 
       expect(request.path).toBe(
         `/actuators/events/outbox/${UNKNOWN_ID}/redrive`,

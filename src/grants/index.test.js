@@ -4,6 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AGREEMENT_STATUS_UPDATED_EVENT_TYPE } from "../agreements/events/agreement-status-updated.event.js";
 import { clearBuckets, findBucket } from "../common/buckets/registry.js";
 import {
+  clearExploreSources,
+  listExploreSources,
+} from "../common/explore-sources/registry.js";
+import {
   clearDefinitionStores,
   storedDefinitionVersions,
 } from "../common/config-broker/definition-stores.js";
@@ -42,6 +46,7 @@ describe("grants", () => {
     clearEventHandlers();
     clearBuckets();
     clearDefinitionStores();
+    clearExploreSources();
   });
 
   it("runs migrations on startup", async () => {
@@ -68,6 +73,15 @@ describe("grants", () => {
       collection: "config_versions",
       audited: false,
     });
+  });
+
+  it("registers the applications and grants Explore sources", async () => {
+    await server.register(grants);
+
+    expect(listExploreSources().map(({ name }) => name)).toEqual([
+      "applications",
+      "grants",
+    ]);
   });
 
   it("logs applied migrations", async () => {

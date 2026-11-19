@@ -2,16 +2,18 @@ import { summaryLineOf, toIso } from "./bucket.js";
 import {
   MAX_VALUES,
   SUMMARY_COUNT_CAP,
-  and,
   collectionOf,
   matchParts,
+  nullAsOf,
   parseRange,
   parseShow,
+  pickedBy,
   rangePart,
   readCount,
+  readOn,
   readOptions,
-  readTimeoutMs,
   refuseTimedOut,
+  residualPart,
 } from "./engine.js";
 import { EXACT, factsOf, fillOf } from "./plan.js";
 import { refuse } from "./refusal.js";
@@ -23,39 +25,33 @@ export const parseSummary = (bucket, summaryId, body) => {
     throw refuse("UNKNOWN_SUMMARY");
   }
 
-  return { summary, show: parseShow(bucket, body.show), ...parseRange(body) };
+  // Still read, so an admin that sends it isn't refused: nothing is hidden now.
+  parseShow(bucket, body.show);
+
+  return { summary, ...parseRange(body) };
 };
 
-// Read on the summary's own line: what `among` picks out of the rows the
-// list would show, hidden values left out until they are asked for.
-const summaryRead = (bucket, { summary, show, from, to }) => {
+// Read on the summary's own line: what `among` picks out of the rows.
+const summaryRead = (bucket, { summary, from, to }) => {
   const line = summaryLineOf(summary, bucket.lead);
 
-  return {
+  return readOn(
     bucket,
-    query: {
-      where: summary.among,
-      asked: Object.keys(summary.among),
-      show,
-      ref: null,
-      from,
-      to,
-    },
-    plan: {
+    { where: summary.among, from, to },
+    {
       kind: EXACT,
       line,
       filled: factsOf(bucket, line).filter((fact) => !line.includes(fact)),
       residual: [],
     },
-    deadline: Date.now() + readTimeoutMs(),
-  };
+  );
 };
 
 const fillsOf = (read) =>
   read.plan.filled.reduce(
     (fills, fact) =>
       fills.flatMap((fill) =>
-        [...fillOf(read.bucket, fact, read.query.show), null].map((value) => ({
+        [...fillOf(read.bucket, fact), null].map((value) => ({
           ...fill,
           [fact]: value,
         })),
@@ -126,12 +122,24 @@ const textOf = (values) => JSON.stringify(Object.values(values));
 
 const byText = (a, b) => textOf(a).localeCompare(textOf(b));
 
+// Rows holding none of a fact read `nullAs` a value are counted under it.
+const asCounted = (read) => (values) =>
+  Object.fromEntries(
+    Object.entries(values).map(([fact, value]) => [
+      fact,
+      value ?? nullAsOf(read.bucket, read.query, fact),
+    ]),
+  );
+
 const readSummaryValues = async (read, by) => {
   const found = await Promise.all(
     fillsOf(read).map(readValuesWithin(read, by)),
   );
   const distinct = new Map(
-    found.flat().map((values) => [textOf(values), values]),
+    found
+      .flat()
+      .map(asCounted(read))
+      .map((values) => [textOf(values), values]),
   );
 
   return [...distinct.values()].sort(byText);
@@ -140,12 +148,15 @@ const readSummaryValues = async (read, by) => {
 const readTime = (read, direction) => async () => {
   const field = read.bucket.time.field;
   const [row] = await collectionOf(read)
-    .find(and(matchParts(read)), {
-      ...readOptions(read),
-      sort: { [field]: direction, _id: direction },
-      projection: { [field]: 1, _id: 0 },
-      limit: 1,
-    })
+    .find(
+      pickedBy(read, (each) => [...matchParts(each), residualPart(each)]),
+      {
+        ...readOptions(read),
+        sort: { [field]: direction, _id: direction },
+        projection: { [field]: 1, _id: 0 },
+        limit: 1,
+      },
+    )
     .toArray()
     .catch(refuseTimedOut);
 

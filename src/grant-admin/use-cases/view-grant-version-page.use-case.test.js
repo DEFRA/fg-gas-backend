@@ -68,6 +68,10 @@ const view = (tab) =>
 
 describe("viewGrantVersionPageUseCase", () => {
   beforeEach(() => {
+    readGrantVersionEventsUseCase.mockResolvedValue({
+      content: { events: { rows: [], more: false } },
+      sourceErrors: [],
+    });
     configVersionNotFound.mockImplementation(
       actualNotFound.configVersionNotFound,
     );
@@ -441,6 +445,36 @@ describe("viewGrantVersionPageUseCase", () => {
       code: "woodland",
       version: "2.0.0",
     });
+  });
+
+  it.each([
+    ["before", "2027-01-13T10:04:00.000Z", false],
+    ["after", "2027-01-13T10:04:00.001Z", true],
+  ])(
+    "overview: its events are past deletion only %s GAS's retention has run",
+    async (_, now, pastDeletion) => {
+      vi.useFakeTimers({ now: new Date(now), toFake: ["Date"] });
+
+      const page = await view("overview");
+
+      vi.useRealTimers();
+      expect(page.versionEvents).toEqual({
+        outcome: "read",
+        events: { rows: [], more: false },
+        sourceErrors: [],
+        pastDeletion,
+      });
+    },
+  );
+
+  it("overview: the page stands when its events cannot be read", async () => {
+    readGrantVersionEventsUseCase.mockRejectedValue(new Error("mongo down"));
+
+    const page = await view("overview");
+
+    expect(page.versionEvents).toEqual({ outcome: "failed" });
+    expect(page.overview).not.toBeNull();
+    expect(page.sectionErrors).toEqual([]);
   });
 
   it("answers 404 GRANT_VERSION_NOT_FOUND for an unknown version", async () => {

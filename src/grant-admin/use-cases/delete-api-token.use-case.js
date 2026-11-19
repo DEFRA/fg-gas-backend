@@ -9,6 +9,7 @@ import { withAudit } from "../../events/with-audit.js";
 import { deleteCwApiToken } from "../repositories/cw-clients.repository.js";
 import { GAS } from "../services/event-sources.js";
 import { buildApiClientAudit } from "./api-client-audit.js";
+import { answeringTokens } from "./api-token-answers.js";
 
 const deleteOn = (params, session) =>
   params.service === GAS
@@ -39,7 +40,8 @@ export const buildDeleteApiTokenAudit = ([params], result, error) =>
 const deleteWithAudit = withAudit(deleteToken, buildDeleteApiTokenAudit);
 
 // GAS: the row goes and the audit event commits with it.
-export const deleteApiTokenUseCase = (params) =>
+export const deleteApiTokenUseCase = answeringTokens((params) =>
   params.service === GAS
     ? withTransaction((session) => deleteWithAudit(params, session))
-    : deleteWithAudit(params);
+    : deleteWithAudit(params),
+);

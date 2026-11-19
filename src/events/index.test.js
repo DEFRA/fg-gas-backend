@@ -1,6 +1,10 @@
 import hapi from "@hapi/hapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearBuckets, listBuckets } from "../common/buckets/registry.js";
+import {
+  clearExploreSources,
+  listExploreSources,
+} from "../common/explore-sources/registry.js";
 import { config } from "../common/config.js";
 import { DeadLetterGauge } from "./dead-letter-gauge.js";
 import { events } from "./index.js";
@@ -26,6 +30,7 @@ describe("events", () => {
     server = hapi.server();
     vi.clearAllMocks();
     clearBuckets();
+    clearExploreSources();
   });
 
   it("registers the outbox and inbox buckets", async () => {
@@ -35,6 +40,12 @@ describe("events", () => {
       "gas.outbox",
       "gas.inbox",
     ]);
+  });
+
+  it("registers the events Explore source", async () => {
+    await server.register(events);
+
+    expect(listExploreSources().map(({ name }) => name)).toEqual(["events"]);
   });
 
   it("owns the durable event subscriber lifecycle", async () => {

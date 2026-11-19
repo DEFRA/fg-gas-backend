@@ -6,9 +6,16 @@ import {
   workflowVersionPageSchemas,
   workflowVersionsSchema,
 } from "../../src/grant-admin/schemas/workflow-version-page.schema.js";
+import { withWorstFetchStatus } from "../../src/common/config-broker/config-catalog.repository.js";
 import { toConfigLink } from "../../src/events/case-refs.js";
-import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
+import {
+  cwStubRequestsBesideCatalogue,
+  resetCwStub,
+  setCwStub,
+} from "../helpers/cw-stub.js";
+import { createTestGrant, insertGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
+import { withoutShell } from "../helpers/shell.js";
 
 const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 const ACTOR = "UTF-8''%C5%81ukasz";
@@ -121,7 +128,9 @@ const post = (path, headers = OPERATOR) =>
   });
 
 const workflowRequests = async () =>
-  (await cwStubRequests()).filter((request) => request.box === "workflows");
+  (await cwStubRequestsBesideCatalogue()).filter(
+    (request) => request.box === "workflows",
+  );
 
 const auditRows = (action) =>
   outbox
@@ -193,8 +202,9 @@ describe("GET /grant-admin/workflows/{code}/versions/{version}/{tab}", () => {
 
     expect(res.headers["cache-control"]).toBe("no-store");
     expect(
-      workflowVersionPageSchemas.overview.validate(page).error,
+      workflowVersionPageSchemas.overview.validate(withoutShell(page)).error,
     ).toBeUndefined();
+    expect(page.shell.catalogue.buckets).toEqual(expect.any(Array));
     expect(page.header).toEqual({
       code: CODE,
       version: "1.2.0",
@@ -241,7 +251,9 @@ describe("GET /grant-admin/workflows/{code}/versions/{version}/{tab}", () => {
 
     const { payload: page } = await get(`${CODE}/versions/2.0.0/raw`);
 
-    expect(workflowVersionPageSchemas.raw.validate(page).error).toBeUndefined();
+    expect(
+      workflowVersionPageSchemas.raw.validate(withoutShell(page)).error,
+    ).toBeUndefined();
     expect(page.header).toMatchObject({
       s3Bucket: "config-broker-local",
       files: {
@@ -267,7 +279,7 @@ describe("GET /grant-admin/workflows/{code}/versions/{version}/{tab}", () => {
     const { payload: page } = await get(`${CODE}/versions/1.2.0/definition`);
 
     expect(
-      workflowVersionPageSchemas.definition.validate(page).error,
+      workflowVersionPageSchemas.definition.validate(withoutShell(page)).error,
     ).toBeUndefined();
     expect(page.definition).toEqual({
       workflow: DOCUMENT,
@@ -281,7 +293,9 @@ describe("GET /grant-admin/workflows/{code}/versions/{version}/{tab}", () => {
   it("raw: Caseworking's workflow document whole, with its size, and no addresses", async () => {
     const { payload: page } = await get(`${CODE}/versions/1.2.0/raw`);
 
-    expect(workflowVersionPageSchemas.raw.validate(page).error).toBeUndefined();
+    expect(
+      workflowVersionPageSchemas.raw.validate(withoutShell(page)).error,
+    ).toBeUndefined();
     expect(page.raw).toEqual(DOCUMENT);
     expect(page.storedBytes).toBe(48213);
     expect(page).not.toHaveProperty("addresses");
@@ -297,7 +311,7 @@ describe("GET /grant-admin/workflows/{code}/versions/{version}/{tab}", () => {
       const { payload: page } = await get(`${CODE}/versions/2.0.0/${tab}`);
 
       expect(
-        workflowVersionPageSchemas[tab].validate(page).error,
+        workflowVersionPageSchemas[tab].validate(withoutShell(page)).error,
       ).toBeUndefined();
       expect(page.header.files).toEqual({
         workflow: { stored: false, fetchStatus: "permanent_error" },
@@ -401,7 +415,9 @@ describe("GET /grant-admin/workflows/{code}/versions/{version}/events", () => {
   });
 
   const bucketRequests = async () =>
-    (await cwStubRequests()).filter((request) => request.box === "buckets");
+    (await cwStubRequestsBesideCatalogue()).filter(
+      (request) => request.box === "buckets",
+    );
 
   beforeEach(async () => {
     await setCwStub({
@@ -434,7 +450,7 @@ describe("GET /grant-admin/workflows/{code}/versions/{version}/events", () => {
     const { payload: page } = await get(`${CODE}/versions/1.2.0/events`);
 
     expect(
-      workflowVersionPageSchemas.events.validate(page).error,
+      workflowVersionPageSchemas.events.validate(withoutShell(page)).error,
     ).toBeUndefined();
     expect(page.events.rows.map((row) => [row.service, row.eventId])).toEqual([
       ["caseworking", "cw-msg-665f1c2e9a1b2c3d4e5f6a7d"],
@@ -490,16 +506,180 @@ describe("GET /grant-admin/workflows/{code}/versions/{version}/events", () => {
     expect(request.body.ref.length).toBeGreaterThan(256);
   });
 
+  it("overview: the version's own events, read beside it in the one call", async () => {
+    await setCwStub({
+      buckets: {
+        answers: {
+          "cw.inbox": aCwInboxPage([
+            aCwEventRow(
+              "665f1c2e9a1b2c3d4e5f6a7d",
+              "COMPLETED",
+              "2026-10-11T09:00:00.000Z",
+            ),
+          ]),
+        },
+      },
+    });
+
+    const { payload: page } = await get(`${CODE}/versions/1.2.0/overview`);
+
+    expect(
+      workflowVersionPageSchemas.overview.validate(withoutShell(page)).error,
+    ).toBeUndefined();
+    expect(page.versionEvents).toMatchObject({
+      outcome: "read",
+      sourceErrors: [],
+    });
+    expect(page.versionEvents.events.rows.map((row) => row.eventId)).toEqual([
+      "cw-msg-665f1c2e9a1b2c3d4e5f6a7d",
+    ]);
+  });
+
+  it("overview: names Caseworking in its events when its inbox cannot be read", async () => {
+    await setCwStub({ buckets: { mode: "down" } });
+
+    const { payload: page } = await get(`${CODE}/versions/1.2.0/overview`);
+
+    expect(page.overview).not.toBeNull();
+    expect(page.versionEvents).toEqual({
+      outcome: "read",
+      events: { rows: [], more: false },
+      sourceErrors: [{ hop: "CW-BE" }],
+    });
+  });
+
   it("names Caseworking, with no rows, when its inbox cannot be read", async () => {
     await setCwStub({ buckets: { mode: "down" } });
 
     const { payload: page } = await get(`${CODE}/versions/1.2.0/events`);
 
     expect(
-      workflowVersionPageSchemas.events.validate(page).error,
+      workflowVersionPageSchemas.events.validate(withoutShell(page)).error,
     ).toBeUndefined();
     expect(page.events).toEqual({ rows: [], more: false });
     expect(page.sourceErrors).toEqual([{ hop: "CW-BE" }]);
+  });
+});
+
+describe("GET /grant-admin/workflows/{code}/versions/{version}/phases", () => {
+  const GRANT = "casework-smoke";
+
+  const record = (code, version, overrides) => {
+    const read = aVersionRecord(version, "active", overrides);
+
+    return { ...read, version: { ...read.version, grantCode: code } };
+  };
+
+  const recordGrantVersion = async () => {
+    await configVersions.insertOne({
+      _id: new ObjectId(),
+      grantCode: GRANT,
+      version: "1.2.0",
+      major: 1,
+      minor: 2,
+      patch: 0,
+      status: "active",
+      s3Bucket: "config-broker-local",
+      receivedAt: "2026-10-01T09:00:00.000Z",
+      definitions: {
+        grant: {
+          s3Key: `${GRANT}/1.2.0/gas.json`,
+          fetchStatus: "fetched",
+          fetchAttempts: 1,
+          fetchError: null,
+          fetchedAt: null,
+          lastFetchAttemptAt: null,
+        },
+      },
+    });
+    await configVersions.updateMany({ grantCode: GRANT }, [
+      withWorstFetchStatus,
+    ]);
+  };
+
+  beforeEach(async () => {
+    await setCwStub({
+      workflows: {
+        records: {
+          [`${CODE}/1.2.0`]: aVersionRecord("1.2.0", "active"),
+          [`${GRANT}/1.2.0`]: record(GRANT, "1.2.0"),
+          [`${GRANT}/2.0.0`]: record(GRANT, "2.0.0", {
+            storedBytes: null,
+            summary: null,
+            document: null,
+            addresses: [],
+          }),
+        },
+      },
+    });
+  });
+
+  it("answers the definition and the stored grant's lifecycle, the grant audited as a view of its Phases tab", async () => {
+    await recordGrantVersion();
+    await insertGrant(createTestGrant({ code: GRANT, version: "1.2.0" }));
+
+    const { payload: page, res } = await get(`${GRANT}/versions/1.2.0/phases`);
+
+    expect(res.headers["cache-control"]).toBe("no-store");
+    expect(
+      workflowVersionPageSchemas.phases.validate(withoutShell(page)).error,
+    ).toBeUndefined();
+    expect(page.definition).toEqual({
+      workflow: DOCUMENT,
+      addresses: ADDRESSES,
+    });
+    expect(page.grantStatusMap).toMatchObject({
+      outcome: "found",
+      lifecycle: {
+        initialPosition: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
+      },
+    });
+    const [workflowRow] = await auditRows("VIEW_WORKFLOW_VERSION");
+    const [grantRow] = await auditRows("VIEW_GRANT_VERSION");
+    expect(workflowRow.event.audit.details).toMatchObject({ tab: "phases" });
+    expect(grantRow.event.audit).toMatchObject({
+      status: "success",
+      entities: [{ entityid: GRANT }],
+      details: { version: "1.2.0", tab: "phases" },
+    });
+  });
+
+  it("answers not-stored for a grant version GAS has not stored", async () => {
+    await recordGrantVersion();
+
+    const { payload: page } = await get(`${GRANT}/versions/1.2.0/phases`);
+
+    expect(page.grantStatusMap).toEqual({ outcome: "not-stored" });
+  });
+
+  it("answers no-grant for a version GAS has no record of", async () => {
+    const { payload: page } = await get(`${GRANT}/versions/1.2.0/phases`);
+
+    expect(page.grantStatusMap).toEqual({ outcome: "no-grant" });
+  });
+
+  it("answers no-grant for a workflow code with capitals, reading no grant", async () => {
+    const { payload: page } = await get(`${CODE}/versions/1.2.0/phases`);
+
+    expect(page.grantStatusMap).toEqual({ outcome: "no-grant" });
+    expect(await auditRows("VIEW_GRANT_VERSION")).toEqual([]);
+  });
+
+  it("reads no grant beside a workflow not stored", async () => {
+    await recordGrantVersion();
+
+    const { payload: page } = await get(`${GRANT}/versions/2.0.0/phases`);
+
+    expect(page.definition).toBeNull();
+    expect(page.grantStatusMap).toBeNull();
+    expect(await auditRows("VIEW_GRANT_VERSION")).toEqual([]);
+  });
+
+  it("answers 404 WORKFLOW_VERSION_NOT_FOUND for an unknown version, as the definition tab does", async () => {
+    const error = await get(`${GRANT}/versions/9.9.9/phases`).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(404);
+    expect(error.data.payload.reason).toBe("WORKFLOW_VERSION_NOT_FOUND");
   });
 });
 

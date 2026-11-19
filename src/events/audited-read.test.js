@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../common/logger.js";
 import {
   transactionOptions,
@@ -61,7 +61,7 @@ describe("auditedRead", () => {
     expect(read).toHaveBeenCalledTimes(1);
   });
 
-  it("bounds the audit commit", async () => {
+  it("bounds the audit commit, and nothing more without a deadline", async () => {
     await auditedRead(async () => ({}), audit)({});
 
     expect(withTransaction).toHaveBeenCalledWith(expect.any(Function), {
@@ -81,7 +81,22 @@ describe("auditedRead", () => {
 
     await expect(
       auditedRead(async () => ({ rows: 2 }), audit)({}),
-    ).rejects.toThrow("commit failed");
+    ).rejects.toMatchObject({
+      message: "commit failed",
+      auditNotWritten: true,
+    });
+  });
+
+  it("writes no audit for a read that releases nothing", async () => {
+    const releases = ({ rows }) => rows > 0;
+
+    const result = await auditedRead(async () => ({ rows: 0 }), audit, {
+      releases,
+    })({});
+
+    expect(result).toEqual({ rows: 0 });
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(writeAuditEvent).not.toHaveBeenCalled();
   });
 
   it("audits a failed read as a FAILURE, outside any session, and rethrows it", async () => {
@@ -107,5 +122,184 @@ describe("auditedRead", () => {
     ).rejects.toBe(error);
 
     expect(logger.error).toHaveBeenCalledWith("Read FAILURE audit not written");
+  });
+
+  describe("by a deadline", () => {
+    const DEADLINE = 1_000;
+    const options = { deadlineOf: ({ deadline }) => deadline };
+
+    beforeEach(() => {
+      vi.useFakeTimers({ now: 0 });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("audits a read still running at the deadline as a FAILURE, out of time", async () => {
+      const answer = auditedRead(
+        () => new Promise(() => {}),
+        audit,
+        options,
+      )({ deadline: DEADLINE });
+      const failed = expect(answer).rejects.toMatchObject({ outOfTime: true });
+
+      await vi.advanceTimersByTimeAsync(DEADLINE);
+
+      await failed;
+      expect(writeAuditEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ status: auditStatus.FAILURE }),
+      );
+    });
+
+    it("never audits as viewed what a read answers after the deadline", async () => {
+      const read = () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve({ rows: 2 }), DEADLINE + 10);
+        });
+      const answer = auditedRead(read, audit, options)({ deadline: DEADLINE });
+      const failed = expect(answer).rejects.toMatchObject({ outOfTime: true });
+
+      await vi.advanceTimersByTimeAsync(DEADLINE + 10);
+
+      await failed;
+      expect(withTransaction).not.toHaveBeenCalled();
+      expect(writeAuditEvent).not.toHaveBeenCalledWith(
+        expect.objectContaining({ status: auditStatus.SUCCESS }),
+        expect.anything(),
+      );
+    });
+
+    it("bounds the commit by the time left", async () => {
+      await vi.advanceTimersByTimeAsync(DEADLINE - 300);
+
+      await auditedRead(
+        async () => ({}),
+        audit,
+        options,
+      )({ deadline: DEADLINE });
+
+      expect(withTransaction.mock.calls[0][1]).toMatchObject({
+        maxCommitTimeMS: 300,
+        timeoutMS: 300,
+      });
+    });
+
+    it("bounds the commit by its own limit when that is sooner", async () => {
+      await auditedRead(async () => ({}), audit, {
+        ...options,
+        maxCommitTimeMS: 250,
+      })({ deadline: DEADLINE });
+
+      expect(withTransaction.mock.calls[0][1]).toMatchObject({
+        maxCommitTimeMS: 250,
+        timeoutMS: DEADLINE,
+      });
+    });
+
+    it("says an audit cut short by the deadline ran out of time", async () => {
+      withTransaction.mockImplementation(
+        (_, { timeoutMS }) =>
+          new Promise((_resolve, reject) => {
+            setTimeout(() => reject(new Error("timed out")), timeoutMS);
+          }),
+      );
+      const answer = auditedRead(
+        async () => ({}),
+        audit,
+        options,
+      )({ deadline: DEADLINE });
+      const failed = expect(answer).rejects.toMatchObject({
+        outOfTime: true,
+        auditNotWritten: true,
+      });
+
+      await vi.advanceTimersByTimeAsync(DEADLINE);
+
+      await failed;
+    });
+
+    const after = (ms) =>
+      new Promise((resolve) => {
+        setTimeout(resolve, ms);
+      });
+
+    // As the driver does: a failed write is aborted with a fresh timeout,
+    // retried once.
+    const stallingTransaction = async (callback, { timeoutMS }) => {
+      writeAuditEvent.mockImplementation(async () => {
+        await after(timeoutMS);
+        throw new Error("write timed out");
+      });
+
+      try {
+        await callback(SESSION);
+      } catch (error) {
+        await after(timeoutMS);
+        await after(timeoutMS);
+        throw error;
+      }
+    };
+
+    it("gives up at the deadline when the audit's write and then its abort stall", async () => {
+      withTransaction.mockImplementation(stallingTransaction);
+      const answer = auditedRead(
+        async () => ({}),
+        audit,
+        options,
+      )({ deadline: DEADLINE });
+      const settled = vi.fn();
+      answer.then(settled, settled);
+
+      await vi.advanceTimersByTimeAsync(DEADLINE);
+
+      expect(settled).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ outOfTime: true, auditNotWritten: true }),
+      );
+      await vi.advanceTimersByTimeAsync(2 * DEADLINE);
+    });
+
+    it("never releases what a commit landing after the deadline audited", async () => {
+      withTransaction.mockImplementation(async (callback) => {
+        await callback(SESSION);
+        await after(DEADLINE + 10);
+      });
+      const answer = auditedRead(
+        async () => ({ rows: 2 }),
+        audit,
+        options,
+      )({ deadline: DEADLINE });
+      const failed = expect(answer).rejects.toMatchObject({
+        outOfTime: true,
+        auditNotWritten: true,
+      });
+
+      await vi.advanceTimersByTimeAsync(DEADLINE + 10);
+
+      await failed;
+    });
+
+    it("does not wait past the deadline for a FAILURE audit still writing", async () => {
+      writeAuditEvent.mockReturnValue(new Promise(() => {}));
+      const answer = auditedRead(
+        () => new Promise(() => {}),
+        audit,
+        options,
+      )({ deadline: DEADLINE });
+      const failed = expect(answer).rejects.toMatchObject({ outOfTime: true });
+
+      await vi.advanceTimersByTimeAsync(DEADLINE + 1);
+
+      await failed;
+    });
+
+    it("writes no SUCCESS audit once the deadline has passed", async () => {
+      await vi.advanceTimersByTimeAsync(DEADLINE);
+
+      await expect(
+        auditedRead(async () => ({}), audit, options)({ deadline: DEADLINE }),
+      ).rejects.toMatchObject({ outOfTime: true, auditNotWritten: true });
+      expect(writeAuditEvent).not.toHaveBeenCalled();
+    });
   });
 });

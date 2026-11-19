@@ -103,6 +103,10 @@ const keyOf = ({ name, message }) => {
     .trimEnd();
 };
 
+// The key of a dead letter that recorded no error, so Top errors and the Error
+// filter can ask for exactly those rows rather than for a missing value.
+export const NO_ERROR_KEY = "No error recorded";
+
 // Null for a row with no recorded error: no filter can ask for a missing
 // value, so those rows are one entry of their own.
 export const toErrorKey = (lastError) => (lastError ? keyOf(lastError) : null);

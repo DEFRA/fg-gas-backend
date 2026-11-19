@@ -23,7 +23,6 @@ describe("defineEventType", () => {
       name: "case.create",
       sentAs: "cloud.defra.test.fg-gas-backend.case.create",
       boxes: ["outbox"],
-      hiddenByDefault: false,
     });
     expect(caseCreate.refs({}, {})).toEqual([]);
     expect(Object.isFrozen(caseCreate)).toBe(true);
@@ -180,19 +179,17 @@ describe("eventTypeNames", () => {
 });
 
 describe("eventTypeValues", () => {
-  it("lists the box's types as values, marking those hidden by default", () => {
+  it("lists the box's types as values, Audit among them, hiding none", () => {
     declare({ name: "case.update.status", sentAs: "update" });
-    declare({ name: "internal.tick", sentAs: "tick", hiddenByDefault: true });
 
     expect(eventTypes.eventTypeValues(eventTypes.OUTBOX)).toEqual([
-      { value: "Audit", label: "Audit", hidden: true },
+      { value: "Audit", label: "Audit" },
       { value: "case.update.status", label: "case.update.status" },
-      { value: "internal.tick", label: "internal.tick", hidden: true },
       { value: "Unrecognised", label: "Unrecognised" },
     ]);
   });
 
-  it("hides nothing in a box where no type is marked", () => {
+  it("lists only the box's own types", () => {
     declare({ name: "case.create", sentAs: "create", boxes: ["inbox"] });
 
     expect(eventTypes.eventTypeValues(eventTypes.INBOX)).toEqual([
@@ -203,11 +200,10 @@ describe("eventTypeValues", () => {
 });
 
 describe("the audit type", () => {
-  it("is declared for the outbox, hidden by default, and matches no envelope", () => {
+  it("is declared for the outbox and matches no envelope", () => {
     expect(eventTypes.audit).toMatchObject({
       name: "Audit",
       boxes: ["outbox"],
-      hiddenByDefault: true,
     });
     expect(eventTypes.findEventType({ type: undefined })).toBeNull();
     expect(eventTypes.findEventTypeInAnyEnvironment({})).toBeNull();

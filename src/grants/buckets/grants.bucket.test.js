@@ -28,9 +28,9 @@ describe("gas.grants", () => {
       grantCode: {
         label: "Grant",
         values: STORED,
-        toggle: null,
         within: null,
         param: "grant",
+        nullAs: null,
       },
       status: {
         label: "Status",
@@ -48,9 +48,9 @@ describe("gas.grants", () => {
             hint: "Not yet published as active.",
           },
         ],
-        toggle: null,
         within: null,
         param: "status",
+        nullAs: null,
       },
       worstFetchStatus: {
         label: "Definition",
@@ -76,9 +76,9 @@ describe("gas.grants", () => {
             tone: "error",
           }),
         ],
-        toggle: null,
         within: null,
         param: "definition",
+        nullAs: null,
       },
     });
   });

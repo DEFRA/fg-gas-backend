@@ -6,6 +6,7 @@ import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
 import {
   findByCode,
+  findQuestionSchemas,
   findStoredGrantDocument,
   findStoredGrantSummary,
   findStoredVersions,
@@ -696,5 +697,41 @@ describe("findStoredGrantSummary", () => {
     aggregating([]);
 
     expect(await findStoredGrantSummary("woodland", "1.0.0")).toBeNull();
+  });
+});
+
+describe("findQuestionSchemas", () => {
+  it("reads the question schemas of each grant's 20 newest versions, projected and bounded", async () => {
+    const toArray = vi
+      .fn()
+      .mockResolvedValueOnce([
+        { phases: [{ questions: { a: 1 } }, { questions: null }] },
+        {},
+      ])
+      .mockResolvedValueOnce([{ phases: [{ questions: { b: 2 } }] }]);
+    const find = vi.fn().mockReturnValue({ toArray });
+    const distinct = vi.fn().mockResolvedValue(["one", "two"]);
+
+    db.collection.mockReturnValue({ distinct, find });
+
+    expect(await findQuestionSchemas()).toEqual([{ a: 1 }, { b: 2 }]);
+    expect(distinct).toHaveBeenCalledWith(
+      "code",
+      {},
+      {
+        maxTimeMS: 5000,
+        readPreference: "secondaryPreferred",
+      },
+    );
+    expect(find).toHaveBeenCalledWith(
+      { code: "one" },
+      {
+        projection: { _id: 0, "phases.questions": 1 },
+        sort: { _id: -1 },
+        limit: 20,
+        maxTimeMS: 5000,
+        readPreference: "secondaryPreferred",
+      },
+    );
   });
 });

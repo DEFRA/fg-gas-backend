@@ -5,11 +5,13 @@ import {
 } from "../schemas/grant-version-page.schema.js";
 import { recordPageRouteOptions } from "../services/record-page-route.js";
 import { listGrantVersionsUseCase } from "../use-cases/list-grant-versions.use-case.js";
+import { SHELL_ERRORS } from "../services/shell-tag.js";
 
 export const listGrantVersionsRoute = {
   method: "GET",
   path: "/grant-admin/grants/{code}/versions",
   options: recordPageRouteOptions({
+    shell: SHELL_ERRORS,
     description: "Admin: a grant's versions, newest first, and its current one",
     label: "List grant versions",
     params: grantParamsSchema,

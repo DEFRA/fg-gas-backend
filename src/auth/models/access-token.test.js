@@ -175,13 +175,66 @@ describe("AccessToken.changeExpiry", () => {
   it.each([
     ["now", NOW],
     ["the past", EARLIER],
-    ["after year 9999", new Date("+010000-01-01T00:00:00.000Z")],
-  ])("refuses an expiry of %s", (_, expiresAt) => {
+  ])("refuses an expiry of %s as past", (_, expiresAt) => {
     expect(
       refusalOf(() =>
         tokenOf().changeExpiry({ expiresAt, now: NOW, callerToken: false }),
       ),
+    ).toEqual({ statusCode: 400, errorCode: "EXPIRY_PAST" });
+  });
+
+  it("refuses an expiry after year 9999 as invalid", () => {
+    expect(
+      refusalOf(() =>
+        tokenOf().changeExpiry({
+          expiresAt: new Date("+010000-01-01T00:00:00.000Z"),
+          now: NOW,
+          callerToken: false,
+        }),
+      ),
     ).toEqual({ statusCode: 400, errorCode: "API_TOKEN_INVALID_EXPIRY" });
+  });
+
+  it.each([
+    ["never, as now", null, null],
+    [
+      "the end of the UK day it already ends on",
+      new Date("2027-06-01T09:00:00.000Z"),
+      new Date("2027-06-01T22:59:59.000Z"),
+    ],
+  ])(
+    "refuses an active token's expiry moved to %s as unchanged",
+    (_, stored, expiresAt) => {
+      expect(
+        refusalOf(() =>
+          tokenOf({ expiresAt: stored }).changeExpiry({
+            expiresAt,
+            now: NOW,
+            callerToken: false,
+          }),
+        ),
+      ).toEqual({ statusCode: 409, errorCode: "EXPIRY_UNCHANGED" });
+    },
+  );
+
+  it("moves an active token's expiry to the next UK day", () => {
+    const token = tokenOf({ expiresAt: new Date("2027-06-01T22:59:59.000Z") });
+
+    token.changeExpiry({
+      expiresAt: new Date("2027-06-01T23:00:00.000Z"),
+      now: NOW,
+      callerToken: false,
+    });
+
+    expect(token.expiresAt).toEqual(new Date("2027-06-01T23:00:00.000Z"));
+  });
+
+  it("revives a revoked token to the expiry it already had", () => {
+    const token = tokenOf({ revokedAt: EARLIER, expiresAt: null });
+
+    expect(
+      token.changeExpiry({ expiresAt: null, now: NOW, callerToken: false }),
+    ).toEqual({ previousExpiresAt: null, revived: true });
   });
 
   it("refuses to stop the token the request calls with", () => {

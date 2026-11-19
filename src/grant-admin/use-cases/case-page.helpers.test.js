@@ -14,9 +14,15 @@ const SUMMARY = {
   caseRef: "ref-1",
   workflowCode: "frps-private-beta",
   position: { phase: "PRE_AWARD", stage: "REVIEW", status: "RECEIVED" },
+  currentConfigVersion: "1.1.0",
   closed: false,
   closedAt: null,
   createdAt: "2026-06-16T10:00:00.000Z",
+  names: {
+    phases: [{ code: "PRE_AWARD", name: "Pre award" }],
+    stage: "Review",
+    status: "Received",
+  },
 };
 
 const IDENTIFIERS = { sbi: "900000005", frn: null, crn: null };
@@ -55,6 +61,8 @@ describe("readCaseHeader", () => {
       caseRef: "ref-1",
       workflowCode: "frps-private-beta",
       position: SUMMARY.position,
+      version: "1.1.0",
+      names: SUMMARY.names,
       closed: false,
       closedAt: null,
       counterpart: { exists: true },

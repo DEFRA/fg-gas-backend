@@ -422,3 +422,43 @@ describe("Caseworking workflow versions", () => {
     });
   });
 });
+
+describe("a read when Caseworking cannot be reached", () => {
+  const VERSION = { code: "example-workflow", version: "1.0.0" };
+  const reads = [
+    ["a workflow's versions", () => findCwWorkflowVersions("example-workflow")],
+    ["a workflow version", () => findCwWorkflowVersion(VERSION, {})],
+    [
+      "a workflow version's existence",
+      () => findCwWorkflowVersionExistence(VERSION),
+    ],
+    [
+      "a definition fetch",
+      () => fetchCwWorkflowDefinition(VERSION, { by: "Jo" }),
+    ],
+  ];
+
+  it.each(reads)("answers %s with a 503 CW_UNREACHABLE", async (_, read) => {
+    const unsent = Object.assign(new Error("Client request error"), {
+      code: "ECONNREFUSED",
+      output: { statusCode: 502 },
+    });
+    wreck.get.mockRejectedValue(unsent);
+    wreck.post.mockRejectedValue(unsent);
+
+    const error = await read().catch((e) => e);
+
+    expect(error.output.statusCode).toBe(503);
+    expect(error.output.payload.errorCode).toBe("CW_UNREACHABLE");
+  });
+
+  it.each(reads)(
+    "still answers %s with a 502 when Caseworking answers an error",
+    async (_, read) => {
+      wreck.get.mockRejectedValue(httpError(500, {}));
+      wreck.post.mockRejectedValue(httpError(500, {}));
+
+      expect((await read().catch((e) => e)).output.statusCode).toBe(502);
+    },
+  );
+});

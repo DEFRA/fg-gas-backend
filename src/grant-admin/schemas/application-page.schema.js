@@ -4,6 +4,7 @@ import {
   counterpartSchema,
   nullableIso,
   nullableString,
+  positionNamesSchema,
   positionSchema,
   recordEventsSchema,
   recordPageSchema,
@@ -25,6 +26,8 @@ const applicationHeaderSchema = Joi.object({
   clientRef: Joi.string().required(),
   code: Joi.string().required(),
   position: positionSchema,
+  version: nullableString,
+  names: positionNamesSchema.required(),
   // Null while the case link is unknown, and on a tab that does not show it.
   counterpart: counterpartSchema,
   fetchedAt: Joi.string().isoDate().required(),

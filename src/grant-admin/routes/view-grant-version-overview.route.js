@@ -11,7 +11,8 @@ export const viewGrantVersionOverviewRoute = {
   method: "GET",
   path: "/grant-admin/grants/{code}/versions/{version}/overview",
   options: recordPageRouteOptions({
-    description: "Admin: one grant version's overview tab",
+    description:
+      "Admin: one grant version's overview tab, with its own events (versionEvents) read beside it within 1.5 seconds: read with any source errors, timed-out or failed",
     label: "View grant version",
     params: grantVersionParamsSchema,
     headers: adminReadHeadersSchema,

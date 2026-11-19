@@ -26,6 +26,10 @@ import {
   grantVersionNotFound,
   noDefinitionFile,
 } from "../services/grant-not-found.js";
+import {
+  readVersionEvents,
+  withPastDeletion,
+} from "../services/version-events.js";
 import { readCounterpart } from "./read-counterpart.js";
 import { readGrantVersionEventsUseCase } from "./read-record-events.use-case.js";
 
@@ -67,9 +71,16 @@ const readGrantVersionHeader = async ({
   };
 };
 
-const readOverview = async ({ code, version }) => ({
-  content: { overview: await findGrantDefinitionSummary({ code, version }) },
-});
+const readOverview = async ({ code, version }) => {
+  const [overview, versionEvents] = await Promise.all([
+    findGrantDefinitionSummary({ code, version }),
+    readVersionEvents("Grant version overview", () =>
+      readGrantVersionEventsUseCase({ code, version }),
+    ),
+  ]);
+
+  return { content: { overview, versionEvents } };
+};
 
 // Too large only when stored: a file not stored has no size.
 const toCappedRead = (key, { definition, storedBytes }) => ({
@@ -143,7 +154,7 @@ const readEvents = ({ code, version }) =>
 const GRANT_VERSION_TABS = {
   overview: {
     readTab: readOverview,
-    empty: { overview: null },
+    empty: { overview: null, versionEvents: { outcome: "failed" } },
     withCounterpart: true,
   },
   definition: {
@@ -182,14 +193,31 @@ export const buildViewGrantVersionAudit = ({ code, version, tab, caller }) =>
     segregationRef: "admin-view-grant-version",
   });
 
-const viewGrantVersionPage = (args) => {
+// The Overview's events say whether GAS has deleted them.
+const withEventDeletion = ({ page, accounts }) => ({
+  page: page.versionEvents
+    ? {
+        ...page,
+        versionEvents: withPastDeletion(
+          page.versionEvents,
+          page.header.receivedAt,
+          new Date(),
+        ),
+      }
+    : page,
+  accounts,
+});
+
+const viewGrantVersionPage = async (args) => {
   const tab = GRANT_VERSION_TABS[args.tab];
 
-  return composeRecordPage({
-    readHeader: readGrantVersionHeader,
-    tab,
-    args: { ...args, withCounterpart: tab.withCounterpart === true },
-  });
+  return withEventDeletion(
+    await composeRecordPage({
+      readHeader: readGrantVersionHeader,
+      tab,
+      args: { ...args, withCounterpart: tab.withCounterpart === true },
+    }),
+  );
 };
 
 const auditedViewGrantVersionPage = auditedRead(

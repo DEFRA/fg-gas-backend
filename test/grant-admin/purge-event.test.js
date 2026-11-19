@@ -1,7 +1,11 @@
 import { MongoClient, ObjectId } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
+import {
+  cwStubRequestsBesideCatalogue,
+  resetCwStub,
+  setCwStub,
+} from "../helpers/cw-stub.js";
 import { wreck } from "../helpers/wreck.js";
 
 let client;
@@ -340,8 +344,13 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
       );
 
       expect(error.output.statusCode).toBe(409);
-      expect(bodyOf(error).status).toBe("COMPLETED");
-      expect(bodyOf(error).statusLabel).toBe("Completed");
+      expect(bodyOf(error)).toMatchObject({
+        code: "NOT_PURGEABLE",
+        status: "COMPLETED",
+        statusLabel: "Completed",
+      });
+      expect(bodyOf(error).message).not.toContain(doc._id.toHexString());
+      expect(bodyOf(error).shell.catalogue.buckets).toEqual(expect.any(Array));
     });
 
     it("leaves a non-DEAD_LETTER row untouched", async () => {
@@ -462,7 +471,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
         note: "superseded",
       });
 
-      const [request] = await cwStubRequests();
+      const [request] = await cwStubRequestsBesideCatalogue();
 
       expect(request.path).toBe(`/actuators/events/outbox/${UNKNOWN_ID}/purge`);
       expect(request.method).toBe("POST");
@@ -478,7 +487,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
 
       await purge("caseworking", "inbox", UNKNOWN_ID);
 
-      const [request] = await cwStubRequests();
+      const [request] = await cwStubRequestsBesideCatalogue();
 
       expect(request.body).toEqual({ reasonCode: "BROKEN_PAYLOAD" });
     });
@@ -493,7 +502,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
         note: null,
       });
 
-      const [request] = await cwStubRequests();
+      const [request] = await cwStubRequestsBesideCatalogue();
 
       expect(request.body).toEqual({ reasonCode: "BROKEN_PAYLOAD" });
       expect(request.body).not.toHaveProperty("note");
@@ -510,7 +519,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
         },
       );
 
-      const [request] = await cwStubRequests();
+      const [request] = await cwStubRequestsBesideCatalogue();
 
       expect(request.query.by).toBe("donatas");
     });
@@ -523,13 +532,28 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
       expect(res.statusCode).toBe(204);
     });
 
-    it("passes a caseworking 404 through as a 404", async () => {
+    it("passes a caseworking 404 through as a 404 when the event is gone", async () => {
       await expect(purge("caseworking", "inbox", UNKNOWN_ID)).rejects.toThrow(
         "Response Error: 404 Not Found",
       );
     });
 
-    it("passes a caseworking 409 through with the status in the body", async () => {
+    it("answers NOT_PURGEABLE when caseworking 404s the purge of an event it holds", async () => {
+      await setCwStub({ inbox: { detail: { status: "DEAD_LETTER" } } });
+
+      const error = await purge("caseworking", "inbox", UNKNOWN_ID).catch(
+        (e) => e,
+      );
+
+      expect(error.output.statusCode).toBe(409);
+      expect(bodyOf(error)).toMatchObject({
+        code: "NOT_PURGEABLE",
+        status: "DEAD_LETTER",
+        statusLabel: "Dead letter",
+      });
+    });
+
+    it("answers a caseworking 409 as NOT_PURGEABLE with the status in the body", async () => {
       await setCwStub({ inbox: { purgeConflictStatus: "COMPLETED" } });
 
       const error = await purge("caseworking", "inbox", UNKNOWN_ID).catch(
@@ -537,8 +561,11 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
       );
 
       expect(error.output.statusCode).toBe(409);
-      expect(bodyOf(error).status).toBe("COMPLETED");
-      expect(bodyOf(error).statusLabel).toBe("Completed");
+      expect(bodyOf(error)).toMatchObject({
+        code: "NOT_PURGEABLE",
+        status: "COMPLETED",
+        statusLabel: "Completed",
+      });
     });
 
     // Caseworking may still commit after GAS gives up, so this is not a refusal.

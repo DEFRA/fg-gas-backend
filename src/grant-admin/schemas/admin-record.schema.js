@@ -26,6 +26,21 @@ export const positionSchema = Joi.object({
   .required()
   .label("Position");
 
+const namedSchema = Joi.object({
+  code: Joi.string().required(),
+  name: nullableString,
+}).label("NamedPhase");
+
+// Where the record is, as its version's definition names it; null when that
+// cannot be read, and the page shows the codes.
+export const positionNamesSchema = Joi.object({
+  phases: Joi.array().items(namedSchema).required(),
+  stage: nullableString,
+  status: nullableString,
+})
+  .allow(null)
+  .label("PositionNames");
+
 // `members` are oldest first.
 export const seriesSchema = (
   memberSchema,
@@ -64,14 +79,31 @@ export const recordEventsSchema = (label) =>
     .required()
     .label(label);
 
+// A config version's own events, read beside its Overview within a budget.
+export const versionEventsSchema = (label, readKeys = {}) =>
+  Joi.alternatives()
+    .try(
+      Joi.object({
+        outcome: Joi.string().valid("read").required(),
+        events: recordEventsSchema(`${label}Events`),
+        sourceErrors: sourceErrorsSchema,
+        ...readKeys,
+      }),
+      Joi.object({
+        outcome: Joi.string().valid("timed-out", "failed").required(),
+      }),
+    )
+    .required()
+    .label(label);
+
 // One tab of a record page: the header, that tab's keys, and what failed.
-export const recordPageSchema = (header, tab, keys, label) =>
+export const recordPageSchema = (header, tab, keys, label, sections = [tab]) =>
   Joi.object({
     header,
     ...keys,
     sourceErrors: sourceErrorsSchema,
     sectionErrors: sectionErrorsSchema(
-      [tab],
+      sections,
       `${label}SectionError`,
     ).required(),
   }).label(label);

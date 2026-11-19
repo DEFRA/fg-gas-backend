@@ -1,4 +1,11 @@
-import { MAX_SCANS, REFS, factsOf, scansOf } from "./plan.js";
+import {
+  EXACT,
+  MAX_SCANS,
+  REFS,
+  choosePlan,
+  factsOf,
+  scansOf,
+} from "./plan.js";
 
 export const BUCKET_ID = /^[a-z]+\.[a-z][a-z0-9-]*$/;
 
@@ -28,21 +35,11 @@ const leads = (bucket, name) =>
 
 const isOpen = (facts) => (name) => !isClosed(facts[name]);
 
-const hidesValues = (fact) =>
-  isClosed(fact) && fact.values.some(({ hidden }) => hidden);
-
-const isBadToggle = (fact) => Boolean(fact.toggle) && !isClosed(fact);
-
 const URL_KEY = /^[a-z][a-z0-9]*$/;
 
-const urlKeysOf = (facts) =>
-  Object.values(facts).flatMap(({ param, toggle }) =>
-    toggle ? [param, toggle.param] : [param],
-  );
+const urlKeysOf = (facts) => Object.values(facts).map(({ param }) => param);
 
 const isBadKey = (key) => !URL_KEY.test(key ?? "") || RESERVED_NAMES.has(key);
-
-const hidesUnasked = (fact) => hidesValues(fact) && !fact.toggle;
 
 const hasDuplicates = (lines) =>
   new Set(lines.map((line) => line.join("\n"))).size !== lines.length;
@@ -63,6 +60,10 @@ const summaryFactsOf = ({ by, among }) => [...Object.keys(among), ...by];
 
 const hasLine = (indexes, wanted) =>
   indexes.some((line) => line.join("\n") === wanted.join("\n"));
+
+// Bins count the rows `among` picks out over time, in one read on its line.
+const binsReadExactly = (bucket) =>
+  choosePlan(bucket, Object.keys(bucket.bins.among), false).kind === EXACT;
 
 const rules = [
   ({ id }) => !BUCKET_ID.test(id) && "has a malformed id",
@@ -85,20 +86,14 @@ const rules = [
   ({ facts, lead }) =>
     lead.some(isOpen(facts)) && "leads with a fact without closed values",
   (bucket) =>
-    scansOf(bucket, [], [], bucket.lead) > MAX_SCANS &&
+    scansOf(bucket, [], []) > MAX_SCANS &&
     "leads with more values than one read may scan",
   ({ facts }) =>
     urlKeysOf(facts).some(isBadKey) &&
-    "has a fact or toggle without a URL key of its own, or with a reserved one",
+    "has a fact without a URL key of its own, or with a reserved one",
   ({ facts }) =>
     new Set(urlKeysOf(facts)).size !== urlKeysOf(facts).length &&
     "uses one URL key twice",
-  ({ facts }) =>
-    Object.values(facts).some(isBadToggle) &&
-    "has a toggle on a fact without closed values",
-  ({ facts }) =>
-    Object.values(facts).some(hidesUnasked) &&
-    "hides a value of a fact that has no toggle to show it",
   ({ facts }) =>
     Object.entries(facts).some(
       ([name, { within }]) =>
@@ -109,6 +104,11 @@ const rules = [
       ([name, { within }]) =>
         within !== null && !hasLine(indexes, [within, name]),
     ) && "has a fact within another with no index line of the two",
+  ({ facts }) =>
+    Object.values(facts)
+      .flatMap(({ nullAs }) => (nullAs ? Object.keys(nullAs.among) : []))
+      .some((name) => isUndeclared(facts)(name) || isOpen(facts)(name)) &&
+    "reads a missing value among a fact that is undeclared or has no closed values",
   (bucket) =>
     Object.entries(bucket.facts).some(
       ([name, fact]) => fact.values === STORED && !leads(bucket, name),
@@ -142,16 +142,16 @@ const rules = [
     summaries.some(
       (summary) => !hasLine(indexes, summaryLineOf(summary, lead)),
     ) && "has a summary with no index line of its own",
-  // A summary fills only the lead, so a value it must leave out until shown
-  // can only be on a lead fact.
-  ({ facts, lead, summaries }) =>
-    summaries.length > 0 &&
-    Object.entries(facts).some(
-      ([name, fact]) => hidesValues(fact) && !lead.includes(name),
-    ) &&
-    "has a summary, and hides values of a fact it does not lead with",
   ({ audited, summaries }) =>
     audited && summaries.length > 0 && "is audited and declares a summary",
+  ({ facts, bins }) =>
+    bins !== null &&
+    Object.keys(bins.among).some(isUndeclared(facts)) &&
+    "has bins among an undeclared fact",
+  (bucket) =>
+    bucket.bins !== null &&
+    !binsReadExactly(bucket) &&
+    "has bins with no index line that reads them exactly",
 ];
 
 const problemOf = (bucket) => {
@@ -166,21 +166,23 @@ const problemOf = (bucket) => {
   return null;
 };
 
-// `param` is the fact's key in the admin's URLs, and the toggle's its own:
-// short words, so a URL reads as what it filters by. A fact `within` another
-// has values that mean something only for one value of that other fact.
+// `param` is the fact's key in the admin's URLs: a short word, so a URL reads
+// as what it filters by. A fact `within` another has values that mean
+// something only for one value of that other fact. A fact `nullAs` a value
+// reads a row that holds none as that value among the rows its `among`
+// picks out, such as rows an earlier release wrote before the value was.
 const toFact = ({
   label,
   values = null,
-  toggle = null,
   within = null,
   param,
+  nullAs = null,
 }) => ({
   label,
   values,
-  toggle,
   within,
   param,
+  nullAs,
 });
 
 const toFacts = (facts) =>
@@ -200,6 +202,7 @@ const defaults = {
   audited: false,
   timeline: false,
   summaries: [],
+  bins: null,
   page: null,
   tab: null,
 };

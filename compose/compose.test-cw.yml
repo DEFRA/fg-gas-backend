@@ -15,12 +15,22 @@
 #
 # HTTP_CLIENT_TIMEOUT_MS is shortened from the 10 s default so the "CW times
 # out" case costs a few seconds rather than the whole test timeout.
+#
+# ADMIN_SHELL_CACHE_MS is 0 so each test's Caseworking catalogue is the one
+# the admin's answers carry.
+#
+# host.docker.internal can resolve to an IPv6 address the container cannot
+# reach. With family autoselection, a connect to the IPv4 one that takes over
+# 250 ms on a loaded machine moves on to it and the request fails, so GAS
+# connects to the first address only.
 services:
   gas:
     environment:
       CW_BACKEND_URL: "${CW_BACKEND_URL}"
       CW_BACKEND_TOKEN: "${CW_BACKEND_TOKEN}"
       HTTP_CLIENT_TIMEOUT_MS: "${HTTP_CLIENT_TIMEOUT_MS}"
+      ADMIN_SHELL_CACHE_MS: "0"
+      NODE_OPTIONS: "--no-network-family-autoselection"
       SERVICE_ACCESS_TOKEN_HASH: "it-boot-seed:b007b007b007b007b007b007b007b007b007b007b007b007b007b007b007b007"
       LAND_DATA_URL: "https://u:p@land-data.test/base/?k=v"
       LAND_DATA_HEADERS: "Authorization:secret"

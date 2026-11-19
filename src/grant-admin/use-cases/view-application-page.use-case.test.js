@@ -22,6 +22,7 @@ vi.mock("../../events/audited-read.js", () => ({
   },
 }));
 vi.mock("../../grants/services/application-read.service.js");
+vi.mock("../../grants/services/config-version.service.js");
 vi.mock("./read-record-events.use-case.js");
 vi.mock("../repositories/cw-actuators.repository.js");
 

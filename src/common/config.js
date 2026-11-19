@@ -6,11 +6,13 @@ import { VARIANT_PATTERN } from "./configuration-variant.js";
 // maxTimeMS, so each layer degrades to a named error before the one above gives up.
 const ADMIN_READ_MS = 5000;
 const CW_TIMEOUT_MS = 4000;
+const ADMIN_SHELL_MS = 60_000;
 
 // The floor is not configurable down: inbox dedup (`findByMessageId`) only
 // works while the row is there, and SQS holds a redelivery for up to 14 days.
 const RETENTION_DAYS = 90;
 const MIN_RETENTION_DAYS = 30;
+const MIN_SEARCH_AUDIT_KEY_LENGTH = 32;
 
 // A code constant, not configuration, so it cannot be misconfigured to empty.
 const CALLER_TOKEN_ALLOWED_ISSUERS = Object.freeze([
@@ -107,6 +109,11 @@ const schema = Joi.object({
     .min(1)
     .default(CW_TIMEOUT_MS)
     .optional(),
+  ADMIN_SHELL_CACHE_MS: Joi.number()
+    .integer()
+    .min(0)
+    .default(ADMIN_SHELL_MS)
+    .optional(),
   // `.optional()` is needed despite the default: this schema is `presence:
   // "required"`, so a defaulted key is still demanded of the environment.
   EVENT_RETENTION_DAYS: Joi.number()
@@ -125,6 +132,9 @@ const schema = Joi.object({
   ENABLE_TEST_ENDPOINTS: Joi.boolean().optional(),
   // Process-level grant definition cache. Disabled for integration tests.
   GRANT_DEFINITION_CACHE_ENABLED: Joi.boolean().default(true).optional(),
+  // Keys the digest of each value an Explore query asks for, in its audit;
+  // none is written without it. The same key as Caseworking's.
+  SEARCH_AUDIT_KEY: Joi.string().min(MIN_SEARCH_AUDIT_KEY_LENGTH).optional(),
   // `client:sha256hex`, validated by seed-access-token.js so a bad value warns, not stops boot.
   SERVICE_ACCESS_TOKEN_HASH: Joi.string()
     .trim()
@@ -241,6 +251,7 @@ export const config = {
     allowedIssuers: CALLER_TOKEN_ALLOWED_ISSUERS,
   },
   adminReadTimeoutMs: vars.ADMIN_READ_TIMEOUT_MS,
+  adminShellCacheMs: vars.ADMIN_SHELL_CACHE_MS,
   cwBackend: {
     url: vars.CW_BACKEND_URL,
     token: vars.CW_BACKEND_TOKEN,
@@ -248,4 +259,5 @@ export const config = {
   },
   enableTestEndpoints: vars.ENABLE_TEST_ENDPOINTS ?? false,
   grantDefinitionCacheEnabled: vars.GRANT_DEFINITION_CACHE_ENABLED,
+  searchAuditKey: vars.SEARCH_AUDIT_KEY,
 };

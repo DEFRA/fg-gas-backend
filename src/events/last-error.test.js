@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NO_ERROR_KEY } from "../common/buckets/error-key.js";
 import {
   MAX_ATTEMPT_HISTORY,
   appendAttempt,
@@ -273,5 +274,24 @@ describe("withErrorKey", () => {
 
   it("writes no key with no error", () => {
     expect(withErrorKey(null)).toEqual({ lastError: null, errorKey: null });
+  });
+
+  it("keys a dead letter that recorded no error as such", () => {
+    expect(withErrorKey(null, "DEAD_LETTER")).toEqual({
+      lastError: null,
+      errorKey: NO_ERROR_KEY,
+    });
+  });
+
+  it("keys a dead letter by its error when it recorded one", () => {
+    const lastError = toLastError(new TypeError("boom"));
+
+    expect(withErrorKey(lastError, "DEAD_LETTER").errorKey).toBe(
+      "TypeError: boom",
+    );
+  });
+
+  it("keys no row that has not died", () => {
+    expect(withErrorKey(null, "COMPLETED").errorKey).toBeNull();
   });
 });

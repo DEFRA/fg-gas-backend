@@ -10,7 +10,11 @@ import {
   expect,
   it,
 } from "vitest";
-import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
+import {
+  cwStubRequestsBesideCatalogue,
+  resetCwStub,
+  setCwStub,
+} from "../helpers/cw-stub.js";
 import { endOfUkDay } from "../../src/common/end-of-uk-day.js";
 import { createServer } from "../../src/server.js";
 import { wreck } from "../helpers/wreck.js";
@@ -76,11 +80,13 @@ const failureOf = async (call) => {
 
 const hintOf = (raw) => raw.slice(-4);
 
+// `confirmed` left out is an admin that predates it, which issues beside
+// active tokens.
 const issue = (
   service,
   clientId,
   tokenHash,
-  newClient,
+  confirmed,
   tokenHint = "abcd",
   expiresAt = null,
 ) =>
@@ -88,7 +94,7 @@ const issue = (
     tokenHash,
     tokenHint,
     expiresAt,
-    newClient,
+    ...(confirmed === undefined ? {} : { confirmed }),
   });
 
 const tokenPath = (service, clientId, tokenId) =>
@@ -173,11 +179,18 @@ describe("GAS API clients", () => {
       itFixture: true,
       clientId: "Grants_UI",
     });
+    const soon = await insertRow({
+      itFixture: true,
+      clientId: "it-soon",
+      status: "ACTIVE",
+      expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+    });
 
     const payload = await listed("gas");
     const namedHash = (await accessTokens.findOne({ _id: named })).id;
 
     expect(payload.service).toBe("gas");
+    expect(rowOf(payload, soon).expiringSoon).toBe(true);
     expect(rowOf(payload, named)).toEqual({
       tokenId: named.toHexString(),
       clientId: "it-dated",
@@ -189,6 +202,7 @@ describe("GAS API clients", () => {
       revokedAt: null,
       revokedBy: null,
       inUse: false,
+      expiringSoon: false,
       stored: {
         _id: { $oid: named.toHexString() },
         id: `${namedHash.slice(0, 3)}••••••${namedHash.slice(-3)}`,
@@ -289,18 +303,80 @@ describe("GAS API clients", () => {
       },
     });
     expect(issued.event.security.pmccode).toBe("0705");
+    expect(rowOf(payload, payload.token.tokenId)).toMatchObject({
+      status: "ACTIVE",
+      stored: { clientId: "it-consumer" },
+    });
     expect(await auditRows("REVOKE_API_TOKEN")).toHaveLength(1);
     expect(await everyOutboxRow()).not.toContain(hashOf(raw));
     expect(await everyOutboxRow()).not.toContain(SUITE_HASH);
   });
 
-  it("issues however many tokens a client already has active", async () => {
-    await insertRow({ clientId: "it-busy" });
-    await insertRow({ clientId: "it-busy" });
+  it.each([
+    ["confirmed", true],
+    ["by an admin that does not say", undefined],
+  ])(
+    "issues beside a client's active tokens when %s, as not a new client",
+    async (_, confirmed) => {
+      await insertRow({ clientId: "it-busy" });
+      await insertRow({ clientId: "it-busy" });
 
-    const { res } = await issue("gas", "it-busy", hashOf(newRawToken()), false);
+      const { res } = await issue(
+        "gas",
+        "it-busy",
+        hashOf(newRawToken()),
+        confirmed,
+      );
+
+      expect(res.statusCode).toBe(201);
+      const [issued] = await auditRows("ISSUE_API_TOKEN");
+      expect(issued.event.audit.details.newClient).toBe(false);
+    },
+  );
+
+  it("refuses an unconfirmed issue beside active tokens, issuing nothing and answering the list", async () => {
+    await insertRow({ clientId: "it-busy" });
+    await insertRow({ clientId: "it-busy" });
+    await insertRow({ clientId: "it-busy", expiresAt: PAST });
+    const raw = newRawToken();
+
+    const failure = await failureOf(() =>
+      issue("gas", "it-busy", hashOf(raw), false),
+    );
+
+    expect(failure).toMatchObject({
+      statusCode: 409,
+      body: { code: "HAS_ACTIVE", errorCode: "HAS_ACTIVE", active: 2 },
+    });
+    expect(
+      failure.body.tokens.filter(({ clientId }) => clientId === "it-busy"),
+    ).toHaveLength(3);
+    expect(await accessTokens.countDocuments({ id: hashOf(raw) })).toBe(0);
+    const [refused] = await auditRows("ISSUE_API_TOKEN");
+    expect(refused.event.audit).toMatchObject({
+      status: "failure",
+      details: { errorCode: "HAS_ACTIVE", confirmed: false },
+    });
+    expect(await auditRows("VIEW_API_CLIENT")).toHaveLength(1);
+  });
+
+  it("issues to a client whose only rows are revoked, unconfirmed, as not new", async () => {
+    await insertRow({
+      clientId: "it-taken",
+      revokedAt: new Date(),
+      expiresAt: new Date(),
+    });
+
+    const { res } = await issue(
+      "gas",
+      "it-taken",
+      hashOf(newRawToken()),
+      false,
+    );
 
     expect(res.statusCode).toBe(201);
+    const [issued] = await auditRows("ISSUE_API_TOKEN");
+    expect(issued.event.audit.details.newClient).toBe(false);
   });
 
   describe("the token this request calls with", () => {
@@ -340,7 +416,7 @@ describe("GAS API clients", () => {
     });
 
     it("leaves the platform client able to be issued a token", async () => {
-      const { res } = await issue("gas", ADMIN, hashOf(newRawToken()), false);
+      const { res } = await issue("gas", ADMIN, hashOf(newRawToken()), true);
 
       await accessTokens.updateOne(
         { createdBy: "Ann Operator", clientId: ADMIN },
@@ -519,16 +595,47 @@ describe("GAS API clients", () => {
       expect(stored).not.toContain(`"${hintOf(raw)}"`);
     });
 
-    it("refuses a date in the past", async () => {
+    it("refuses a date in the past, answering the list", async () => {
       const { tokenId } = await tokenFor({});
 
-      expect(
-        await failureOf(() => changeExpiry("gas", "it-expiry", tokenId, PAST)),
-      ).toMatchObject({
+      const failure = await failureOf(() =>
+        changeExpiry("gas", "it-expiry", tokenId, PAST),
+      );
+
+      expect(failure).toMatchObject({
         statusCode: 400,
-        body: { errorCode: "API_TOKEN_INVALID_EXPIRY" },
+        body: { code: "EXPIRY_PAST" },
       });
+      expect(rowOf(failure.body, tokenId).status).toBe("ACTIVE");
     });
+
+    it.each([
+      ["never, as it is", null, null],
+      [
+        "the end of the UK day it already ends on",
+        new Date("2099-06-01T09:00:00.000Z"),
+        new Date("2099-06-01T22:59:59.000Z"),
+      ],
+    ])(
+      "refuses an active token's expiry moved to %s as unchanged",
+      async (_, stored, expiresAt) => {
+        const { tokenId } = await tokenFor({ expiresAt: stored });
+
+        const failure = await failureOf(() =>
+          changeExpiry("gas", "it-expiry", tokenId, expiresAt),
+        );
+
+        expect(failure).toMatchObject({
+          statusCode: 409,
+          body: { code: "EXPIRY_UNCHANGED" },
+        });
+        expect(rowOf(failure.body, tokenId).expiresAt).toBe(
+          stored?.toISOString() ?? null,
+        );
+        const [refused] = await auditRows("CHANGE_API_TOKEN_EXPIRY");
+        expect(refused.event.audit.details.errorCode).toBe("EXPIRY_UNCHANGED");
+      },
+    );
 
     it("refuses an expiry that is not an ISO date, and audits it", async () => {
       const { tokenId } = await tokenFor({});
@@ -847,7 +954,6 @@ describe("GAS API clients", () => {
         "it-Bad",
         "a".repeat(64),
         "abcd",
-        true,
         400,
         "API_CLIENT_INVALID_NAME",
       ],
@@ -856,7 +962,6 @@ describe("GAS API clients", () => {
         "it-ok",
         "A".repeat(64),
         "abcd",
-        true,
         400,
         "API_TOKEN_INVALID_HASH",
       ],
@@ -865,25 +970,14 @@ describe("GAS API clients", () => {
         "it-ok",
         "a".repeat(64),
         "ab+d",
-        true,
         400,
         "API_TOKEN_INVALID_HINT",
-      ],
-      [
-        "a missing client",
-        "it-nobody",
-        "a".repeat(64),
-        "abcd",
-        false,
-        404,
-        "API_CLIENT_NOT_FOUND",
       ],
       [
         "a 65-character name",
         "a".repeat(65),
         "a".repeat(64),
         "abcd",
-        true,
         400,
         "API_CLIENT_INVALID_NAME",
       ],
@@ -892,40 +986,38 @@ describe("GAS API clients", () => {
         "b".repeat(64),
         "a".repeat(64),
         "abcd",
-        true,
         400,
         "API_CLIENT_INVALID_NAME",
       ],
-    ])(
-      "refuses %s",
-      async (_, name, hash, hint, newClient, statusCode, errorCode) => {
-        expect(
-          await failureOf(() => issue("gas", name, hash, newClient, hint)),
-        ).toMatchObject({ statusCode, body: { errorCode } });
-        expect(await accessTokens.countDocuments({ id: hash })).toBe(0);
-        const [refused] = await auditRows("ISSUE_API_TOKEN");
-        expect(refused.event.audit).toMatchObject({
-          status: "failure",
-          details: { errorCode },
-        });
-      },
-    );
+    ])("refuses %s", async (_, name, hash, hint, statusCode, errorCode) => {
+      const failure = await failureOf(() =>
+        issue("gas", name, hash, true, hint),
+      );
 
-    it("refuses a new client whose name has any row, even revoked", async () => {
-      await insertRow({
-        clientId: "it-taken",
-        revokedAt: new Date(),
-        expiresAt: new Date(),
+      expect(failure).toMatchObject({
+        statusCode,
+        body: { errorCode, code: errorCode },
       });
+      expect(failure.body.tokens).toEqual(expect.any(Array));
+      expect(await accessTokens.countDocuments({ id: hash })).toBe(0);
+      const [refused] = await auditRows("ISSUE_API_TOKEN");
+      expect(refused.event.audit).toMatchObject({
+        status: "failure",
+        details: { errorCode },
+      });
+    });
 
-      expect(
-        await failureOf(() =>
-          issue("gas", "it-taken", hashOf(newRawToken()), true),
-        ),
-      ).toMatchObject({
-        statusCode: 409,
-        body: { errorCode: "API_CLIENT_EXISTS" },
-      });
+    it("creates a client that has no rows", async () => {
+      const { res } = await issue(
+        "gas",
+        "it-nobody",
+        hashOf(newRawToken()),
+        false,
+      );
+
+      expect(res.statusCode).toBe(201);
+      const [issued] = await auditRows("ISSUE_API_TOKEN");
+      expect(issued.event.audit.details.newClient).toBe(true);
     });
 
     it("refuses to revoke a token that is not active", async () => {
@@ -935,12 +1027,18 @@ describe("GAS API clients", () => {
         expiresAt: new Date(),
       });
 
-      expect(
-        await failureOf(() => revoke("gas", "it-gone", gone.toHexString())),
-      ).toMatchObject({
+      const failure = await failureOf(() =>
+        revoke("gas", "it-gone", gone.toHexString()),
+      );
+
+      expect(failure).toMatchObject({
         statusCode: 409,
-        body: { errorCode: "API_TOKEN_NOT_ACTIVE" },
+        body: {
+          errorCode: "API_TOKEN_NOT_ACTIVE",
+          code: "API_TOKEN_NOT_ACTIVE",
+        },
       });
+      expect(rowOf(failure.body, gone).status).toBe("REVOKED");
     });
 
     it("answers a repeated hash with a plain 409 that quotes nothing", async () => {
@@ -949,7 +1047,7 @@ describe("GAS API clients", () => {
       await insertRow({ clientId: "it-second" });
 
       const failure = await failureOf(() =>
-        issue("gas", "it-second", hashOf(raw), false),
+        issue("gas", "it-second", hashOf(raw), true),
       );
 
       expect(failure).toMatchObject({
@@ -1002,8 +1100,8 @@ describe("Caseworking API clients, through GAS", () => {
     ];
     await setCwStub({ clients: { list: { tokens } } });
 
-    expect(await listed("cw")).toEqual({ service: "cw", tokens });
-    const [sent] = await cwStubRequests();
+    expect(await listed("cw")).toMatchObject({ service: "cw", tokens });
+    const [sent] = await cwStubRequestsBesideCatalogue();
     expect(sent).toMatchObject({
       path: "/actuators/clients",
       actor: "Ann Operator",
@@ -1028,10 +1126,9 @@ describe("Caseworking API clients, through GAS", () => {
 
     expect(payload.service).toBe("cw");
     expect(res.statusCode).toBe(204);
-    expect((await cwStubRequests()).map(({ actor }) => actor)).toEqual([
-      encoded,
-      encoded,
-    ]);
+    expect(
+      (await cwStubRequestsBesideCatalogue()).map(({ actor }) => actor),
+    ).toEqual([encoded, encoded]);
     const [revoked] = await auditRows("REVOKE_API_TOKEN");
     expect(revoked.event.audit.details.actor).toBe("Łukasz");
   });
@@ -1083,9 +1180,16 @@ describe("Caseworking API clients, through GAS", () => {
 
     expect(failure).toMatchObject({
       statusCode: 400,
-      body: { errorCode: "API_CLIENT_INVALID_NAME" },
+      body: { errorCode: "API_CLIENT_INVALID_NAME", tokens: [] },
     });
-    expect(await cwStubRequests()).toHaveLength(1);
+    expect(
+      (await cwStubRequestsBesideCatalogue()).map(
+        ({ method, path }) => `${method} ${path}`,
+      ),
+    ).toEqual([
+      "POST /actuators/clients/Bad_Name/tokens",
+      "GET /actuators/clients",
+    ]);
   });
 
   it.each([
@@ -1122,14 +1226,17 @@ describe("Caseworking API clients, through GAS", () => {
     expect(deleted.res.statusCode).toBe(204);
     expect(changed.payload.token.expiresAt).toBe(LATER.toISOString());
     expect(rotated.res.statusCode).toBe(201);
-    const sent = await cwStubRequests();
+    const sent = await cwStubRequestsBesideCatalogue();
     expect(sent.map(({ method, path }) => `${method} ${path}`)).toEqual([
       `DELETE /actuators/clients/role-reader/tokens/${TOKEN_ID}`,
+      "GET /actuators/clients",
       `PUT /actuators/clients/role-reader/tokens/${TOKEN_ID}/expiry`,
       `POST /actuators/clients/role-reader/tokens/${TOKEN_ID}/rotate`,
+      "GET /actuators/clients",
     ]);
-    expect(sent[1].body).toEqual({ expiresAt: LATER.toISOString() });
-    expect(sent[2].body).toEqual({
+    expect(rotated.payload.tokens).toEqual([]);
+    expect(sent[2].body).toEqual({ expiresAt: LATER.toISOString() });
+    expect(sent[3].body).toEqual({
       tokenHash: hashOf(raw),
       tokenHint: hintOf(raw),
       keepOld: "7d",
@@ -1160,9 +1267,58 @@ describe("Caseworking API clients, through GAS", () => {
 
     expect(await failureOf(call)).toMatchObject({
       statusCode: 409,
-      body: { errorCode },
+      body: { errorCode, code: errorCode, tokens: [] },
     });
   });
+
+  it("passes Caseworking's HAS_ACTIVE on with its count and Caseworking's list", async () => {
+    await setCwStub({
+      clients: {
+        list: { tokens: [] },
+        refusal: { status: 409, body: { errorCode: "HAS_ACTIVE", active: 3 } },
+      },
+    });
+
+    const failure = await failureOf(() =>
+      issue("cw", "role-reader", hashOf(newRawToken()), false),
+    );
+
+    expect(failure).toMatchObject({
+      statusCode: 409,
+      body: { code: "HAS_ACTIVE", active: 3, tokens: [] },
+    });
+    const [sent] = await cwStubRequestsBesideCatalogue();
+    expect(sent.body.confirmed).toBe(false);
+  });
+
+  it.each([
+    ["past", 400, "EXPIRY_PAST", PAST],
+    ["unchanged", 409, "EXPIRY_UNCHANGED", LATER],
+  ])(
+    "refuses a Caseworking expiry that is %s against its list, sending no change",
+    async (_, statusCode, code, expiresAt) => {
+      const tokens = [
+        {
+          ...cwRow,
+          expiresAt: LATER.toISOString(),
+          inUse: false,
+          stored: { _id: { $oid: TOKEN_ID }, id: "abc••••••def" },
+        },
+      ];
+      await setCwStub({ clients: { list: { tokens } } });
+
+      const failure = await failureOf(() =>
+        changeExpiry("cw", "role-reader", TOKEN_ID, expiresAt),
+      );
+
+      expect(failure).toMatchObject({ statusCode, body: { code, tokens } });
+      expect(
+        (await cwStubRequestsBesideCatalogue()).map(({ method }) => method),
+      ).toEqual(["GET"]);
+      const [refused] = await auditRows("CHANGE_API_TOKEN_EXPIRY");
+      expect(refused.event.audit.details.errorCode).toBe(code);
+    },
+  );
 
   it(
     "is a 504 when Caseworking does not answer",
@@ -1188,6 +1344,7 @@ describe("Caseworking API clients, through GAS", () => {
             tokenHint: hintOf(raw),
             inUse: false,
           },
+          newClient: false,
         },
       },
     });
@@ -1203,13 +1360,15 @@ describe("Caseworking API clients, through GAS", () => {
     expect(res.statusCode).toBe(201);
     expect(payload.token.tokenHint).toBe(hintOf(raw));
     expect(JSON.stringify(payload)).not.toContain(hashOf(raw));
-    const [sent] = await cwStubRequests();
+    const [sent] = await cwStubRequestsBesideCatalogue();
     expect(sent.body).toEqual({
       tokenHash: hashOf(raw),
       tokenHint: hintOf(raw),
       expiresAt: null,
-      newClient: true,
+      confirmed: true,
     });
+    const [issued] = await auditRows("ISSUE_API_TOKEN");
+    expect(issued.event.audit.details.newClient).toBe(false);
     expect(await everyOutboxRow()).not.toContain(hashOf(raw));
   });
 });

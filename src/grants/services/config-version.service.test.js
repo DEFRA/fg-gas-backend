@@ -10,6 +10,7 @@ import {
 } from "../repositories/config-version.repository.js";
 import {
   findByCode,
+  findQuestionSchemas,
   findStoredGrantDocument,
   findStoredGrantSummary,
 } from "../repositories/grant.repository.js";
@@ -17,8 +18,10 @@ import { CLAIM_APPROVAL_TELLS_CW } from "./claims.service.js";
 import {
   findConfigVersionFiles,
   findConfigVersions,
+  findGrantQuestionSchemas,
   findGrantDefinitionSummary,
   findGrantLifecycle,
+  findGrantPhaseNames,
   findGrantVersionEntitlements,
   findStoredGrantDefinition,
   grantVersionExists,
@@ -452,6 +455,63 @@ describe("findGrantLifecycle", () => {
   });
 });
 
+describe("findGrantPhaseNames", () => {
+  const ref = { code: "woodland", version: "2.0.0" };
+
+  it("answers the stored grant's phases, stages and statuses by code and name alone", async () => {
+    findByCode.mockResolvedValue(
+      createTestGrant({
+        phases: [
+          {
+            code: "P",
+            name: "Pre award",
+            stages: [
+              {
+                code: "S",
+                statuses: [{ code: "A", name: "Received", validFrom: [] }],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(await findGrantPhaseNames(ref)).toEqual([
+      {
+        code: "P",
+        name: "Pre award",
+        stages: [
+          {
+            code: "S",
+            name: null,
+            statuses: [{ code: "A", name: "Received" }],
+          },
+        ],
+      },
+    ]);
+    expect(findByCode).toHaveBeenCalledWith("woodland", "2.0.0");
+  });
+
+  it("answers null when the grant file is not stored", async () => {
+    findByCode.mockResolvedValue(null);
+
+    expect(await findGrantPhaseNames(ref)).toBeNull();
+  });
+
+  it("answers null for a stored grant the model refuses", async () => {
+    findByCode.mockRejectedValue(Boom.badImplementation("invalid"));
+
+    expect(await findGrantPhaseNames(ref)).toBeNull();
+  });
+
+  it("fails on anything that is not a defect of the stored grant", async () => {
+    const error = new Error("connection lost");
+    findByCode.mockRejectedValue(error);
+
+    await expect(findGrantPhaseNames(ref)).rejects.toBe(error);
+  });
+});
+
 describe("findGrantVersionEntitlements", () => {
   const ref = { code: "woodland", version: "2.0.0" };
   const ACCEPTED = {
@@ -610,5 +670,13 @@ describe("findGrantVersionEntitlements", () => {
     await expect(findGrantVersionEntitlements(ref)).rejects.toThrow(
       'Invalid entitlement template "MAINTENANCE"',
     );
+  });
+});
+
+describe("findGrantQuestionSchemas", () => {
+  it("answers the stored question schemas", async () => {
+    findQuestionSchemas.mockResolvedValue([{ type: "object" }]);
+
+    expect(await findGrantQuestionSchemas()).toEqual([{ type: "object" }]);
   });
 });

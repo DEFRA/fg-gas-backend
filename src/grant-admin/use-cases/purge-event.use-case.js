@@ -3,7 +3,6 @@ import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { logger } from "../../common/logger.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { purgeConflict } from "../../events/event-purge.js";
 import {
   findStatusById as gasInboxStatus,
   purgeById as purgeGasInbox,
@@ -12,14 +11,38 @@ import {
   findStatusById as gasOutboxStatus,
   purgeById as purgeGasOutbox,
 } from "../../events/repositories/outbox.repository.js";
-import { purgeCwEvent } from "../repositories/cw-actuators.repository.js";
-import { withStatusLabel } from "../services/cw-conflict.js";
+import {
+  findCwEvent,
+  purgeCwEvent,
+} from "../repositories/cw-actuators.repository.js";
+import { statusOf } from "../repositories/cw-http.js";
 import { statusDisplay } from "../services/event-display.js";
 import { GAS } from "../services/event-sources.js";
 
 const GAS_BOXES = {
   inbox: { purge: purgeGasInbox, status: gasInboxStatus },
   outbox: { purge: purgeGasOutbox, status: gasOutboxStatus },
+};
+
+export const NOT_PURGEABLE = "NOT_PURGEABLE";
+
+const CONFLICT = 409;
+const NOT_FOUND = 404;
+
+// Purgeable is what the event page offers: dead-lettered, with a deletion
+// date. Any other event that exists is refused in one shape, naming no value
+// the request sent.
+const notPurgeable = (status) => {
+  const error = Boom.conflict("The event is not purgeable");
+
+  error.output.payload = {
+    ...error.output.payload,
+    code: NOT_PURGEABLE,
+    status,
+    statusLabel: status ? statusDisplay(status).statusLabel : null,
+  };
+
+  return error;
 };
 
 // Nothing matched: one extra read tells a missing row (404) from a moved one
@@ -37,18 +60,43 @@ const purgeGasEvent = async (box, id, { actor, reasonCode, note }, session) => {
     throw Boom.notFound(`gas ${box} event "${id}" not found`);
   }
 
-  throw purgeConflict(
-    `gas ${box}`,
-    id,
-    status,
-    statusDisplay(status).statusLabel,
-  );
+  throw notPurgeable(status);
 };
 
+// A Caseworking without a purge endpoint answers a bare 404 for an event it
+// holds, so a 404 reads the event to tell a missing one from one it cannot
+// purge.
+const statusIfFound = async (box, id) => {
+  try {
+    return (await findCwEvent(box, id)).status ?? null;
+  } catch {
+    return undefined;
+  }
+};
+
+const missingOrNotPurgeable = async (box, id, error) => {
+  const status = await statusIfFound(box, id);
+
+  return status === undefined ? error : notPurgeable(status);
+};
+
+const conflictOf = (_box, _id, error) =>
+  notPurgeable(error.output.payload?.status ?? null);
+
+const CW_REFUSALS = {
+  [CONFLICT]: conflictOf,
+  [NOT_FOUND]: missingOrNotPurgeable,
+};
+
+const toPurgeRefusal = (box, id, error) =>
+  (CW_REFUSALS[statusOf(error)] ?? ((_b, _i, same) => same))(box, id, error);
+
 const purgeCaseworkingEvent = async (box, id, { actor, reasonCode, note }) => {
-  await purgeCwEvent(box, id, { by: actor, reasonCode, note }).catch(
-    withStatusLabel,
-  );
+  try {
+    await purgeCwEvent(box, id, { by: actor, reasonCode, note });
+  } catch (error) {
+    throw await toPurgeRefusal(box, id, error);
+  }
 };
 
 const purgeEvent = async (

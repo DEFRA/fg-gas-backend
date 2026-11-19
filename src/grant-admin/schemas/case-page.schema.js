@@ -4,6 +4,7 @@ import {
   counterpartSchema,
   nullableIso,
   nullableString,
+  positionNamesSchema,
   positionSchema,
   recordEventsSchema,
   recordPageSchema,
@@ -22,6 +23,8 @@ const caseHeaderSchema = Joi.object({
   caseRef: Joi.string().required(),
   workflowCode: Joi.string().required(),
   position: positionSchema,
+  version: nullableString,
+  names: positionNamesSchema.required(),
   closed: Joi.boolean().allow(null).required(),
   closedAt: nullableIso,
   // Null while GAS cannot say whether the application exists.

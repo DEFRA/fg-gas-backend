@@ -1,5 +1,5 @@
 import Boom from "@hapi/boom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   changeApiTokenExpiry,
   deleteApiToken,
@@ -15,6 +15,7 @@ import {
 } from "../repositories/cw-clients.repository.js";
 import { changeApiTokenExpiryUseCase } from "./change-api-token-expiry.use-case.js";
 import { deleteApiTokenUseCase } from "./delete-api-token.use-case.js";
+import { listApiTokensUseCase } from "./list-api-tokens.use-case.js";
 import { rotateApiTokenUseCase } from "./rotate-api-token.use-case.js";
 
 vi.mock("../../common/logger.js");
@@ -22,7 +23,13 @@ vi.mock("../../common/mongo-client.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../../events/write-audit-event.js");
 vi.mock("../repositories/cw-clients.repository.js");
-vi.mock("../../auth/services/api-client.service.js");
+vi.mock("./list-api-tokens.use-case.js");
+vi.mock("../../auth/services/api-client.service.js", async (original) => ({
+  ...(await original()),
+  changeApiTokenExpiry: vi.fn(),
+  deleteApiToken: vi.fn(),
+  rotateApiToken: vi.fn(),
+}));
 
 const SESSION = { id: "the-transaction" };
 const HASH = "d".repeat(64);
@@ -32,6 +39,7 @@ const NEW_TOKEN_ID = "6650c1f2a9e4b1d07c20bd92";
 const LATER = new Date("2027-01-01T00:00:00.000Z");
 const SOON = new Date("2026-11-05T10:00:00.000Z");
 const ENCODED_ACTOR = "UTF-8''%C5%81ukasz";
+const LISTED = [{ tokenId: TOKEN_ID, status: "ACTIVE", expiresAt: SOON }];
 
 const params = (overrides = {}) => ({
   service: "gas",
@@ -58,7 +66,21 @@ const nothingSecret = () => {
 
 beforeEach(() => {
   withTransaction.mockImplementation(async (callback) => callback(SESSION));
+  listApiTokensUseCase.mockImplementation(async ({ service }) => ({
+    service,
+    tokens: LISTED,
+  }));
 });
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+const refusalOf = (status, errorCode) => {
+  const refusal = new Boom.Boom("refused", { statusCode: status });
+  refusal.output.payload.errorCode = errorCode;
+  return refusal;
+};
 
 describe("deleteApiTokenUseCase", () => {
   it("deletes a GAS token in one transaction, auditing its id alone", async () => {
@@ -102,6 +124,19 @@ describe("deleteApiTokenUseCase", () => {
     expect(withTransaction).not.toHaveBeenCalled();
     expect(deleteCwApiToken).toHaveBeenCalledWith("grants-ui", TOKEN_ID, {
       actor: ENCODED_ACTOR,
+    });
+  });
+});
+
+describe("a refused delete", () => {
+  it("carries its code and the service's tokens", async () => {
+    deleteApiToken.mockRejectedValue(refusalOf(409, "API_TOKEN_ACTIVE"));
+
+    const error = await deleteApiTokenUseCase(params()).catch((e) => e);
+
+    expect(error.output.payload).toMatchObject({
+      code: "API_TOKEN_ACTIVE",
+      tokens: LISTED,
     });
   });
 });
@@ -162,6 +197,62 @@ describe("changeApiTokenExpiryUseCase", () => {
       revived: true,
     });
   });
+
+  it.each([
+    ["past", 400, "EXPIRY_PAST", new Date("2020-01-01T00:00:00.000Z")],
+    [
+      "unchanged",
+      409,
+      "EXPIRY_UNCHANGED",
+      new Date("2026-11-05T23:00:00.000Z"),
+    ],
+  ])(
+    "refuses a cw expiry that is %s against Caseworking's list, forwarding nothing",
+    async (_, statusCode, code, expiresAt) => {
+      vi.useFakeTimers({ now: new Date("2026-11-04T10:00:00.000Z") });
+
+      const error = await changeApiTokenExpiryUseCase(
+        params({ service: "cw", expiresAt }),
+      ).catch((e) => e);
+
+      expect(error.output.statusCode).toBe(statusCode);
+      expect(error.output.payload).toMatchObject({ code, tokens: LISTED });
+      expect(listApiTokensUseCase).toHaveBeenCalledTimes(1);
+      expect(changeCwApiTokenExpiry).not.toHaveBeenCalled();
+      expect(lastAudit()).toMatchObject({
+        status: "failure",
+        details: { errorCode: code },
+      });
+    },
+  );
+
+  it("forwards a cw expiry it cannot check when Caseworking's list is unread", async () => {
+    listApiTokensUseCase.mockRejectedValue(Boom.badGateway());
+    changeCwApiTokenExpiry.mockResolvedValue({
+      token: { tokenId: TOKEN_ID },
+      previousExpiresAt: SOON,
+      revived: false,
+    });
+
+    await changeApiTokenExpiryUseCase(
+      params({ service: "cw", expiresAt: new Date("2020-01-01") }),
+    );
+
+    expect(changeCwApiTokenExpiry).toHaveBeenCalled();
+  });
+
+  it("carries the gas list on a refusal by the model", async () => {
+    changeApiTokenExpiry.mockRejectedValue(refusalOf(409, "EXPIRY_UNCHANGED"));
+
+    const error = await changeApiTokenExpiryUseCase(
+      params({ expiresAt: LATER }),
+    ).catch((e) => e);
+
+    expect(error.output.payload).toMatchObject({
+      code: "EXPIRY_UNCHANGED",
+      tokens: LISTED,
+    });
+  });
 });
 
 describe("auditing a refused expiry", () => {
@@ -200,6 +291,7 @@ describe("rotateApiTokenUseCase", () => {
     expect(await rotateApiTokenUseCase(rotation())).toMatchObject({
       service: "gas",
       token: { tokenId: NEW_TOKEN_ID },
+      tokens: LISTED,
     });
     expect(rotateApiToken).toHaveBeenCalledWith(
       {
@@ -238,6 +330,10 @@ describe("rotateApiTokenUseCase", () => {
     expect(lastAudit()).toMatchObject({
       status: "failure",
       details: { keepOld: "none", errorCode: "API_TOKEN_IN_USE" },
+    });
+    expect(refusal.output.payload).toMatchObject({
+      code: "API_TOKEN_IN_USE",
+      tokens: LISTED,
     });
     nothingSecret();
   });

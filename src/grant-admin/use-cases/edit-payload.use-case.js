@@ -189,9 +189,15 @@ const editPayloadAuditBuilder = (
 
 const editPayloadWithAudit = withAudit(editPayload, editPayloadAuditBuilder);
 
-// GAS: the row and its audit event commit together. Caseworking cannot join a
-// Mongo transaction, and audits the change it makes itself.
-export const editPayloadUseCase = async (params) =>
-  params.service === GAS
-    ? withTransaction((session) => editPayloadWithAudit(params, session))
-    : editPayloadWithAudit(params);
+// GAS: the row and its audit event commit together, in the caller's
+// transaction when it has one. Caseworking cannot join a Mongo transaction,
+// and audits the change it makes itself.
+export const editPayloadUseCase = async (params, session) => {
+  if (params.service !== GAS) {
+    return editPayloadWithAudit(params);
+  }
+
+  return session
+    ? editPayloadWithAudit(params, session)
+    : withTransaction((started) => editPayloadWithAudit(params, started));
+};

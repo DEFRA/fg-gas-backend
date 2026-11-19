@@ -9,6 +9,7 @@ import { withAudit } from "../../events/with-audit.js";
 import { revokeCwApiToken } from "../repositories/cw-clients.repository.js";
 import { GAS } from "../services/event-sources.js";
 import { buildApiClientAudit } from "./api-client-audit.js";
+import { answeringTokens } from "./api-token-answers.js";
 
 // Caseworking refuses the token GAS calls it with, as GAS refuses the
 // admin's, so no caller hash is sent.
@@ -45,7 +46,8 @@ export const buildRevokeApiTokenAudit = ([params], result, error) =>
 
 const revokeWithAudit = withAudit(revoke, buildRevokeApiTokenAudit);
 
-export const revokeApiTokenUseCase = (params) =>
+export const revokeApiTokenUseCase = answeringTokens((params) =>
   params.service === GAS
     ? withTransaction((session) => revokeWithAudit(params, session))
-    : revokeWithAudit(params);
+    : revokeWithAudit(params),
+);

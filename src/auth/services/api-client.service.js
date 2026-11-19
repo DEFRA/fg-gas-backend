@@ -13,6 +13,7 @@ import {
   shortenRotatedToken,
 } from "../repositories/access-token.repository.js";
 
+export { assertExpiryChange } from "../models/access-token.js";
 export { HASH_RUN, MASKED_HASH } from "../models/masked-hash.js";
 
 const tokenNotFound = () =>
@@ -36,26 +37,28 @@ export const listApiTokens = async ({ callerHash }) => {
   };
 };
 
+// The client's rows are read in the issue's transaction, so whether it is new
+// and whether it has an active token are decided with the insert.
 export const issueApiToken = async (
-  { clientId, tokenHash, tokenHint, expiresAt, newClient, by },
+  { clientId, tokenHash, tokenHint, expiresAt, confirmed, by },
   session,
 ) => {
   const client = ApiClient.fromTokens(
     clientId,
     await findClientTokens(clientId, session),
   );
-  const token = client.issueToken({
+  const { token, newClient } = client.issueToken({
     tokenHash,
     tokenHint,
     expiresAt,
-    newClient,
+    confirmed,
     by,
     now: new Date(),
   });
 
   token._id = await insertToken(token.toDocument(), session);
 
-  return { token: token.toView({ inUse: false }) };
+  return { token: token.toView({ inUse: false }), newClient };
 };
 
 // A row is reached only under the name it holds by the name rule, so no

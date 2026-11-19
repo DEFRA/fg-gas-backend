@@ -4,6 +4,11 @@ import { eventParamsSchema } from "../schemas/event-params.schema.js";
 import { decodeActor } from "../services/actor-header.js";
 import { callerOf } from "../services/request-caller.js";
 import { redriveEventUseCase } from "../use-cases/redrive-event.use-case.js";
+import {
+  SHELL_ERRORS,
+  SHELL_NOTES,
+  shellPlugins,
+} from "../services/shell-tag.js";
 
 // Encoded by the caller when the name has characters a header cannot carry.
 const actorOf = (request) => decodeActor(request.headers["x-actor"]) ?? null;
@@ -16,7 +21,9 @@ export const redriveEventRoute = {
       "Admin: put one DEAD_LETTER or PURGED event back in front of its poller. 409 when the row is in any other status.",
     tags: ["api"],
     validate: { params: eventParamsSchema, headers: actorHeaderSchema },
+    notes: SHELL_NOTES[SHELL_ERRORS],
     plugins: {
+      ...shellPlugins(SHELL_ERRORS),
       "hapi-swagger": {
         responses: {
           [constants.HTTP_STATUS_NO_CONTENT]: { description: "Redriven" },

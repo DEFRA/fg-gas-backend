@@ -4,6 +4,8 @@ import { withRequestContext } from "../../common/get-request-context.js";
 import { wreck } from "../../common/wreck.js";
 import {
   CASE_NOT_FOUND,
+  countCwDeadLetters,
+  readCwBucketPage,
   editCwPayload,
   findCwCase,
   findCwCaseExistence,
@@ -713,10 +715,41 @@ describe("Caseworking cases", () => {
         originalConfigVersion: "1.0.0",
         currentConfigVersion: "1.1.0",
         series: SERIES,
+        names: null,
       },
       storedBytes: 4096,
       document: { caseRef: "ref-1" },
     });
+  });
+
+  const NAMES = {
+    phases: [{ code: "PRE_AWARD", name: "Pre award" }],
+    stage: "Review",
+    status: null,
+  };
+
+  it("answers the names Caseworking gives the case's position, and nothing else it adds", async () => {
+    const answer = aCaseAnswer();
+    answer.payload.case.names = {
+      ...NAMES,
+      phases: [{ ...NAMES.phases[0], anything: 1 }],
+      anything: true,
+    };
+    wreck.get.mockResolvedValue(answer);
+
+    expect((await findCwCase(KEY, {})).summary.names).toEqual(NAMES);
+  });
+
+  it.each([
+    ["a Caseworking that predates names", undefined],
+    ["names it cannot read", { ...NAMES, phases: [{ code: 1 }] }],
+    ["names missing a part", { phases: NAMES.phases, stage: "Review" }],
+  ])("answers no names from %s", async (_, names) => {
+    const answer = aCaseAnswer();
+    answer.payload.case.names = names;
+    wreck.get.mockResolvedValue(answer);
+
+    expect((await findCwCase(KEY, {})).summary.names).toBeNull();
   });
 
   it("leaves members off a series from a Caseworking that predates them", async () => {
@@ -966,6 +999,14 @@ describe("Caseworking buckets", () => {
       expect(options.timeout).toBe(TIMEOUT_MS);
     });
 
+    it("waits no longer than the time it is given", async () => {
+      wreck.post.mockResolvedValue({ payload: ANSWER });
+
+      await queryCwBucket("cw.example", BODY, { actor: ACTOR, timeout: 250 });
+
+      expect(wreck.post.mock.calls[0][1].timeout).toBe(250);
+    });
+
     it("sends no repeat flag unless it is a repeat", async () => {
       wreck.post.mockResolvedValue({ payload: ANSWER });
 
@@ -1003,6 +1044,20 @@ describe("Caseworking buckets", () => {
         expect(error.output.statusCode).toBe(answered);
         expect(error.output.payload.reason).toBe(reason);
         expect(JSON.stringify(error.output.payload)).not.toContain("SECRET");
+      },
+    );
+
+    it.each([
+      [404, "UNKNOWN_BUCKET", "NOT_OFFERED"],
+      [400, "UNKNOWN_FACT", "ERRORED"],
+    ])(
+      "says a %i refusal %s is Caseworking's %s",
+      async (statusCode, reason, cwReason) => {
+        wreck.post.mockRejectedValue(failure(statusCode, { reason }));
+
+        const error = await queryCwBucket("cw.example", BODY).catch((e) => e);
+
+        expect(error.cwReason).toBe(cwReason);
       },
     );
 
@@ -1120,6 +1175,17 @@ describe("Caseworking buckets", () => {
 
       expect(error.output.statusCode).toBe(502);
     });
+
+    it("says a summary Caseworking does not have is not offered", async () => {
+      wreck.post.mockRejectedValue(failure(404, { reason: "UNKNOWN_SUMMARY" }));
+
+      const error = await summariseCwBucket("cw.inbox", "errors", BODY).catch(
+        (e) => e,
+      );
+
+      expect(error.output.payload.reason).toBe("UNKNOWN_SUMMARY");
+      expect(error.cwReason).toBe("NOT_OFFERED");
+    });
   });
 
   describe("readCwTimeline", () => {
@@ -1170,6 +1236,61 @@ describe("Caseworking buckets", () => {
 
       expect(error.output.statusCode).toBe(502);
       expect(wreck.post).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("readCwBucketPage", () => {
+    const PAGE = {
+      bucket: "cw.workflows",
+      plan: {
+        kind: "exact",
+        index: [],
+        bound: [],
+        filled: [],
+        residual: [],
+        scans: 1,
+      },
+      rows: [],
+      page: { next: null, keepLooking: null, searchedTo: null, complete: true },
+      groups: [],
+    };
+    const BODY = { where: { status: "active" }, limit: 100, groupBy: [] };
+
+    it("posts the body to the bucket, as the operator, and answers its page", async () => {
+      wreck.post.mockResolvedValue({ payload: PAGE });
+
+      const answer = await readCwBucketPage("cw.workflows", BODY, {
+        actor: ACTOR,
+      });
+
+      const [url, options] = wreck.post.mock.calls[0];
+      expect(url).toBe(`${URL_BASE}/actuators/buckets/cw.workflows/query`);
+      expect(options.payload).toEqual(BODY);
+      expect(options.headers["x-actor"]).toBe(ACTOR);
+      expect(answer).toEqual(PAGE);
+    });
+
+    it("answers 502 for a page that cannot be read", async () => {
+      wreck.post.mockResolvedValue({ payload: { ...PAGE, rows: undefined } });
+
+      const error = await readCwBucketPage("cw.workflows", BODY).catch(
+        (e) => e,
+      );
+
+      expect(error.output.statusCode).toBe(502);
+      expect(error.message).toBe(
+        "CW-BE answered a bucket page that cannot be read",
+      );
+    });
+
+    it("says a bucket Caseworking does not have is not offered", async () => {
+      wreck.post.mockRejectedValue(failure(404, { reason: "UNKNOWN_BUCKET" }));
+
+      const error = await readCwBucketPage("cw.workflows", BODY).catch(
+        (e) => e,
+      );
+
+      expect(error.cwReason).toBe("NOT_OFFERED");
     });
   });
 
@@ -1258,4 +1379,163 @@ describe("Caseworking buckets", () => {
       expect(wreck.post).not.toHaveBeenCalled();
     });
   });
+  describe("countCwDeadLetters", () => {
+    const WINDOW = {
+      from: "2026-10-12T15:00:00.000Z",
+      to: "2026-10-13T15:00:00.000Z",
+    };
+    const ASKED = { ...WINDOW, binMs: 24 * 60 * 60 * 1000 };
+    const ANSWER = {
+      ...WINDOW,
+      countCap: 10_000,
+      buckets: [
+        {
+          id: "cw.outbox",
+          list: { path: "events/cw/outbox", query: { status: "DEAD_LETTER" } },
+          bins: [{ ...WINDOW, count: 2, capped: false }],
+        },
+      ],
+    };
+
+    it("reads the window's bins as the operator", async () => {
+      wreck.get.mockResolvedValue({ payload: ANSWER });
+
+      const answer = await inRequest(() =>
+        countCwDeadLetters(ASKED, { actor: ACTOR }),
+      );
+
+      const [url, options] = wreck.get.mock.calls[0];
+      expect(answer).toEqual(ANSWER);
+      expect(new URL(url).pathname).toBe("/actuators/dead-letters");
+      expect(Object.fromEntries(new URL(url).searchParams)).toEqual(WINDOW);
+      expect(options.headers).toEqual({
+        authorization: `Bearer ${TOKEN}`,
+        "x-actor-id": OID,
+        "x-actor": ACTOR,
+      });
+    });
+
+    it.each([
+      ["no buckets", { ...ANSWER, buckets: [] }],
+      [
+        "a bin without its count",
+        { ...ANSWER, buckets: [{ ...ANSWER.buckets[0], bins: [WINDOW] }] },
+      ],
+      ["no body", null],
+      [
+        "bins of another size",
+        {
+          ...ANSWER,
+          buckets: [
+            {
+              ...ANSWER.buckets[0],
+              bins: [ANSWER.buckets[0].bins[0], ANSWER.buckets[0].bins[0]],
+            },
+          ],
+        },
+      ],
+      [
+        "bins for another window",
+        {
+          ...ANSWER,
+          buckets: [
+            {
+              ...ANSWER.buckets[0],
+              bins: [{ ...ANSWER.buckets[0].bins[0], from: WINDOW.to }],
+            },
+          ],
+        },
+      ],
+    ])("answers 502 for %s", async (_, payload) => {
+      wreck.get.mockResolvedValue({ payload });
+
+      const error = await countCwDeadLetters(ASKED).catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+    });
+
+    it.each([
+      ["a bare 404", failure(404, { message: "Not Found" }), "NOT_OFFERED"],
+      [
+        "a 404 for a bucket it does not have",
+        failure(404, { reason: "UNKNOWN_BUCKET" }),
+        "NOT_OFFERED",
+      ],
+      ["a 504", failure(504, {}), "TIMED_OUT"],
+      ["its own client timeout", Boom.gatewayTimeout(), "TIMED_OUT"],
+      ["a 500", failure(500, {}), "ERRORED"],
+      [
+        "no connection",
+        Object.assign(new Error("connect"), { code: "ECONNREFUSED" }),
+        "UNREACHABLE",
+      ],
+    ])("says why for %s", async (_, error, reason) => {
+      wreck.get.mockRejectedValue(error);
+
+      const thrown = await countCwDeadLetters(ASKED).catch((e) => e);
+
+      expect(thrown.cwReason).toBe(reason);
+    });
+
+    it("says Caseworking cannot be reached when it is not configured", async () => {
+      cwBackend.url = undefined;
+
+      const thrown = await countCwDeadLetters(ASKED).catch((e) => e);
+
+      expect(thrown.output.statusCode).toBe(502);
+      expect(thrown.cwReason).toBe("UNREACHABLE");
+      expect(wreck.get).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("a read when Caseworking cannot be reached", () => {
+  const unsent = (code) =>
+    Object.assign(new Error("Client request error"), {
+      code,
+      output: { statusCode: 502 },
+    });
+  const CASE = { workflowCode: "example-workflow", caseRef: "abc-1" };
+  const WINDOW = {
+    from: "2026-06-16T00:00:00.000Z",
+    to: "2026-06-17T00:00:00.000Z",
+    binMs: 24 * 60 * 60 * 1000,
+  };
+
+  const reads = [
+    ["an event", () => findCwEvent("inbox", ID)],
+    ["a case", () => findCwCase(CASE, {})],
+    ["a case's existence", () => findCwCaseExistence(CASE)],
+    ["the bucket catalogue", () => findCwBuckets()],
+    ["a list", () => queryCwBucket("cw.inbox", {})],
+    ["a list page", () => readCwBucketPage("cw.inbox", {})],
+    ["a summary", () => summariseCwBucket("cw.inbox", "errors", {})],
+    ["a case's timeline", () => readCwTimeline("case:a:b")],
+    ["a list's timeline", () => readCwBucketTimeline("cw.inbox", "id:1")],
+    ["the Overview's dead letters", () => countCwDeadLetters(WINDOW)],
+  ];
+
+  it.each(reads)("answers %s with a 503 CW_UNREACHABLE", async (_, read) => {
+    wreck.get.mockRejectedValue(unsent("ECONNREFUSED"));
+    wreck.post.mockRejectedValue(unsent("ENOTFOUND"));
+
+    const error = await read().catch((e) => e);
+
+    expect(error.output.statusCode).toBe(503);
+    expect(error.output.payload.errorCode).toBe("CW_UNREACHABLE");
+    expect(error.cwReason).toBe("UNREACHABLE");
+  });
+
+  it.each(reads)(
+    "still answers %s with a 502 when Caseworking answers an error",
+    async (_, read) => {
+      wreck.get.mockRejectedValue(httpError(500, {}));
+      wreck.post.mockRejectedValue(httpError(500, {}));
+
+      const error = await read().catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+      expect(error.output.payload.errorCode).toBeUndefined();
+    },
+  );
 });

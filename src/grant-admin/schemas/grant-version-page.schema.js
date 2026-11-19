@@ -4,6 +4,7 @@ import {
   nullableIso,
   nullableString,
   recordEventsSchema,
+  versionEventsSchema,
   recordPageSchema,
   storedBytesSchema as storedBytes,
 } from "./admin-record.schema.js";
@@ -125,7 +126,7 @@ const externalStatusMappingSchema = Joi.object({
   to: Joi.string().allow(null).required(),
 }).label("ExternalStatusMapping");
 
-const grantLifecycleSchema = Joi.object({
+export const grantLifecycleSchema = Joi.object({
   phases: Joi.array().items(lifecyclePhaseSchema).required(),
   initialPosition: positionSchema,
   amendablePositions: Joi.array().items(Joi.string()).required(),
@@ -201,7 +202,16 @@ const pageSchema = (tab, keys, label) =>
 export const grantVersionPageSchemas = {
   overview: pageSchema(
     "overview",
-    { overview: overviewSchema },
+    {
+      overview: overviewSchema,
+      versionEvents: versionEventsSchema("GrantVersionOverviewEvents", {
+        pastDeletion: Joi.boolean()
+          .required()
+          .description(
+            "GAS's inbox, read whole, holds none of the version's events, and its event retention has run from the version's arrival",
+          ),
+      }),
+    },
     "GrantVersionOverviewPage",
   ),
   definition: pageSchema(

@@ -10,7 +10,7 @@ describe("grant-admin", () => {
     expect(server.registrations["grant-admin"]).toBeDefined();
   });
 
-  it("registers the admin claims, events, buckets, applications, cases, grant version and workflow version endpoints", async () => {
+  it("registers the admin overview, claims, events, buckets, applications, cases, grant version and workflow version endpoints", async () => {
     const server = hapi.server();
     await server.register(grantAdmin);
 
@@ -25,6 +25,7 @@ describe("grant-admin", () => {
       "get /grant-admin/clients/{service}",
       "get /grant-admin/events/{service}/{box}/{id}",
       "get /grant-admin/grants",
+      "get /grant-admin/explore/vocabulary",
       "get /grant-admin/grants/{code}/allow-list",
       "get /grant-admin/grants/{code}/applications/{clientRef}/claims",
       "get /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
@@ -41,10 +42,13 @@ describe("grant-admin", () => {
       "get /grant-admin/grants/{code}/versions/{version}/overview",
       "get /grant-admin/grants/{code}/versions/{version}/payment",
       "get /grant-admin/grants/{code}/versions/{version}/phases",
+      "get /grant-admin/overview",
+      "get /grant-admin/shell",
       "get /grant-admin/workflows/{code}/versions",
       "get /grant-admin/workflows/{code}/versions/{version}/definition",
       "get /grant-admin/workflows/{code}/versions/{version}/events",
       "get /grant-admin/workflows/{code}/versions/{version}/overview",
+      "get /grant-admin/workflows/{code}/versions/{version}/phases",
       "get /grant-admin/workflows/{code}/versions/{version}/raw",
       "get /grant-admin/workflows/{workflowCode}/cases/{caseRef}/events",
       "get /grant-admin/workflows/{workflowCode}/cases/{caseRef}/overview",
@@ -57,8 +61,10 @@ describe("grant-admin", () => {
       "post /grant-admin/events/{service}/{box}/{id}/payload",
       "post /grant-admin/events/{service}/{box}/{id}/purge",
       "post /grant-admin/events/{service}/{box}/{id}/redrive",
+      "post /grant-admin/explore/query",
       "post /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements",
       "post /grant-admin/grants/{code}/versions/{version}/fetch",
+      "post /grant-admin/lists/query",
       "post /grant-admin/workflows/{code}/versions/{version}/fetch",
       "put /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/expiry",
       "put /grant-admin/grants/{code}/allow-list",
