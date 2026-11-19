@@ -34,9 +34,6 @@ const CW = {
       time: "createdAt",
       roots: ["caseRef", "payload"],
       answersAt: "payload.answers",
-      listedAt: "payload.answers",
-      requires: null,
-      answerPaths: ["applicant.business.name", "referenceNumber"],
       paths: [
         {
           path: "caseRef",
@@ -189,22 +186,22 @@ describe("loadExploreVocabulary", () => {
     });
   });
 
-  it("says Caseworking doesn't offer queries when it reads no version GAS sends, v1 too", async () => {
+  it("says Caseworking errored when it reads no version GAS sends, v1 too", async () => {
     findCwExploreSources.mockResolvedValue({ ...CW, versions: [1] });
 
     const vocabulary = await loadExploreVocabulary();
 
     expect(vocabulary.unavailable.get("cases").output.payload.reason).toBe(
-      "NOT_OFFERED",
+      "ERRORED",
     );
   });
 });
 
 describe("exploreVocabularyUseCase", () => {
-  it("answers the editor's vocabulary", async () => {
+  it("answers the editor's vocabulary, cases with the grants' answer paths", async () => {
     findCwExploreSources.mockResolvedValue(CW);
 
-    const vocabulary = await exploreVocabularyUseCase({});
+    const vocabulary = await exploreVocabularyUseCase();
 
     expect(vocabulary.sources.map(({ name }) => name)).toEqual([
       "applications",
@@ -225,7 +222,22 @@ describe("exploreVocabularyUseCase", () => {
           type: "text",
           indexed: false,
         },
-        { path: "payload.answers.applicant.business.name", indexed: false },
+        { path: "payload.answers.sbi", type: "text", indexed: false },
+        {
+          path: "payload.answers.parcels.area",
+          type: "number",
+          indexed: false,
+        },
+        {
+          path: "payload.answers.parcels.agreed",
+          type: "boolean",
+          indexed: false,
+        },
+        {
+          path: "payload.answers.parcels.planted",
+          type: "date",
+          indexed: false,
+        },
       ],
     });
   });
@@ -238,23 +250,16 @@ describe("keptVocabulary", () => {
 
   const built = (name) => ({ vocabulary: { name }, failed: false });
 
-  it("builds once for requests that arrive while it is built, per set of roles", async () => {
-    const build = vi.fn(async () => built("devops"));
-    const other = vi.fn(async () => built("finance"));
+  it("builds once for requests that arrive while it is built", async () => {
+    const build = vi.fn(async () => built("first"));
 
     const answers = await Promise.all([
-      keptVocabulary("devops", build),
-      keptVocabulary("devops", build),
-      keptVocabulary("finance", other),
+      keptVocabulary(build),
+      keptVocabulary(build),
     ]);
 
-    expect(answers).toEqual([
-      { name: "devops" },
-      { name: "devops" },
-      { name: "finance" },
-    ]);
+    expect(answers).toEqual([{ name: "first" }, { name: "first" }]);
     expect(build).toHaveBeenCalledTimes(1);
-    expect(other).toHaveBeenCalledTimes(1);
   });
 
   it("answers a kept one for a minute, then at once while it is built again behind it", async () => {
@@ -264,18 +269,18 @@ describe("keptVocabulary", () => {
       .mockResolvedValueOnce(built("first"))
       .mockResolvedValueOnce(built("second"));
 
-    await keptVocabulary("devops", build);
+    await keptVocabulary(build);
     vi.advanceTimersByTime(VOCABULARY_MS - 1);
 
-    expect(await keptVocabulary("devops", build)).toEqual({ name: "first" });
+    expect(await keptVocabulary(build)).toEqual({ name: "first" });
     expect(build).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(1);
 
-    expect(await keptVocabulary("devops", build)).toEqual({ name: "first" });
+    expect(await keptVocabulary(build)).toEqual({ name: "first" });
     expect(build).toHaveBeenCalledTimes(2);
     await vi.waitFor(async () =>
-      expect(await keptVocabulary("devops", build)).toEqual({
+      expect(await keptVocabulary(build)).toEqual({
         name: "second",
       }),
     );
@@ -285,40 +290,26 @@ describe("keptVocabulary", () => {
     const build = vi
       .fn()
       .mockRejectedValueOnce(new Error("unread"))
-      .mockResolvedValueOnce(built("devops"));
+      .mockResolvedValueOnce(built("first"));
 
-    await expect(keptVocabulary("devops", build)).rejects.toThrow("unread");
-    expect(await keptVocabulary("devops", build)).toEqual({ name: "devops" });
-  });
-
-  it("keeps a bounded number of role sets, forgetting the oldest", async () => {
-    const build = vi.fn(async () => built("any"));
-
-    for (let n = 0; n <= 50; n++) {
-      await keptVocabulary(`roles-${n}`, build);
-    }
-    await keptVocabulary("roles-0", build);
-    await keptVocabulary("roles-50", build);
-
-    expect(build).toHaveBeenCalledTimes(52);
+    await expect(keptVocabulary(build)).rejects.toThrow("unread");
+    expect(await keptVocabulary(build)).toEqual({ name: "first" });
   });
 });
 
-describe("exploreVocabularyUseCase kept per set of roles", () => {
-  it("draws one vocabulary for the same roles however they are listed, and another for others", async () => {
+describe("exploreVocabularyUseCase kept", () => {
+  it("answers the same vocabulary to every caller while it is kept", async () => {
     findCwExploreSources.mockResolvedValue(CW);
-    const ask = (roles) => exploreVocabularyUseCase({ roles });
 
-    const first = await ask("devops, finance");
-
-    expect(await ask("finance,devops,devops")).toBe(first);
-    expect(await ask("devops")).not.toBe(first);
+    expect(await exploreVocabularyUseCase()).toBe(
+      await exploreVocabularyUseCase(),
+    );
   });
 
   it("keeps a vocabulary missing Caseworking only a short while", async () => {
     vi.useFakeTimers();
     findCwExploreSources.mockRejectedValue(cwExploreFailure("TIMED_OUT"));
-    const ask = () => exploreVocabularyUseCase({});
+    const ask = () => exploreVocabularyUseCase();
 
     const first = await ask();
     vi.advanceTimersByTime(FAILED_MS);

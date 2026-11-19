@@ -330,12 +330,13 @@ const knownPath = Joi.object({
       Joi.object({
         value: Joi.alternatives(Joi.string(), Joi.number()).required(),
         label: Joi.string(),
-        count: Joi.number().integer().min(0),
       }),
     )
     .max(MAX_KNOWN_VALUES),
 });
 
+// Fields this release no longer reads, from a service on an older one, are
+// ignored.
 const source = Joi.object({
   name: name.required(),
   label: Joi.string().required(),
@@ -349,13 +350,8 @@ const source = Joi.object({
   time: path.allow(null).required(),
   roots: Joi.array().items(path).max(MAX_ROOTS).required(),
   answersAt: path.allow(null).required(),
-  // Where the paths the service checks against its answer list start.
-  listedAt: path.allow(null).required(),
-  // The answer paths the service lets a Query read, and those below them.
-  answerPaths: Joi.array().items(path).max(MAX_LISTED_PATHS),
-  requires: Joi.string().allow(null),
   paths: Joi.array().items(knownPath).max(MAX_LISTED_PATHS).required(),
-});
+}).unknown(true);
 
 // What a service can be asked: the Query versions it reads, and its sources.
 export const sourcesSchema = Joi.object({

@@ -53,7 +53,7 @@ export const keepsRules = (source, query) =>
   RULES.every((holds) => holds(source, query));
 
 // How many of the paths a Query reads the source may not, each once: off
-// its roots, denied, or below its answers and off their list.
+// its roots, or denied.
 export const refusedPathsOf = (query, lists) =>
   [...new Set(pathsOfQuery(query))].filter(
     (path) => pathProblem(path, lists) !== null,

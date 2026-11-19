@@ -12,16 +12,10 @@ import { READ_MESSAGES, fail, isObject, notAllowed } from "./read-messages.js";
 
 // ── Paths ──
 
-const listsOf = ({ roots, listedAt, isListed }) => ({
-  roots,
-  answers: listedAt && isListed ? { at: listedAt, isListed } : null,
-});
-
 // A stored path the source may read, as typed: well formed, under one of its
-// roots, nothing in it denied, and an answer the service lists where it
-// keeps a list.
+// roots, nothing in it denied.
 export const pathOf = (ctx, path, node) => {
-  const problem = pathProblem(path, listsOf(ctx.source));
+  const problem = pathProblem(path, ctx.source);
 
   return problem
     ? fail(READ_MESSAGES[problem](path, ctx.source), node)

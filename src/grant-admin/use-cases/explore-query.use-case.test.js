@@ -1,6 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { config } from "../../common/config.js";
-import { valueDigest } from "../../common/explore/digest.js";
 import {
   decodePositions,
   encodePositions,
@@ -46,7 +44,6 @@ vi.mock("../repositories/cw-explore.repository.js", async (importOriginal) => ({
 
 const SENTINEL = "Sentinel Farm 4417";
 const ACTOR_ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
-const KEY = "k".repeat(32);
 
 const known = (path, extra = {}) => ({
   path,
@@ -76,9 +73,6 @@ const CW_SOURCES = {
         "payload",
       ],
       answersAt: "payload.answers",
-      listedAt: "payload.answers",
-      requires: null,
-      answerPaths: ["applicant.business.name"],
       paths: [
         known("caseRef", { index: "ref", scans: 1 }),
         known("workflowCode", { index: "fact" }),
@@ -126,7 +120,6 @@ const ask = (query, extra = {}, args = {}) =>
     body: { query, ...extra },
     actorId: ACTOR_ID,
     actor: "Jo Operator",
-    caller: "fg-grants-platform-admin",
     ...args,
   });
 
@@ -149,17 +142,14 @@ const { exploreVocabularyUseCase: readVocabulary } = await vi.importActual(
 const VOCABULARY = { sources: [] };
 
 let cw;
-let own;
 
 beforeEach(() => {
   registerGasExploreSources();
   forgetExploreVocabulary();
   cw = CW_SOURCES;
-  own = null;
-  config.searchAuditKey = KEY;
   loadExploreVocabulary.mockImplementation(async () =>
     buildVocabulary({
-      own: own ?? ownSources(),
+      own: ownSources(),
       answers: ANSWERS,
       cw,
       cwFailure: cw ? null : cwExploreFailure("TIMED_OUT"),
@@ -209,7 +199,7 @@ describe("exploreQueryUseCase", () => {
     ["db.applications.find({ 'identifiers.nino': 'x' })", "nino"],
     ["db.applications.find({ _id: 'x' })", "_id"],
     ["db.cases.find({ comments: /x/ })", "comments"],
-    ["db.cases.find({ 'payload.answers.other': 'x' })", "other"],
+    ["db.cases.find({ 'payload.answers.sortCode': 'x' })", "sortCode"],
   ])("refuses %s, reading and auditing nothing", async (text) => {
     const error = await failure(ask(text));
 
@@ -239,7 +229,7 @@ describe("exploreQueryUseCase", () => {
     expect(writeAuditEvent).not.toHaveBeenCalled();
   });
 
-  it("reads GAS's own source, answers, and audits the shape with values only as digests", async () => {
+  it("reads GAS's own source, answers, and audits only that it was queried", async () => {
     runPart.mockResolvedValue(exactPart("gas.applications", [row(5, 1)], 1));
 
     const answer = await ask(
@@ -286,30 +276,14 @@ describe("exploreQueryUseCase", () => {
           entityid: "applications",
         },
       ],
-      details: {
-        caller: "fg-grants-platform-admin",
-        source: "applications",
-        read: "exact",
-        shape: `db.applications.find({ code: ?, '${BUSINESS}': /?/ }, { clientRef: 1, parcels: { $size: '$phases.answers.parcels.parcelId' } })`,
-        conditions: [
-          {
-            path: "code",
-            op: "eq",
-            digests: [valueDigest(KEY, 'code:"grasslands"')],
-          },
-          {
-            path: BUSINESS,
-            op: "regex",
-            digests: [valueDigest(KEY, `${BUSINESS}:/${SENTINEL}/i`)],
-          },
-        ],
-        columns: ["clientRef", "count(phases.answers.parcels.parcelId)"],
-        window: "first",
-        resultCount: 1,
-        csv: false,
-        outcome: "ANSWERED",
-      },
     });
+    expect(event.details).toEqual({
+      source: "applications",
+      resultCount: 1,
+      csv: false,
+      outcome: "ANSWERED",
+    });
+    expect(JSON.stringify(event)).not.toContain("phases");
     expect(JSON.stringify(event)).not.toContain("Sentinel");
     expect(JSON.stringify(event)).not.toContain("grasslands");
     expect(logged()).not.toContain("Sentinel");
@@ -334,7 +308,7 @@ describe("exploreQueryUseCase", () => {
     });
     expect(audits()[0]).toMatchObject({
       status: "failure",
-      details: { outcome: "TOO_MANY_TO_SORT", read: null },
+      details: { outcome: "TOO_MANY_TO_SORT", resultCount: null },
     });
   });
 
@@ -482,7 +456,19 @@ describe("exploreQueryUseCase", () => {
     expect(runPart).not.toHaveBeenCalled();
   });
 
-  it("words Caseworking refusing a path off its own lists, naming Caseworking", async () => {
+  it("asks Caseworking for any answer of a case, as for an application", async () => {
+    queryCwExplore.mockResolvedValue(exactPart("cw.cases", []));
+
+    await ask(
+      "db.cases.find({ 'payload.answers.applicant.business.email': /x/ })",
+    );
+
+    expect(queryCwExplore.mock.calls[0][0].where.path).toBe(
+      "payload.answers.applicant.business.email",
+    );
+  });
+
+  it("words Caseworking refusing a path off its roots, naming Caseworking", async () => {
     queryCwExplore.mockRejectedValue(
       Object.assign(refuseQuery("PATH_NOT_ALLOWED"), { service: "CW" }),
     );
@@ -500,20 +486,6 @@ describe("exploreQueryUseCase", () => {
     });
   });
 
-  it("refuses an answer off Caseworking's list at its key, before asking", async () => {
-    const text =
-      "db.cases.find({ 'payload.answers.applicant.business.email': /x/ })";
-    const error = await failure(ask(text));
-
-    expect(error.output.payload.error).toEqual({
-      message:
-        "Caseworking doesn’t let Explore read “payload.answers.applicant.business.email”: it isn’t one of the answers it lists",
-      at: text.indexOf("'"),
-      end: text.indexOf(":"),
-    });
-    expect(queryCwExplore).not.toHaveBeenCalled();
-  });
-
   it("names the paths no definition holds, and none it knows or holds below", async () => {
     runPart.mockResolvedValue(exactPart("gas.applications", []));
 
@@ -522,54 +494,6 @@ describe("exploreQueryUseCase", () => {
     );
 
     expect(answer.unseen).toEqual(["phases.answers.aplicant.name"]);
-  });
-
-  it("shows a path's segments the source doesn't know as ? in the audit", async () => {
-    runPart.mockResolvedValue(exactPart("gas.applications", []));
-
-    await ask(
-      "db.applications.find({ 'phases.answers.JaneSmith': 'x' }, { 'agreements.FPTT1.latestStatus': 1 })",
-    );
-
-    const [event] = audits();
-
-    expect(event.details.shape).toBe(
-      "db.applications.find({ 'phases.answers.?': ? }, { 'agreements.?.?': 1 })",
-    );
-    expect(event.details).toMatchObject({
-      conditions: [{ path: "phases.answers.?", op: "eq" }],
-      columns: ["agreements.?.?"],
-    });
-    expect(JSON.stringify(event)).not.toContain("JaneSmith");
-    expect(JSON.stringify(event)).not.toContain("FPTT1");
-  });
-
-  it("digests each value with its type and its whole path, so text and a number differ", async () => {
-    runPart.mockResolvedValue(exactPart("gas.applications", []));
-
-    await ask(
-      "db.applications.find({ 'phases.answers.n': { $in: ['1', 1, true, null] }, createdAt: { $gte: ISODate('2026-11-01') } })",
-    );
-
-    expect(audits()[0].details.conditions).toEqual([
-      {
-        path: "phases.answers.?",
-        op: "in",
-        digests: [
-          valueDigest(KEY, 'phases.answers.n:"1"'),
-          valueDigest(KEY, "phases.answers.n:1"),
-          valueDigest(KEY, "phases.answers.n:true"),
-          valueDigest(KEY, "phases.answers.n:null"),
-        ],
-      },
-      {
-        path: "createdAt",
-        op: "gte",
-        digests: [
-          valueDigest(KEY, "createdAt:ISODate(2026-11-01T00:00:00.000Z)"),
-        ],
-      },
-    ]);
   });
 
   it("names Caseworking when it didn't answer for its own source, before reading", async () => {
@@ -668,7 +592,6 @@ describe("exploreQueryUseCase", () => {
       });
       expect(queryCwExplore).not.toHaveBeenCalled();
       expect(answer.window).toMatchObject({ to: at(10), end: false });
-      expect(audits()[0].details.window).toBe("next");
     });
   });
 
@@ -770,10 +693,7 @@ describe("exploreQueryUseCase", () => {
       window: { to: at(30), end: false },
     });
     expect(answer.window.positions).not.toBeNull();
-    expect(audits()[0].details).toMatchObject({
-      outcome: "PARTIAL",
-      searchedTo: at(30),
-    });
+    expect(audits()[0].details).toMatchObject({ outcome: "PARTIAL" });
   });
 
   describe("a CSV that can't read all it was asked", () => {
@@ -793,7 +713,7 @@ describe("exploreQueryUseCase", () => {
       ],
     });
 
-    it("reads on past a record too large to search, counting it, and audits the skip", async () => {
+    it("reads on past a record too large to search, counting it, and audits it", async () => {
       runPart
         .mockResolvedValueOnce(
           box(
@@ -813,7 +733,7 @@ describe("exploreQueryUseCase", () => {
       });
       expect(answer.rows).toHaveLength(2);
       expect(audits()[0].details).toMatchObject({
-        skipped: 1,
+        resultCount: 2,
         outcome: "ANSWERED",
       });
     });
@@ -1362,114 +1282,6 @@ describe("exploreQueryUseCase", () => {
     expect(audits()[0].details.outcome).toBe("ABORTED");
   });
 
-  describe("without SEARCH_AUDIT_KEY", () => {
-    beforeEach(() => {
-      config.searchAuditKey = undefined;
-    });
-
-    it("refuses to read, since no value it asks for could be audited", async () => {
-      const error = await failure(
-        ask("db.agreements.find({}, { agreementNumber: 1 })"),
-      );
-
-      expect(error.output.statusCode).toBe(503);
-      expect(error.message).toBe(
-        "Explore can’t audit queries: SEARCH_AUDIT_KEY isn’t set",
-      );
-      expect(runPart).not.toHaveBeenCalled();
-      expect(writeAuditEvent).not.toHaveBeenCalled();
-      expect(logger.error).toHaveBeenCalled();
-    });
-
-    it("still checks a query, which reads nothing", async () => {
-      await expect(
-        ask("db.agreements.find()", { check: true }),
-      ).resolves.toEqual({
-        ok: true,
-        source: "agreements",
-        vocabulary: VOCABULARY,
-      });
-    });
-  });
-
-  describe("a source that needs a role", () => {
-    beforeEach(() => {
-      own = ownSources().map((source) =>
-        source.name === "payments"
-          ? { ...source, requires: "finance" }
-          : source,
-      );
-      runPart.mockResolvedValue(exactPart("gas.payments", []));
-      loadExploreValues.mockResolvedValue(new Map());
-    });
-
-    const shown = async (args) =>
-      (await readVocabulary(args)).sources.map(({ name }) => name);
-
-    it("is left out of the vocabulary for a caller without it, whose query on it is still refused", async () => {
-      for (const args of [{}, { roles: "devops, other" }]) {
-        expect(await shown(args)).not.toContain("payments");
-        expect(
-          (await failure(ask("db.payments.find({}, { sbi: 1 })", {}, args)))
-            .output.statusCode,
-        ).toBe(403);
-      }
-
-      expect(await shown({ roles: "devops, finance" })).toContain("payments");
-      expect(await shown({})).toContain("agreements");
-    });
-
-    it("is refused, before any read or audit, to a caller without it or naming no roles", async () => {
-      for (const roles of [undefined, "devops, other"]) {
-        const error = await failure(
-          ask("db.payments.find({}, { sbi: 1 })", {}, { roles }),
-        );
-
-        expect(error.output.statusCode).toBe(403);
-        expect(error.output.payload).toEqual({
-          statusCode: 403,
-          reason: "SOURCE_FORBIDDEN",
-          source: "payments",
-          message: "You can’t query payments",
-          vocabulary: VOCABULARY,
-        });
-        expect(error.data).toEqual({ logLevel: "warn" });
-      }
-
-      expect(runPart).not.toHaveBeenCalled();
-      expect(writeAuditEvent).not.toHaveBeenCalled();
-    });
-
-    it("is read for a caller with it, and a check names it too", async () => {
-      await expect(
-        ask(
-          "db.payments.find({}, { sbi: 1 })",
-          {},
-          { roles: "devops, finance" },
-        ),
-      ).resolves.toMatchObject({
-        read: "exact",
-      });
-      expect(
-        (
-          await failure(
-            ask("db.payments.find({}, { sbi: 1 })", { check: true }),
-          )
-        ).output.statusCode,
-      ).toBe(403);
-    });
-
-    it("leaves a source open to any admin caller open with no roles named", async () => {
-      runPart.mockResolvedValue(exactPart("gas.agreements", []));
-
-      await expect(
-        ask("db.agreements.find({}, { agreementNumber: 1 })"),
-      ).resolves.toMatchObject({
-        read: "exact",
-      });
-    });
-  });
-
   describe("windows read in turn", () => {
     const WINDOWED = `db.applications.find({ '${BUSINESS}': /x/ }, { clientRef: 1 })`;
     const after = (minute, n) => ({ t: at(minute), i: id(n) });
@@ -1503,10 +1315,8 @@ describe("exploreQueryUseCase", () => {
         stopped: null,
         window: { to: at(1), end: false },
       });
-      expect(audits().map(({ details }) => details.window)).toEqual([
-        "first",
-        "next",
-        "next",
+      expect(audits().map(({ details }) => details.resultCount)).toEqual([
+        2, 1, 1,
       ]);
     });
 

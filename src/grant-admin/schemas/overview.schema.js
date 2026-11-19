@@ -15,9 +15,7 @@ const listLink = Joi.object({
 
 const sourceError = Joi.object({
   hop: Joi.string().valid("GAS", "CW-BE").required(),
-  reason: Joi.string()
-    .valid("UNREACHABLE", "TIMED_OUT", "ERRORED", "NOT_OFFERED")
-    .required(),
+  reason: Joi.string().valid("UNREACHABLE", "TIMED_OUT", "ERRORED").required(),
 });
 
 // Read, or the reason it was not: never both, never neither.

@@ -1,5 +1,4 @@
 import { describeSource } from "../../common/explore/describe.js";
-import { answerListOf } from "../../common/explore/paths.js";
 import { QUERY_VERSIONS } from "../../common/explore/query-schema.js";
 import { SOURCES } from "./language/allowlist.js";
 import { lex } from "./language/lex.js";
@@ -70,26 +69,6 @@ const cwEntries = (cw) =>
       )
     : [];
 
-const typeless = (path) => ({ path });
-
-// Caseworking's answer paths: those on its own list, and the grants'
-// question paths it lists.
-const onCwList = (answers, { answerPaths = [] }) => {
-  const isListed = answerListOf(answerPaths);
-  const typed = answers.filter(({ path }) => isListed(path));
-  const known = new Set(typed.map(({ path }) => path));
-
-  return [
-    ...typed,
-    ...answerPaths.filter((path) => !known.has(path)).map(typeless),
-  ];
-};
-
-const withAnswerList = (described) => ({
-  ...described,
-  isListed: answerListOf(described.answerPaths ?? []),
-});
-
 // Every source a query may name, with the paths it suggests: GAS's own,
 // Caseworking's as it describes them, and the answer paths of each source
 // with answers. `answers` are the grants' question paths, relative to the
@@ -98,9 +77,7 @@ const withAnswerList = (described) => ({
 export const buildVocabulary = ({ own, answers, cw, cwFailure }) => {
   const sources = [
     ...own.map((source) => entryOf(describeSource(source), answers)),
-    ...cwEntries(cw).map((source) =>
-      entryOf(withAnswerList(source), onCwList(answers, source)),
-    ),
+    ...cwEntries(cw).map((source) => entryOf(source, answers)),
   ];
 
   return {
@@ -128,21 +105,17 @@ const inOrder = (sources) =>
     (a, b) => SOURCES.indexOf(a.name) - SOURCES.indexOf(b.name),
   );
 
-// The vocabulary as the editor reads it: only the sources `mayQuery` lets the
-// caller query, in the order a query lists them.
+// The vocabulary as the editor reads it, its sources in the order a query
+// lists them.
 // `values` holds GAS's own sources' known values, by source and path;
 // Caseworking's come with its paths.
-export const publicVocabulary = (vocabulary, values, mayQuery) => {
-  const shown = inOrder(vocabulary.sources.values()).filter((source) =>
-    mayQuery(source),
-  );
-
-  return {
-    sources: shown.map(({ name, label, time, paths }) => ({
+export const publicVocabulary = (vocabulary, values) => ({
+  sources: inOrder(vocabulary.sources.values()).map(
+    ({ name, label, time, paths }) => ({
       name,
       label,
       time,
       paths: [...paths.values()].map(publicPath(values.get(name) ?? new Map())),
-    })),
-  };
-};
+    }),
+  ),
+});

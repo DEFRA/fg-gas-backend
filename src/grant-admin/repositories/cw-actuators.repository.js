@@ -295,21 +295,11 @@ const bucketRefusalOf = (error) => {
 const bucketRefused = (error) =>
   bucketRefusalOf(error) ?? bucketsUnavailable(error);
 
-// A Caseworking that predates a list or a summary answers it with a reason.
-const NOT_OFFERED_REASONS = new Set(["UNKNOWN_BUCKET", "UNKNOWN_SUMMARY"]);
-
-const notOfferedOf = (refusal) =>
-  NOT_OFFERED_REASONS.has(refusal.output.payload.reason)
-    ? Object.assign(refusal, { cwReason: "NOT_OFFERED" })
-    : refusal;
-
 // A 404 without a reason is a Caseworking that has no bucket routes yet.
 const bucketNotFound = (error) => {
-  const refusal = bucketRefusalOf(error);
-
-  return refusal
-    ? notOfferedOf(refusal)
-    : Boom.badGateway("CW-BE has no bucket routes");
+  return (
+    bucketRefusalOf(error) ?? Boom.badGateway("CW-BE has no bucket routes")
+  );
 };
 
 const BUCKET_FAILURES = {

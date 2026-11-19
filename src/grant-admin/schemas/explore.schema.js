@@ -7,18 +7,9 @@ import { adminReadHeadersSchema } from "./actor-header.schema.js";
 // A little over the 4,000 characters a query may be, so the parser refuses
 // one just over with where it went over.
 const MAX_QUERY_TEXT = 4_100;
-const MAX_ROLES = 2_000;
 
-// The roles GPA's user holds, comma-separated: a source may need one.
-const rolesHeader = { "x-actor-roles": Joi.string().max(MAX_ROLES).allow("") };
-
-export const exploreHeadersSchema = adminReadHeadersSchema
-  .keys(rolesHeader)
-  .label("ExploreHeaders");
-
-export const exploreVocabularyHeadersSchema = Joi.object(rolesHeader)
-  .unknown(true)
-  .label("ExploreVocabularyHeaders");
+export const exploreHeadersSchema =
+  adminReadHeadersSchema.label("ExploreHeaders");
 
 const MAX_POSITIONS = 4_000;
 
@@ -41,9 +32,7 @@ export const exploreQueryRequestSchema = Joi.object({
   .label("ExploreQueryRequest");
 
 // A cell is a value as stored, a list of cells, or an object as `{ text }`:
-// its readable fields inline, without denied names or answers off the answer
-// list. The audit records the columns asked for, not what an object showed:
-// the deny list fixes what may be read below a column.
+// its readable fields inline, without denied names.
 const cell = Joi.alternatives(
   Joi.string().allow(""),
   Joi.number(),

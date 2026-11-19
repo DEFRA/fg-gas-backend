@@ -466,9 +466,6 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
                 time: like("createdAt"),
                 roots: eachLike("caseRef"),
                 answersAt: like("payload.answers"),
-                listedAt: like("payload.answers"),
-                requires: null,
-                answerPaths: eachLike("applicant.business.name"),
                 paths: eachLike(known),
               }),
             },
@@ -776,39 +773,6 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           expect(answer.buckets[0].list.query).toEqual({
             status: "DEAD_LETTER",
           });
-        },
-      ));
-
-    // What an older Caseworking answers, without the route: GAS reads it as
-    // a part Caseworking does not offer yet.
-    it("answers a bare 404 when it has no dead letters actuator", () =>
-      run(
-        {
-          states: [
-            { description: "the dead letters actuator is not deployed" },
-          ],
-          uponReceiving:
-            "a count of dead letters from a Caseworking without it",
-          withRequest: {
-            method: "GET",
-            path: "/actuators/dead-letters",
-            query: WINDOW,
-            headers: operatorHeaders,
-          },
-          willRespondWith: {
-            status: 404,
-            body: { statusCode: 404, error: "Not Found", message: "Not Found" },
-          },
-        },
-        async () => {
-          const error = await asOperator(() =>
-            countCwDeadLetters(
-              { ...WINDOW, binMs: 2 * 60 * 60 * 1000 },
-              { actor: ACTOR },
-            ),
-          ).catch((e) => e);
-
-          expect(error.cwReason).toBe("NOT_OFFERED");
         },
       ));
   });

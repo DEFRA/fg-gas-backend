@@ -182,42 +182,27 @@ afterAll(async () => {
 
 describe("runPart on MongoDB", () => {
   describe("a path the source may not read", () => {
-    const listed = {
-      at: "payload.answers",
-      isListed: (path) => path === "parcels",
-    };
-
     it.each([
-      ["off its roots", query({ columns: [{ path: "secret" }] }), null],
+      ["off its roots", query({ columns: [{ path: "secret" }] })],
+      ["denied", query({ where: test("payload.answers.sortCode", "eq", "x") })],
       [
-        "denied",
-        query({ where: test("payload.answers.sortCode", "eq", "x") }),
-        null,
-      ],
-      [
-        "below its answers and off their list",
-        query({ orderBy: { path: "payload.answers.other", desc: false } }),
-        listed,
-      ],
-      [
-        "unwound below its answers and off their list",
+        "unwound and denied",
         query({
-          unwind: [{ path: "payload.answers.other", preserve: false }],
+          unwind: [{ path: "payload.answers.sortCode", preserve: false }],
         }),
-        listed,
       ],
-    ])("is refused before any read: %s", async (_, asked, answers) => {
+    ])("is refused before any read: %s", async (_, asked) => {
       const find = vi.spyOn(Collection.prototype, "find");
       const count = vi.spyOn(Collection.prototype, "countDocuments");
 
-      expect(
-        await refusal(run.runPart(source, asked, undefined, answers)),
-      ).toBe("PATH_NOT_ALLOWED");
+      expect(await refusal(run.runPart(source, asked))).toBe(
+        "PATH_NOT_ALLOWED",
+      );
       expect(find).not.toHaveBeenCalled();
       expect(count).not.toHaveBeenCalled();
     });
 
-    it("reads a listed answer", async () => {
+    it("reads an answer below its roots", async () => {
       const part = await run.runPart(
         source,
         query({
@@ -225,8 +210,6 @@ describe("runPart on MongoDB", () => {
           where: test("status", "eq", "DEAD_LETTER"),
           limit: 1,
         }),
-        undefined,
-        listed,
       );
 
       expect(part.boxes.flatMap(({ rows }) => rows)).not.toHaveLength(0);

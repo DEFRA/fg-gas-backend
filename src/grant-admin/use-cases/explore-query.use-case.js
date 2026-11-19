@@ -1,16 +1,9 @@
 import Boom from "@hapi/boom";
-import { config } from "../../common/config.js";
-import {
-  conditionsOf,
-  knownWordsOf,
-  shownPath,
-} from "../../common/explore/audit.js";
 import { oneOperatorAtATime, withRoom } from "../../common/explore/busy.js";
 import { TOO_MANY_COMBINATIONS } from "../../common/explore/index-tests.js";
 import { decodePositions } from "../../common/explore/merge.js";
 import { meterFor, timeLeftOf } from "../../common/explore/meter.js";
 import { refusalOf } from "../../common/explore/refusal.js";
-import { exprKey } from "../../common/explore/rows.js";
 import { logger } from "../../common/logger.js";
 import {
   PMC_0706_SECURITY,
@@ -30,17 +23,14 @@ import {
 } from "../explore/csv.js";
 import { partsOf } from "../explore/federate.js";
 import { readQuery } from "../explore/language/query.js";
-import { shapeOf } from "../explore/shape.js";
 import { findOwnSource } from "../explore/sources.js";
 import { readsCaseworking } from "../explore/vocabulary.js";
 import { readAnswerWindows } from "../explore/windows.js";
 import { queryCwExplore } from "../repositories/cw-explore.repository.js";
-import { callerMayQuery } from "./explore-access.js";
 import { exploreVocabularyUseCase } from "./explore-vocabulary.use-case.js";
 import { loadExploreVocabulary } from "./load-explore-vocabulary.js";
 
 const BAD_REQUEST = 400;
-const FORBIDDEN = 403;
 const TOO_SLOW = 408;
 const TOO_MANY_REQUESTS = 429;
 
@@ -213,56 +203,16 @@ const outcomeOf = (error, result) =>
 const auditedOutcome = (run, error, result) =>
   run.gone?.aborted ? "ABORTED" : outcomeOf(error, result);
 
-const resultDetails = (result) =>
-  result
-    ? {
-        read: result.read,
-        searchedTo: result.window ? result.window.to : null,
-        skipped: result.window ? result.window.skipped : 0,
-        resultCount: result.rows.length,
-      }
-    : { read: null, searchedTo: null, skipped: 0, resultCount: null };
-
-// The words a source's paths are made of: the audit shows any other as ?.
-const wordsOf = (source) =>
-  knownWordsOf([...source.roots, ...source.paths.keys()]);
-
-const shownExpr = (known) => (ref) =>
-  ref &&
-  exprKey(
-    ref.path === "*" ? ref : { ...ref, path: shownPath(ref.path, known) },
-  );
-
-const asked = (query, known) => ({
-  columns: query.columns.map(shownExpr(known)),
-  groupBy: shownExpr(known)(query.groupBy),
-  orderBy: shownExpr(known)(query.orderBy),
-});
-
-// What was asked and how it was read: the query's shape with every value as
-// ?, its conditions' paths and operators, and each value only as a digest.
-const buildExploreAudit = (
-  { query, run, shape, csv, next, startedAt },
-  result,
-  error,
-) =>
+// That a person queried a source, how it ended and what it gave them; never
+// what was asked.
+const buildExploreAudit = ({ run, csv }, result, error) =>
   buildAuditEvent({
     entity: auditEntities.EXPLORE_SOURCE,
     action: auditActions.EXPLORE_QUERY,
     entityid: run.source.name,
     details: {
-      caller: run.caller,
       source: run.source.name,
-      shape,
-      conditions: conditionsOf(
-        query.where,
-        config.searchAuditKey,
-        wordsOf(run.source),
-      ),
-      ...asked(query, wordsOf(run.source)),
-      window: next ? "next" : "first",
-      ...resultDetails(result),
-      tookMs: Date.now() - startedAt,
+      resultCount: result ? result.rows.length : null,
       csv,
       outcome: auditedOutcome(run, error, result),
     },
@@ -293,12 +243,11 @@ const checked = async (text, meter) => {
   return { ...result, vocabulary };
 };
 
-const runOf = ({ source, vocabulary, actor, caller, meter, stop, signal }) => ({
+const runOf = ({ source, vocabulary, actor, meter, stop, signal }) => ({
   source,
   gone: signal ?? null,
   own: findOwnSource(source.name),
   actor,
-  caller,
   meter,
   stop,
   cwPart,
@@ -332,7 +281,7 @@ const queryPositions = (csv, target) =>
     ? { positions: null }
     : { positions: asQueryPositions(target), window: true };
 
-const read = async ({ body, actor, caller, signal }, checkedQuery, meter) => {
+const read = async ({ body, actor, signal }, checkedQuery, meter) => {
   const { query, source, tree, vocabulary } = checkedQuery;
   const target = targetOf(body);
   const { limit, shows } = limitOf({
@@ -352,13 +301,10 @@ const read = async ({ body, actor, caller, signal }, checkedQuery, meter) => {
       limit,
       ...queryPositions(csv, target),
     },
-    run: runOf({ source, vocabulary, actor, caller, meter, stop, signal }),
-    shape: shapeOf(tree, wordsOf(source)),
+    run: runOf({ source, vocabulary, actor, meter, stop, signal }),
     csv,
-    next: target !== null && !csv,
     target,
     shows,
-    startedAt: Date.now(),
   })
     .catch((error) => {
       stop.abort();
@@ -371,32 +317,9 @@ const read = async ({ body, actor, caller, signal }, checkedQuery, meter) => {
   return result;
 };
 
-const forbidden = (source) =>
-  answerWith(
-    FORBIDDEN,
-    {
-      reason: "SOURCE_FORBIDDEN",
-      source: source.name,
-      message: `You can’t query ${source.name}`,
-    },
-    "warn",
-  );
-
 // Caseworking's sources are read there: they count against its own room
 // here, never GAS's.
 const poolOf = (source) => (source.service === "CW" ? "CW" : "GAS");
-
-// Every value a query asks for is audited only as a digest with this key:
-// without it, no query is read.
-const UNAUDITABLE = "Explore can’t audit queries: SEARCH_AUDIT_KEY isn’t set";
-
-const assertAuditable = () => {
-  if (!config.searchAuditKey) {
-    logger.error(UNAUDITABLE);
-
-    throw Boom.serverUnavailable(UNAUDITABLE);
-  }
-};
 
 // ── Windows in turn ──
 
@@ -445,23 +368,17 @@ const answer = async (args) => {
   const checkedQuery = await checked(args.body.query, meter);
   const { source } = checkedQuery;
 
-  if (!callerMayQuery(args)(source)) {
-    throw forbidden(source);
-  }
-
   if (args.body.check) {
     return { ok: true, source: source.name };
   }
-
-  assertAuditable();
 
   return withRoom(poolOf(source), () => readWindows(args, checkedQuery, meter));
 };
 
 // The editor's vocabulary, beside an answer or a refusal alike; null when it
 // can't be read, so the answer still stands.
-const vocabularyFor = (args) =>
-  exploreVocabularyUseCase(args).catch((error) => {
+const vocabularyFor = () =>
+  exploreVocabularyUseCase().catch((error) => {
     logger.warn(`Explore vocabulary not read: ${error.message}`);
 
     return null;
@@ -486,5 +403,5 @@ export const exploreQueryUseCase = (args) =>
     oneOperatorAtATime(args.actorId, () => answer(args)).catch(
       answerOfError(null, NO_QUERY),
     ),
-    vocabularyFor(args),
+    vocabularyFor(),
   );

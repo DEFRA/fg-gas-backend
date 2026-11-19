@@ -281,9 +281,6 @@ describe("sourcesSchema", () => {
         time: "createdAt",
         roots: ["caseRef", "payload", "definition.phases"],
         answersAt: "payload.answers",
-        listedAt: "payload.answers",
-        answerPaths: ["applicant.business.name"],
-        requires: null,
         paths: [
           {
             path: "createdAt",
@@ -314,8 +311,18 @@ describe("sourcesSchema", () => {
     ],
   });
 
-  it("reads a source's roots, lists and known paths", () => {
+  it("reads a source's roots and known paths", () => {
     expect(sourcesSchema.validate(sources()).error).toBeUndefined();
+  });
+
+  it("ignores the fields an older service still sends", () => {
+    const older = {
+      listedAt: "payload.answers",
+      answerPaths: ["applicant.business.name"],
+      requires: null,
+    };
+
+    expect(sourcesSchema.validate(sources(older)).error).toBeUndefined();
   });
 
   it.each([

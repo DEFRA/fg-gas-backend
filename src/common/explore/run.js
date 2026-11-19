@@ -218,18 +218,9 @@ const runBig = async (source, query, meter, lens) => {
     : runWindowed(boxes, query, meter);
 };
 
-const hiddenAnswers = (source) =>
-  source.listedAt ? { at: source.listedAt, isListed: () => false } : null;
-
-// What a source may read: its roots, the deny list and, where it keeps one,
-// its answer list (all its answers hidden when the Query names none).
-const listsOf = (source, answers) => ({
-  roots: rootsOf(source),
-  answers: answers ?? hiddenAnswers(source),
-});
-
-const checkedLists = (source, query, answers) => {
-  const lists = listsOf(source, answers);
+// What a source may read: its roots, less the deny list.
+const checkedLists = (source, query) => {
+  const lists = { roots: rootsOf(source) };
 
   if (refusedPathsOf(query, lists) > 0) {
     throw refuseQuery("PATH_NOT_ALLOWED");
@@ -259,16 +250,14 @@ const lensOf = (query, meter, lists) => {
 
 // One service's part of a Query on one of its sources: rows per box, or the
 // groups it counted. `source` carries its buckets, resolved; `meter` the
-// request's deadline and work budget; `answers` the answer list the service
-// keeps, if it keeps one. A Query that reads any path the source may not is
-// refused here, before any read, whoever checked it first.
+// request's deadline and work budget. A Query that reads any path the source
+// may not is refused here, before any read, whoever checked it first.
 export const runPart = async (
   source,
   query,
   meter = meterFor(Date.now() + readTimeoutMs()),
-  answers = null,
 ) => {
-  const lens = lensOf(query, meter, checkedLists(source, query, answers));
+  const lens = lensOf(query, meter, checkedLists(source, query));
 
   return source.size === "small"
     ? runFull(source, query, meter, lens)
