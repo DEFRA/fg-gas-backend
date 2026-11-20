@@ -107,6 +107,8 @@ export const toEventDetail = ({
     ...row,
     // The stamp, as the lists show it; null on a row no writer or backfill has reached.
     eventType: orNull(doc.eventType),
+    // What a list of the same error filters by; null on a row that has none.
+    errorKey: orNull(doc.errorKey),
     ...payloadFacts(service, doc),
     traceId: deriveTraceId(intermediate.traceparent),
     segregationRef: orNull(doc.segregationRef),

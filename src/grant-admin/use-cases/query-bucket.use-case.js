@@ -63,20 +63,41 @@ const queryOwnBucket = ({ bucketId, body, caller, repeat, deadline }) => {
     : runQuery(bucket, query, deadline);
 };
 
-// Caseworking audits its own buckets, so a forwarded read writes none here.
-const forwardToCw = ({ bucketId, body, actor, repeat, deadline }) =>
-  queryCwBucket(bucketId, body, { actor, repeat, ...cwTimeoutBy(deadline) });
+// Caseworking reads for the time the list has left, less a margin for its
+// answer to come back; with no more than the margin left, it isn't asked.
+const MARGIN_MS = 500;
 
-// A read given a deadline gives Caseworking no longer than it has left.
-const cwTimeoutBy = (deadline) =>
-  deadline === undefined
-    ? {}
-    : {
-        timeout: Math.max(
-          1,
-          Math.min(config.cwBackend.timeoutMs, deadline - Date.now()),
-        ),
-      };
+// The longest time left Caseworking takes; it refuses a longer one.
+const CW_MAX_TIME_LEFT_MS = 10_000;
+
+const cwTimeLeftBy = (deadline) => {
+  const left = deadline - Date.now();
+
+  return left > MARGIN_MS
+    ? {
+        timeout: Math.min(config.cwBackend.timeoutMs, left),
+        timeLeftMs: Math.min(left - MARGIN_MS, CW_MAX_TIME_LEFT_MS),
+      }
+    : null;
+};
+
+// Caseworking audits its own buckets, so a forwarded read writes none here.
+const forwardToCw = async ({
+  bucketId,
+  body,
+  actor,
+  repeat,
+  deadline,
+  signal,
+}) => {
+  const timing = deadline === undefined ? {} : cwTimeLeftBy(deadline);
+
+  if (timing === null) {
+    throw refuse("TIMED_OUT");
+  }
+
+  return queryCwBucket(bucketId, body, { actor, repeat, signal, ...timing });
+};
 
 const owners = new Map([
   ["gas", queryOwnBucket],

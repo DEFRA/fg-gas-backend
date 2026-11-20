@@ -71,6 +71,12 @@
 **Event Link**
 : A record's own key on an event, such as an application within its grant or a case within its workflow. Its writer sets it from the record it holds, and the record's Events tab reads by it. It is never offered as a search.
 
+**Queue**
+: The box an event is in, its outbox or its inbox. In code it is the `box` fact; the list filters by it as `queue`.
+
+**List group**
+: One list over several buckets, each picked by one value of a fact the group adds. Each service's events are a list group over its two queues.
+
 ## Config versions
 
 **Config Version**

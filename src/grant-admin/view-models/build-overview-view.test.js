@@ -23,11 +23,7 @@ const shape = (part, data) =>
 const toDeadLetters = ({ boxes, countCap }) =>
   shape("deadLetters", {
     countCap,
-    boxes: boxes.map((bins, i) => ({
-      box: ["outbox", "inbox"][i],
-      list: { ...LIST, path: `events/gas/${["outbox", "inbox"][i]}` },
-      bins,
-    })),
+    boxes: boxes.map((bins, i) => ({ box: ["outbox", "inbox"][i], bins })),
   });
 
 const toTopErrors = (summaries) => shape("topErrors", { summaries });
@@ -42,13 +38,6 @@ const bins = (counts, capped = []) =>
     capped: capped[i] ?? false,
   }));
 
-const LIST = { path: "events/gas/outbox", query: { status: "DEAD_LETTER" } };
-
-const inWindow = (path) => ({
-  path,
-  query: { status: "DEAD_LETTER", ...WINDOW },
-});
-
 describe("toDeadLetters", () => {
   it("adds the boxes bar by bar, the figure the sum of the bars", () => {
     const answer = toDeadLetters({
@@ -60,31 +49,7 @@ describe("toDeadLetters", () => {
       count: 6,
       capped: false,
       bars: bins([4, 0, 2]),
-      lists: [
-        {
-          box: "outbox",
-          count: 3,
-          capped: false,
-          list: inWindow("events/gas/outbox"),
-        },
-        {
-          box: "inbox",
-          count: 3,
-          capped: false,
-          list: inWindow("events/gas/inbox"),
-        },
-      ],
     });
-  });
-
-  it("caps a box's own count, and says so", () => {
-    const { lists } = toDeadLetters({
-      boxes: [bins([6, 6]), bins([0, 0])],
-      countCap: CAP,
-    });
-
-    expect(lists[0]).toMatchObject({ count: CAP, capped: true });
-    expect(lists[1]).toMatchObject({ count: 0, capped: false });
   });
 
   it("caps a bar whose boxes add to more than the cap", () => {
@@ -120,7 +85,7 @@ describe("toDeadLetters", () => {
 });
 
 const box = {
-  path: "events/gas/inbox",
+  list: { path: "events/gas", query: { queue: "inbox" } },
   params: { status: "status", errorKey: "error", eventType: "event" },
   labels: { CaseStatusUpdated: "Case status updated" },
   among: { status: "DEAD_LETTER" },
@@ -153,10 +118,34 @@ describe("toTopErrors", () => {
     ]).entries;
 
     expect(top.list.query).toEqual({
+      queue: "inbox",
       status: "DEAD_LETTER",
       error: "No error recorded",
       event: "CaseStatusUpdated",
     });
+  });
+
+  it("links a member listed on its own to its own list, with no queue", () => {
+    const [top] = toTopErrors([
+      {
+        box: { ...box, list: { path: "events/gas/inbox", query: {} } },
+        summary: summary([entry("x", "CaseStatusUpdated", 1)]),
+      },
+    ]).entries;
+
+    expect(top.list).toEqual({
+      path: "events/gas/inbox",
+      query: { status: "DEAD_LETTER", error: "x", event: "CaseStatusUpdated" },
+    });
+  });
+
+  it("links no list for a box not yet linked to a catalogue", () => {
+    const { list: _list, ...unlinked } = box;
+    const [top] = toTopErrors([
+      { box: unlinked, summary: summary([entry("x", null, 1)]) },
+    ]).entries;
+
+    expect(top.list).toBeNull();
   });
 
   it("links each group to its list, filtered as the list's URL spells it", () => {
@@ -182,8 +171,9 @@ describe("toTopErrors", () => {
         capped: false,
         lastAt: "2026-10-12T10:00:00.000Z",
         list: {
-          path: "events/gas/inbox",
+          path: "events/gas",
           query: {
+            queue: "inbox",
             status: "DEAD_LETTER",
             error: "Status <v> unknown",
             event: "CaseStatusUpdated",
@@ -199,7 +189,7 @@ describe("toTopErrors", () => {
     ]).entries;
 
     expect(top.event).toBeNull();
-    expect(top.list.query).toEqual({ status: "DEAD_LETTER" });
+    expect(top.list.query).toEqual({ queue: "inbox", status: "DEAD_LETTER" });
   });
 
   it("names an event it has no label for by its value", () => {
@@ -217,7 +207,10 @@ describe("toTopErrors", () => {
         summary: summary([entry("a", null, 9), entry("b", null, 1)]),
       },
       {
-        box: { ...box, path: "events/gas/outbox" },
+        box: {
+          ...box,
+          list: { path: "events/gas", query: { queue: "outbox" } },
+        },
         summary: summary([
           entry("c", null, 7),
           entry("d", null, 5),

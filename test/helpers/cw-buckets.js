@@ -24,6 +24,15 @@ export const aCwBucketEntry = (box) => ({
   tab: null,
 });
 
+// A Caseworking list that is no events box, so it is listed on its own path.
+export const aCwCasesEntry = () => ({
+  ...aCwBucketEntry("cases"),
+  path: "cases",
+  order: 50,
+  noun: { one: "case", many: "cases" },
+  timeline: false,
+});
+
 export const aCwEventRow = (box, { id, eventId, time, type, status }) => ({
   id,
   time,

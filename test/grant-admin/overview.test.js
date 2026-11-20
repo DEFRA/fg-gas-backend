@@ -229,27 +229,8 @@ describe("GET /grant-admin/overview", () => {
     expect(first.deadLetters.gas.data).toMatchObject({
       count: 5,
       capped: false,
-      lists: [
-        {
-          box: "outbox",
-          count: 4,
-          capped: false,
-          list: {
-            path: "events/gas/outbox",
-            query: { status: "DEAD_LETTER", ...first.window },
-          },
-        },
-        {
-          box: "inbox",
-          count: 1,
-          capped: false,
-          list: {
-            path: "events/gas/inbox",
-            query: { status: "DEAD_LETTER", ...first.window },
-          },
-        },
-      ],
     });
+    expect(first.deadLetters.gas.data).not.toHaveProperty("lists");
     expect(first.deadLetters.gas.data.bars).toHaveLength(12);
     expect(first.deadLetters.gas.data.bars.at(-1).to).toBe(first.window.to);
     expect(first.deadLetters.cw).toEqual({
@@ -265,8 +246,9 @@ describe("GET /grant-admin/overview", () => {
         // The day-old dead letter too: top errors are every current one.
         count: 4,
         list: {
-          path: "events/gas/outbox",
+          path: "events/gas",
           query: {
+            queue: "outbox",
             status: "DEAD_LETTER",
             error: "Grant <v> not found",
             event: "CreateCase",
@@ -285,8 +267,9 @@ describe("GET /grant-admin/overview", () => {
           errorKey: "No error recorded",
           count: 1,
           list: {
-            path: "events/gas/inbox",
+            path: "events/gas",
             query: {
+              queue: "inbox",
               status: "DEAD_LETTER",
               error: "No error recorded",
               event: "CaseStatusUpdated",
@@ -301,8 +284,9 @@ describe("GET /grant-admin/overview", () => {
         event: { value: "UpdateCaseStatus", label: "Update case status" },
         count: 4,
         list: {
-          path: "events/cw/inbox",
+          path: "events/cw",
           query: {
+            queue: "inbox",
             status: "DEAD_LETTER",
             error: "Status <v> unknown",
             event: "UpdateCaseStatus",

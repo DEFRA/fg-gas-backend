@@ -106,13 +106,9 @@ describe("gas.inbox", () => {
     ]);
   });
 
-  it("is the Inbox tab of its service's Events page", () => {
-    expect(bucket.page).toEqual({
-      id: "events",
-      label: "GAS events",
-      shortLabel: "Events",
-    });
-    expect(bucket.tab).toBe("Inbox");
+  it("is drawn on no page of its own: the events list groups it", () => {
+    expect(bucket.page).toBeNull();
+    expect(bucket.tab).toBeNull();
   });
 
   it("declares its dead letters counted by error key and event type as Top errors, each entry an exact read", () => {

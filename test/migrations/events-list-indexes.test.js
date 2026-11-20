@@ -85,6 +85,8 @@ const after = {
     { eventType: 1, ...LIST },
     { eventType: 1, status: 1, ...LIST },
     { eventType: 1, status: 1, "lastError.name": 1, ...LIST },
+    { status: 1, "lastError.name": 1, ...LIST },
+    { status: 1, errorKey: 1, ...LIST },
     { status: 1, errorKey: 1, eventType: 1, ...LIST },
     { refs: 1, ...LIST },
   ],
@@ -99,6 +101,13 @@ const after = {
     { refs: 1, ...LIST },
   ],
 };
+
+// Built by the current outbox's declaration, but added by a later migration,
+// so this one's way down leaves them.
+const NEW_LINES = [
+  { status: 1, "lastError.name": 1, ...LIST },
+  { status: 1, errorKey: 1, ...LIST },
+];
 
 const retired = {
   outbox: [
@@ -143,7 +152,9 @@ describe("20261112120000-events-list-indexes", () => {
     await up(db);
     await down(db);
 
-    expect(await keysOf("outbox")).toEqual(sorted(before.outbox));
+    expect(await keysOf("outbox")).toEqual(
+      sorted([...before.outbox, ...NEW_LINES]),
+    );
     expect(await keysOf("inbox")).toEqual(sorted(before.inbox));
   });
 });

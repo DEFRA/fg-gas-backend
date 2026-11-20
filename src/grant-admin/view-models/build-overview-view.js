@@ -22,27 +22,12 @@ const toBar = (cap, boxes) => (bin, i) => ({
   ),
 });
 
-// A list opened from a 24-hour figure shows exactly the window it counted.
-const withinWindow = ({ path, query }, { from, to }) => ({
-  path,
-  query: { ...query, from, to },
-});
-
 // Each box's bins, added bar by bar; the figure is the sum of the bars,
-// capped when any bar or the sum is. Each box has its own count and list, so
-// a figure always matches the list its link opens.
-const toDeadLetters = ({ countCap, boxes }, window) => {
+// capped when any bar or the sum is.
+const toDeadLetters = ({ countCap, boxes }) => {
   const bars = boxes[0].bins.map(toBar(countCap, boxes));
 
-  return {
-    ...sumOf(countCap, bars),
-    bars,
-    lists: boxes.map(({ box, list, bins }) => ({
-      box,
-      ...sumOf(countCap, bins),
-      list: withinWindow(list, window),
-    })),
-  };
+  return { ...sumOf(countCap, bars), bars };
 };
 
 const urlQueryOf = (box, values) =>
@@ -66,18 +51,24 @@ const toTopError =
     count,
     capped,
     lastAt,
-    list: {
-      path: box.path,
-      query: urlQueryOf(box, { ...box.among, ...values }),
-    },
+    list: box.list
+      ? {
+          path: box.list.path,
+          query: {
+            ...box.list.query,
+            ...urlQueryOf(box, { ...box.among, ...values }),
+          },
+        }
+      : null,
   });
 
 const byCountThenLatest = (a, b) =>
   b.count - a.count || String(b.lastAt).localeCompare(String(a.lastAt));
 
-// `box` is the list a summary was read from: its path, the URL key of each
-// fact, its event labels and what the summary picks out. The summaries cover
-// every current dead letter, so the links carry no window.
+// `box` is what a summary was read from: the list that shows its rows, once
+// linked to the answer's catalogue, the URL key of each fact, its event labels
+// and what the summary picks out. The summaries cover every current dead
+// letter, so the links carry no window.
 const toTopErrors = ({ summaries }) => {
   const entries = summaries
     .flatMap(({ box, summary }) => summary.entries.map(toTopError(box)))

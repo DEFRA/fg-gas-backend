@@ -33,6 +33,7 @@ const aListRow = (overrides = {}) => ({
 
 const aDetail = (overrides = {}) => ({
   eventType: "CreateCase",
+  errorKey: null,
   ...aSingleRow(),
   payload: { id: "evt-1", data: { clientRef: "REF-1" } },
   traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
@@ -543,6 +544,18 @@ describe("eventDetailResponseSchema record", () => {
     ).toBeUndefined();
 
     const { eventType: _, ...unstated } = aDetail();
+
+    expect(eventDetailResponseSchema.validate(unstated).error).toBeDefined();
+  });
+
+  it("carries the error key a list of the same error filters by, or null", () => {
+    expect(
+      eventDetailResponseSchema.validate(
+        aDetail({ errorKey: "No error recorded" }),
+      ).error,
+    ).toBeUndefined();
+
+    const { errorKey: _, ...unstated } = aDetail();
 
     expect(eventDetailResponseSchema.validate(unstated).error).toBeDefined();
   });

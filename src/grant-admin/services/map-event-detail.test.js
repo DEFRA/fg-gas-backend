@@ -190,6 +190,39 @@ describe("toEventDetail eventType", () => {
   });
 });
 
+describe("toEventDetail errorKey", () => {
+  it.each([
+    ["GAS's", "gas", "TypeError: a <v> failed"],
+    ["Caseworking's", "caseworking", "TypeError: a <v> failed"],
+    ["a dead letter's that recorded no error", "gas", "No error recorded"],
+    [
+      "Caseworking's dead letter's that recorded no error",
+      "caseworking",
+      "No error recorded",
+    ],
+  ])("answers %s key as it is stored", (_, service, errorKey) => {
+    const detail = toEventDetail({
+      service,
+      box: "inbox",
+      doc: anInboxDoc({ errorKey }),
+      maxAttempts: 5,
+    });
+
+    expect(detail.errorKey).toBe(errorKey);
+  });
+
+  it("answers null for a row with no error key", () => {
+    const detail = toEventDetail({
+      service: "gas",
+      box: "inbox",
+      doc: anInboxDoc(),
+      maxAttempts: 5,
+    });
+
+    expect(detail.errorKey).toBeNull();
+  });
+});
+
 describe("toEventDetail lastRedrive", () => {
   it("names an unattributed redrive as the platform's own", () => {
     const doc = anInboxDoc({

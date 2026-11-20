@@ -197,6 +197,15 @@ describe("GET /grant-admin/events/{service}/{box}/{id}", () => {
       expect(detail.lastError.name).toBe("TypeError");
     });
 
+    it("carries the error key a list of the same error filters by", async () => {
+      const doc = anInboxDoc({ errorKey: "No error recorded" });
+      await inbox.insertOne(doc);
+
+      const detail = await detailOf("gas", "inbox", doc._id.toHexString());
+
+      expect(detail.errorKey).toBe("No error recorded");
+    });
+
     it("carries no latency - that column is the list's alone", async () => {
       const doc = anInboxDoc();
       await inbox.insertOne(doc);
@@ -348,11 +357,16 @@ describe("GET /grant-admin/events/{service}/{box}/{id}", () => {
     });
 
     it("returns a normalised detail carrying the caseworking payload", async () => {
-      await setCwStub({ inbox: { detail: aCwInboxDetail() } });
+      await setCwStub({
+        inbox: {
+          detail: { ...aCwInboxDetail(), errorKey: "Status <v> unknown" },
+        },
+      });
 
       const detail = await detailOf("caseworking", "inbox", UNKNOWN_ID);
 
       expect(eventDetailResponseSchema.validate(detail).error).toBeUndefined();
+      expect(detail.errorKey).toBe("Status <v> unknown");
       expect(detail).toMatchObject({
         service: "caseworking",
         box: "inbox",

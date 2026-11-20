@@ -3,7 +3,7 @@ import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   aCwBucketAnswer,
-  aCwBucketEntry,
+  aCwCasesEntry,
   aCwEventRow,
 } from "../helpers/cw-buckets.js";
 import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
@@ -90,13 +90,18 @@ describe("POST /grant-admin/lists/query", () => {
     ]);
 
     const { payload } = await listQuery({
-      path: "events/gas/outbox",
-      params: { status: "DEAD_LETTER", range: "24h", page: "2" },
+      path: "events/gas",
+      params: {
+        queue: "outbox",
+        status: "DEAD_LETTER",
+        range: "24h",
+        page: "2",
+      },
       search: null,
       count: true,
     });
 
-    expect(payload.bucket).toBe("gas.outbox");
+    expect(payload.bucket).toBe("gas.events");
     expect(payload.list.rows.map(({ subtitle }) => subtitle)).toEqual([
       "evt-3",
       "evt-1",
@@ -105,14 +110,21 @@ describe("POST /grant-admin/lists/query", () => {
     expect(payload.list.total).toEqual({ count: 2, capped: false });
     expect(payload.list.stopped).toBeNull();
     expect(payload.list.refusedSearch).toBeNull();
-    expect(ids(payload.shell)).toContain("gas.outbox");
+    expect(ids(payload.shell)).toContain("gas.events");
+    expect(ids(payload.shell)).not.toContain("gas.outbox");
+  });
+
+  it("lists no box of a group on its own path", async () => {
+    const refusal = await refusalOf(listQuery({ path: "events/gas/outbox" }));
+
+    expect(refusal).toMatchObject({ statusCode: 404, code: "LIST_NOT_FOUND" });
   });
 
   it("reads pages 1 to N in one request, only the first counted", async () => {
     await outbox.insertMany(Array.from({ length: 25 }, (_, n) => aMessage(n)));
 
     const { payload } = await listQuery({
-      path: "events/gas/outbox",
+      path: "events/gas",
       params: {},
       pages: 3,
       count: true,
@@ -172,8 +184,13 @@ describe("POST /grant-admin/lists/query", () => {
   it("refuses an address it does not offer, naming its problems, with the catalogue", async () => {
     const refusal = await refusalOf(
       listQuery({
-        path: "events/gas/outbox",
-        params: { status: "BOGUS", errorname: ["A", "B"], colour: "x" },
+        path: "events/gas",
+        params: {
+          status: "BOGUS",
+          errorname: ["A", "B"],
+          colour: "x",
+          queue: "elsewhere",
+        },
         from: "not a time",
       }),
     );
@@ -181,21 +198,21 @@ describe("POST /grant-admin/lists/query", () => {
     expect(refusal).toMatchObject({
       statusCode: 400,
       code: "ADDRESS_REFUSED",
-      bucket: "gas.outbox",
+      bucket: "gas.events",
       problems: {
         unknownKeys: ["colour"],
         repeatedKeys: ["errorname"],
-        unknownValues: ["status"],
+        unknownValues: ["status", "queue"],
       },
     });
-    expect(ids(refusal.shell)).toContain("gas.outbox");
+    expect(ids(refusal.shell)).toContain("gas.events");
     expect(JSON.stringify(refusal)).not.toContain("BOGUS");
   });
 
   it("refuses a range that is not one, without reading, when asked only to check", async () => {
     const refusal = await refusalOf(
       listQuery({
-        path: "events/gas/outbox",
+        path: "events/gas",
         from: "2026-06-16T11:00:00.000Z",
         to: "2026-06-16T10:00:00.000Z",
         read: false,
@@ -205,18 +222,18 @@ describe("POST /grant-admin/lists/query", () => {
     expect(refusal).toMatchObject({
       statusCode: 400,
       code: "RANGE_REFUSED",
-      bucket: "gas.outbox",
+      bucket: "gas.events",
     });
   });
 
   it("checks without reading", async () => {
     const { payload } = await listQuery({
-      path: "events/gas/outbox",
+      path: "events/gas",
       params: { status: "DEAD_LETTER" },
       read: false,
     });
 
-    expect(payload.bucket).toBe("gas.outbox");
+    expect(payload.bucket).toBe("gas.events");
     expect(payload.list).toBeNull();
     expect(payload.shell).not.toBeNull();
   });
@@ -238,7 +255,7 @@ describe("POST /grant-admin/lists/query", () => {
   // With ADMIN_SHELL_CACHE_MS at 0, each request reads Caseworking's lists
   // again, and the instance keeps the paths it last listed.
   const listedThenDown = async () => {
-    await setCwStub({ buckets: { entries: [aCwBucketEntry("outbox")] } });
+    await setCwStub({ buckets: { entries: [aCwCasesEntry()] } });
     await refusalOf(listQuery({ path: "events/gas/nothing" }));
     await setCwStub({ buckets: { mode: "down" } });
   };
@@ -246,10 +263,18 @@ describe("POST /grant-admin/lists/query", () => {
   it("answers 503 CW_UNREACHABLE for a list Caseworking last listed while its catalogue cannot be read", async () => {
     await listedThenDown();
 
-    const refusal = await refusalOf(listQuery({ path: "events/cw/outbox" }));
+    const refusal = await refusalOf(listQuery({ path: "cases" }));
 
     expect(refusal).toMatchObject({ statusCode: 503, code: "CW_UNREACHABLE" });
     expect(refusal.shell.catalogue.sourceErrors).toEqual([{ hop: "CW-BE" }]);
+  });
+
+  it("answers 503 CW_UNREACHABLE for Caseworking's events while its catalogue cannot be read", async () => {
+    await listedThenDown();
+
+    const refusal = await refusalOf(listQuery({ path: "events/cw" }));
+
+    expect(refusal).toMatchObject({ statusCode: 503, code: "CW_UNREACHABLE" });
   });
 
   it("answers 404 LIST_NOT_FOUND for a path neither service last listed while Caseworking's catalogue cannot be read", async () => {
@@ -262,8 +287,8 @@ describe("POST /grant-admin/lists/query", () => {
   });
 
   it("forwards a Caseworking list by its id, with the operator, as its filters", async () => {
-    const answer = aCwBucketAnswer("outbox", [
-      aCwEventRow("outbox", {
+    const answer = aCwBucketAnswer("cases", [
+      aCwEventRow("cases", {
         id: "665f1c2e9a1b2c3d4e5f0001",
         eventId: "cw-evt-1",
         type: "CreateCase",
@@ -275,7 +300,7 @@ describe("POST /grant-admin/lists/query", () => {
       buckets: {
         entries: [
           {
-            ...aCwBucketEntry("outbox"),
+            ...aCwCasesEntry(),
             facts: [
               {
                 name: "status",
@@ -287,20 +312,20 @@ describe("POST /grant-admin/lists/query", () => {
             ],
           },
         ],
-        answers: { "cw.outbox": answer },
+        answers: { "cw.cases": answer },
       },
     });
 
     const { payload } = await listQuery({
-      path: "events/cw/outbox",
+      path: "cases",
       params: { status: "COMPLETED" },
       repeat: true,
     });
     const forwarded = (await cwStubRequests()).find(
-      ({ path }) => path === "/actuators/buckets/cw.outbox/query",
+      ({ path }) => path === "/actuators/buckets/cw.cases/query",
     );
 
-    expect(payload.bucket).toBe("cw.outbox");
+    expect(payload.bucket).toBe("cw.cases");
     expect(payload.list.rows).toEqual(answer.rows);
     expect(forwarded).toMatchObject({
       actor: "Jo Operator",

@@ -5,8 +5,13 @@ import { countBins } from "../../common/buckets/bins.js";
 import { parseQuery, runQuery } from "../../common/buckets/engine.js";
 import { refuse } from "../../common/buckets/refusal.js";
 import { findBucket } from "../../common/buckets/registry.js";
+import {
+  clearListGroups,
+  registerListGroup,
+} from "../../common/list-groups/registry.js";
 import { parseSummary, runSummary } from "../../common/buckets/summary.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { eventListGroups } from "../../events/lists/event-list-groups.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import {
   countCwDeadLetters,
@@ -17,6 +22,7 @@ import {
 import { findCwApiTokens } from "../repositories/cw-clients.repository.js";
 import { CACHE_MS, clearOverviewCache } from "../services/overview-cache.js";
 import { OVERVIEW_BUDGET_MS } from "../services/overview-reads.js";
+import { readShell } from "../services/shell-cache.js";
 import { buildOverviewView } from "../view-models/build-overview-view.js";
 import { viewOverviewUseCase } from "./view-overview.use-case.js";
 
@@ -35,6 +41,7 @@ vi.mock("../../common/buckets/engine.js", async (importOriginal) => ({
 }));
 vi.mock("../repositories/cw-actuators.repository.js");
 vi.mock("../repositories/cw-clients.repository.js");
+vi.mock("../services/shell-cache.js");
 
 const AT = new Date("2026-10-13T15:00:00.000Z");
 const FROM = "2026-10-12T15:00:00.000Z";
@@ -159,16 +166,8 @@ const cwDeadLetters = (from = FROM) => ({
   to: TO,
   countCap: 10_000,
   buckets: [
-    {
-      id: "cw.outbox",
-      list: { path: "events/cw/outbox", query: { status: "DEAD_LETTER" } },
-      bins: binsOf(twelve(1), from),
-    },
-    {
-      id: "cw.inbox",
-      list: { path: "events/cw/inbox", query: { status: "DEAD_LETTER" } },
-      bins: binsOf(twelve(2), from),
-    },
+    { id: "cw.outbox", bins: binsOf(twelve(1), from) },
+    { id: "cw.inbox", bins: binsOf(twelve(2), from) },
   ],
 });
 
@@ -203,9 +202,19 @@ const asRead = (_part, _service, read) => read;
 const view = async () =>
   buildOverviewView(await viewOverviewUseCase(WHO, asRead));
 
+const shellOf = (ids) => ({
+  catalogue: {
+    buckets: ids.map((id) => ({ id, path: `listed/${id}` })),
+    sourceErrors: [],
+  },
+});
+
 beforeEach(() => {
   vi.useFakeTimers({ now: AT, toFake: ["Date"] });
   clearOverviewCache();
+  clearListGroups();
+  eventListGroups().forEach(registerListGroup);
+  readShell.mockResolvedValue(shellOf(["gas.events", "cw.events"]));
 
   findBucket.mockImplementation((id) => BUCKETS[id]);
   countBins.mockImplementation(async (bucket) =>
@@ -287,26 +296,6 @@ describe("the Overview, read and shaped", () => {
         count: 7,
         capped: false,
         bars: binsOf(twelve(7)),
-        lists: [
-          {
-            box: "outbox",
-            count: 3,
-            capped: false,
-            list: {
-              path: "events/gas/outbox",
-              query: { status: "DEAD_LETTER", from: FROM, to: TO },
-            },
-          },
-          {
-            box: "inbox",
-            count: 4,
-            capped: false,
-            list: {
-              path: "events/gas/inbox",
-              query: { status: "DEAD_LETTER", from: FROM, to: TO },
-            },
-          },
-        ],
       }),
     );
     expect(countBins).toHaveBeenCalledWith(BUCKETS["gas.inbox"], {
@@ -325,26 +314,6 @@ describe("the Overview, read and shaped", () => {
         count: 3,
         capped: false,
         bars: binsOf(twelve(3)),
-        lists: [
-          {
-            box: "outbox",
-            count: 1,
-            capped: false,
-            list: {
-              path: "events/cw/outbox",
-              query: { status: "DEAD_LETTER", from: FROM, to: TO },
-            },
-          },
-          {
-            box: "inbox",
-            count: 2,
-            capped: false,
-            list: {
-              path: "events/cw/inbox",
-              query: { status: "DEAD_LETTER", from: FROM, to: TO },
-            },
-          },
-        ],
       }),
     );
     expect(countCwDeadLetters).toHaveBeenCalledWith(
@@ -362,10 +331,22 @@ describe("the Overview, read and shaped", () => {
     const { deadLetters } = await view();
 
     expect(deadLetters.cw.data).toMatchObject({ count: 2, capped: true });
-    expect(deadLetters.cw.data.lists[0]).toMatchObject({
-      count: 1,
-      capped: false,
+  });
+
+  it("still reads Caseworking's dead letters from a release that names each box's list", async () => {
+    countCwDeadLetters.mockResolvedValue({
+      ...cwDeadLetters(),
+      buckets: cwDeadLetters().buckets.map((bucket) => ({
+        ...bucket,
+        list: { path: "events/cw/outbox", query: { status: "DEAD_LETTER" } },
+      })),
     });
+
+    const { deadLetters } = await view();
+
+    expect(deadLetters.cw).toEqual(
+      read({ count: 3, capped: false, bars: binsOf(twelve(3)) }),
+    );
   });
 
   it("ranks each service's top errors among every current dead letter, linked to the list they are in", async () => {
@@ -378,8 +359,9 @@ describe("the Overview, read and shaped", () => {
     expect(topErrors.gas.data.entries[0]).toMatchObject({
       event: { value: "CreateCase", label: "Create case" },
       list: {
-        path: "events/gas/outbox",
+        path: "events/gas",
         query: {
+          queue: "outbox",
           status: "DEAD_LETTER",
           error: "Grant <v> not found",
           event: "CreateCase",
@@ -399,8 +381,9 @@ describe("the Overview, read and shaped", () => {
         capped: false,
         lastAt: "2026-10-13T14:00:00.000Z",
         list: {
-          path: "events/cw/inbox",
+          path: "events/cw",
           query: {
+            queue: "inbox",
             status: "DEAD_LETTER",
             error: "Status <v> unknown",
             event: "UpdateCaseStatus",
@@ -414,6 +397,67 @@ describe("the Overview, read and shaped", () => {
       {},
       { actor: WHO.actor },
     );
+  });
+
+  it("opens each row on its own queue, Caseworking's by the group whatever path its entry names", async () => {
+    findCwBuckets.mockResolvedValue([
+      cwEntry("cw.outbox", "elsewhere/outbox"),
+      cwEntry("cw.inbox", "elsewhere/inbox"),
+    ]);
+    runSummary.mockImplementation(async (bucket) =>
+      aSummary([anEntry(`${bucket.id} error`, null, 3)]),
+    );
+
+    const { topErrors } = await view();
+
+    expect(topErrors.gas.data.entries.map(({ list }) => list)).toEqual([
+      {
+        path: "events/gas",
+        query: {
+          queue: "outbox",
+          status: "DEAD_LETTER",
+          error: "gas.outbox error",
+        },
+      },
+      {
+        path: "events/gas",
+        query: {
+          queue: "inbox",
+          status: "DEAD_LETTER",
+          error: "gas.inbox error",
+        },
+      },
+    ]);
+    expect(topErrors.cw.data.entries[0].list.path).toBe("events/cw");
+  });
+
+  it("links no list where its group isn't listed", async () => {
+    readShell.mockResolvedValue(shellOf(["gas.events"]));
+
+    const { topErrors } = await view();
+
+    expect(topErrors.cw.data.entries[0].list).toBeNull();
+    expect(topErrors.gas.data.entries[0].list.path).toBe("events/gas");
+    expect(readShell).toHaveBeenCalledWith(AT.getTime() + OVERVIEW_BUDGET_MS);
+  });
+
+  it("links kept summaries to the lists the current catalogue draws", async () => {
+    readShell.mockResolvedValueOnce(shellOf(["gas.events"]));
+
+    const first = await view();
+    const second = await view();
+
+    expect(first.topErrors.cw.data.entries[0].list).toBeNull();
+    expect(second.topErrors.cw.data.entries[0].list.path).toBe("events/cw");
+    expect(summariseCwBucket).toHaveBeenCalledTimes(2);
+  });
+
+  it("links the groups when the catalogue can't be read", async () => {
+    readShell.mockResolvedValue(null);
+
+    const { topErrors } = await view();
+
+    expect(topErrors.gas.data.entries[0].list.path).toBe("events/gas");
   });
 
   it("answers the active grant and workflow versions whose definition failed, either way", async () => {

@@ -929,6 +929,15 @@ describe("Caseworking buckets", () => {
       expect(options.timeout).toBe(TIMEOUT_MS);
     });
 
+    it("reads an entry that names no page or tab as on none", async () => {
+      const { page: _page, tab: _tab, ...unpaged } = anEntry();
+      wreck.get.mockResolvedValue({ payload: { buckets: [unpaged] } });
+
+      expect(await findCwBuckets()).toEqual([
+        { ...unpaged, page: null, tab: null },
+      ]);
+    });
+
     it("keeps only the entries whose id Caseworking owns", async () => {
       wreck.get.mockResolvedValue({
         payload: {
@@ -1005,6 +1014,24 @@ describe("Caseworking buckets", () => {
       await queryCwBucket("cw.example", BODY, { actor: ACTOR, timeout: 250 });
 
       expect(wreck.post.mock.calls[0][1].timeout).toBe(250);
+    });
+
+    it("tells Caseworking how long it may read for, when given", async () => {
+      wreck.post.mockResolvedValue({ payload: ANSWER });
+
+      await queryCwBucket("cw.example", BODY, {
+        actor: ACTOR,
+        timeout: 1_200,
+        timeLeftMs: 700,
+      });
+      await queryCwBucket("cw.example", BODY, { actor: ACTOR });
+
+      expect(wreck.post.mock.calls[0][1].headers).toMatchObject({
+        "x-read-time-left-ms": "700",
+      });
+      expect(wreck.post.mock.calls[1][1].headers).not.toHaveProperty(
+        "x-read-time-left-ms",
+      );
     });
 
     it("sends no repeat flag unless it is a repeat", async () => {
@@ -1413,6 +1440,17 @@ describe("Caseworking buckets", () => {
         "x-actor-id": OID,
         "x-actor": ACTOR,
       });
+    });
+
+    it("reads an answer that names no list for its box", async () => {
+      const { list: _list, ...bucket } = ANSWER.buckets[0];
+      wreck.get.mockResolvedValue({
+        payload: { ...ANSWER, buckets: [bucket] },
+      });
+
+      const answer = await countCwDeadLetters(ASKED);
+
+      expect(answer.buckets).toEqual([bucket]);
     });
 
     it.each([

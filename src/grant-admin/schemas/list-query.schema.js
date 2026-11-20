@@ -12,14 +12,19 @@ const MAX_KEY_LENGTH = 100;
 const MAX_VALUE_LENGTH = 200;
 const MAX_PATH_LENGTH = 200;
 
-// A URL's value as typed, an empty one too: the address rules read it.
-const typed = Joi.string().allow("").max(MAX_VALUE_LENGTH);
+// A URL's value as typed, an empty one too: the address rules read it. Its
+// length is counted by code point, as a stored error key is cut, and the
+// query its list reads checks each fact's value as its own.
+const typed = Joi.string()
+  .allow("")
+  .custom((text, helpers) =>
+    Array.from(text).length > MAX_VALUE_LENGTH
+      ? helpers.error("string.max", { limit: MAX_VALUE_LENGTH })
+      : text,
+  );
 
 export const listQueryRequestSchema = Joi.object({
-  path: Joi.string()
-    .max(MAX_PATH_LENGTH)
-    .required()
-    .example("events/gas/outbox"),
+  path: Joi.string().max(MAX_PATH_LENGTH).required().example("events/gas"),
   params: Joi.object()
     .pattern(
       Joi.string().max(MAX_KEY_LENGTH),
@@ -52,6 +57,7 @@ export const listQueryResponseSchema = Joi.object({
         cursor: Joi.string().required(),
         statusCode: Joi.number().integer().required(),
         code: Joi.string().allow(null).required(),
+        queue: Joi.string(),
       })
         .allow(null)
         .required(),
@@ -60,6 +66,12 @@ export const listQueryResponseSchema = Joi.object({
       })
         .allow(null)
         .required(),
+      // A list over several buckets: which of its queues ended a bounded
+      // page, and which hold rows that wait behind them.
+      queues: Joi.object({
+        limited: Joi.array().items(Joi.string()).required(),
+        waiting: Joi.array().items(Joi.string()).required(),
+      }),
     })
     .allow(null)
     .required()

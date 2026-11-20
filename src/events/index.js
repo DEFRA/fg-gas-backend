@@ -1,10 +1,12 @@
 import { registerBucket } from "../common/buckets/registry.js";
 import { config } from "../common/config.js";
 import { registerExploreSource } from "../common/explore-sources/registry.js";
+import { registerListGroup } from "../common/list-groups/registry.js";
 import { inboxBucket } from "./buckets/inbox.bucket.js";
 import { outboxBucket } from "./buckets/outbox.bucket.js";
 import { DeadLetterGauge } from "./dead-letter-gauge.js";
 import { eventsSource } from "./explore/events.source.js";
+import { eventListGroups } from "./lists/event-list-groups.js";
 import { countDeadLetters as countInboxDeadLetters } from "./repositories/inbox.repository.js";
 import { countDeadLetters as countOutboxDeadLetters } from "./repositories/outbox.repository.js";
 import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
@@ -25,6 +27,7 @@ export const events = {
     registerBucket(outboxBucket());
     registerBucket(inboxBucket());
     registerExploreSource(eventsSource);
+    eventListGroups().forEach(registerListGroup);
 
     const inboxSubscriber = new InboxSubscriber();
     const outboxSubscriber = new OutboxSubscriber();

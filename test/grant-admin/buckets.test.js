@@ -9,6 +9,7 @@ import {
 import {
   aCwBucketAnswer,
   aCwBucketEntry,
+  aCwCasesEntry,
   aCwEventRow,
 } from "../helpers/cw-buckets.js";
 import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
@@ -115,10 +116,8 @@ describe("GET /grant-admin/buckets", () => {
       bucketCatalogueResponseSchema.validate(payload).error,
     ).toBeUndefined();
     expect(payload.buckets.map(({ id }) => id)).toEqual([
-      "gas.outbox",
-      "gas.inbox",
-      "cw.outbox",
-      "cw.inbox",
+      "gas.events",
+      "cw.events",
       "gas.applications",
       "gas.grants",
     ]);
@@ -131,8 +130,7 @@ describe("GET /grant-admin/buckets", () => {
     const { payload } = await wreck.get("/grant-admin/buckets");
 
     expect(payload.buckets.map(({ id }) => id)).toEqual([
-      "gas.outbox",
-      "gas.inbox",
+      "gas.events",
       "gas.applications",
       "gas.grants",
     ]);
@@ -183,7 +181,7 @@ describe("GET /grant-admin/buckets", () => {
 
   it("answers a Caseworking bucket whose facts say what they are within", async () => {
     const cases = {
-      ...aCwBucketEntry("outbox"),
+      ...aCwCasesEntry(),
       facts: [
         {
           name: "workflowCode",
@@ -207,7 +205,7 @@ describe("GET /grant-admin/buckets", () => {
 
     const { payload } = await wreck.get("/grant-admin/buckets");
 
-    expect(payload.buckets.find(({ id }) => id === "cw.outbox").facts).toEqual(
+    expect(payload.buckets.find(({ id }) => id === "cw.cases").facts).toEqual(
       cases.facts,
     );
     expect(payload.sourceErrors).toEqual([]);
@@ -290,7 +288,27 @@ describe("POST /grant-admin/buckets/{bucketId}/query", () => {
     expect(named.rows.map((row) => row.subtitle)).toEqual(["evt-2"]);
   });
 
-  it("reads a fact with no index line inside a budget, and says so", async () => {
+  it("reads facts no index line holds together inside a budget, and says so", async () => {
+    await outbox.insertMany([
+      aMessage(1, { lastError: { name: "TimeoutError" }, errorKey: "K" }),
+      aMessage(2, { lastError: { name: "TimeoutError" }, errorKey: "L" }),
+      aMessage(3, { lastError: { name: "OtherError" }, errorKey: "K" }),
+    ]);
+
+    const answer = await answerOf("gas.outbox", {
+      where: { "lastError.name": "TimeoutError", errorKey: "K" },
+    });
+
+    expect(answer.plan).toMatchObject({
+      kind: "bounded",
+      bound: ["lastError.name"],
+      residual: ["errorKey"],
+    });
+    expect(answer.rows.map((row) => row.subtitle)).toEqual(["evt-1"]);
+    expect(answer.page.complete).toBe(true);
+  });
+
+  it("reads an error name alone exactly, on the outbox's error line", async () => {
     await outbox.insertMany([
       aMessage(1, { lastError: { name: "TimeoutError" } }),
       aMessage(2, { lastError: { name: "OtherError" } }),
@@ -301,12 +319,11 @@ describe("POST /grant-admin/buckets/{bucketId}/query", () => {
     });
 
     expect(answer.plan).toMatchObject({
-      kind: "bounded",
-      bound: [],
-      residual: ["lastError.name"],
+      kind: "exact",
+      index: ["status", "lastError.name", "publicationDate", "_id"],
+      residual: [],
     });
     expect(answer.rows.map((row) => row.subtitle)).toEqual(["evt-1"]);
-    expect(answer.page.complete).toBe(true);
   });
 
   it.each([

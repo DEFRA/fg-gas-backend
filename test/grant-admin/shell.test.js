@@ -16,13 +16,17 @@ beforeEach(async () => {
 });
 
 describe("GET /grant-admin/shell", () => {
-  it("answers both services' lists, in order", async () => {
+  it("answers both services' lists, in order, each service's events as one", async () => {
     const { payload, res } = await wreck.get("/grant-admin/shell");
 
     expect(res.headers["cache-control"]).toBe("no-store");
     expect(shellResponseSchema.validate(payload).error).toBeUndefined();
-    expect(idsOf(payload.shell)).toEqual(
-      expect.arrayContaining(["gas.outbox", "cw.outbox", "cw.inbox"]),
+    expect(idsOf(payload.shell).slice(0, 2)).toEqual([
+      "gas.events",
+      "cw.events",
+    ]);
+    expect(idsOf(payload.shell)).not.toEqual(
+      expect.arrayContaining(["gas.outbox"]),
     );
     expect(payload.shell.catalogue.sourceErrors).toEqual([]);
   });

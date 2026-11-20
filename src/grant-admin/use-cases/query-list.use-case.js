@@ -11,7 +11,9 @@ import {
   unknownKeys,
   unknownValues,
 } from "../services/list-address.js";
-import { mayBeCwList, readShell } from "../services/shell-cache.js";
+import { CW_UNREACHABLE } from "../repositories/cw-http.js";
+import { groupReaderFor } from "../services/list-groups/reader.js";
+import { mayBeCwList, readListShell } from "../services/shell-cache.js";
 import { queryBucketUseCase } from "./query-bucket.use-case.js";
 
 // Keys of a list's URL that page or switch it, never a filter; the range keys
@@ -39,6 +41,9 @@ const refusal = (statusCode, code, message, fields = {}) => {
   return error;
 };
 
+const cwUnreachable = () =>
+  refusal(UNAVAILABLE, CW_UNREACHABLE, "CW-BE lists could not be read");
+
 const isCwMissing = ({ sourceErrors }) =>
   sourceErrors.some(({ hop }) => hop === "CW-BE");
 
@@ -46,13 +51,13 @@ const isCwMissing = ({ sourceErrors }) =>
 // been read once.
 const noListAt = (catalogue, path) =>
   isCwMissing(catalogue) && mayBeCwList(path)
-    ? refusal(UNAVAILABLE, "CW_UNREACHABLE", "CW-BE lists could not be read")
+    ? cwUnreachable()
     : refusal(NOT_FOUND, "LIST_NOT_FOUND", "No list has this path");
 
 // The catalogue is the one every answer carries, so the list a page names is
-// the one it draws.
+// the one it draws; a group's comes with what its read splits by.
 const findEntry = async (path) => {
-  const shell = await readShell();
+  const shell = await readListShell();
 
   if (shell === null) {
     throw refusal(
@@ -65,7 +70,7 @@ const findEntry = async (path) => {
   const entry = shell.catalogue.buckets.find((bucket) => bucket.path === path);
 
   if (entry) {
-    return entry;
+    return { entry, view: shell.groups.get(entry.id) ?? null };
   }
 
   throw noListAt(shell.catalogue, path);
@@ -171,6 +176,18 @@ const readFirst = async (reader, ask) => {
   }
 };
 
+// A group's first page that can't reach Caseworking at all is the same answer
+// as its lists not read: no one queue failed, so none is named. Any other read
+// fails as itself, so a later page keeps its rows and names its queue.
+const isCwNotReached = (error) =>
+  error.output?.payload.errorCode === CW_UNREACHABLE;
+
+const listFailureOf = (view, ask) => (error) => {
+  const isGroupFirst = view !== null && ask.cursor === undefined;
+
+  throw isGroupFirst && isCwNotReached(error) ? cwUnreachable() : error;
+};
+
 // A bounded read goes on where it stopped, as Keep looking does.
 const nextOf = ({ page }) => page.next ?? page.keepLooking;
 
@@ -182,13 +199,25 @@ const lateAt = (reader, cursor) =>
     ? { cursor, statusCode: GATEWAY_TIMEOUT, code: "TIMED_OUT" }
     : null;
 
+// A failed read of one bucket of several names its queue.
+const queueOf = (error) => {
+  const queue = error.output?.payload.queue;
+
+  return queue === undefined ? {} : { queue };
+};
+
 const readLater = async (reader, cursor) => {
   try {
     return { page: await reader.later(cursor), stopped: null };
   } catch (error) {
     return {
       page: null,
-      stopped: { cursor, statusCode: statusOf(error), code: codeOf(error) },
+      stopped: {
+        cursor,
+        statusCode: statusOf(error),
+        code: codeOf(error),
+        ...queueOf(error),
+      },
     };
   }
 };
@@ -221,15 +250,22 @@ const joined = (pages) => ({
 });
 
 // Each page is read, and audited, as the list's own query reads it: only the
-// first counts, and every later one is a repeat.
-const readerFor = (entry, ask, who) => {
+// first counts, and every later one is a repeat. A group reads each of its
+// members so.
+const readerFor = (entry, view, ask, who) => {
   const where = whereOf(entry, addressOf(ask.params));
   const deadline = Date.now() + readTimeoutMs();
-  const read = (fields, repeat) =>
+  const readMember = ({
+    bucketId,
+    where: memberWhere,
+    fields,
+    repeat,
+    signal,
+  }) =>
     queryBucketUseCase({
-      bucketId: entry.id,
+      bucketId,
       body: toBody({
-        where,
+        where: memberWhere,
         limit: PAGE_SIZE,
         from: ask.from,
         to: ask.to,
@@ -238,7 +274,15 @@ const readerFor = (entry, ask, who) => {
       ...who,
       repeat,
       deadline,
+      signal,
     });
+
+  if (view !== null) {
+    return groupReaderFor({ view, where, ask, deadline, readMember });
+  }
+
+  const read = (fields, repeat) =>
+    readMember({ bucketId: entry.id, where, fields, repeat });
 
   return {
     deadline,
@@ -257,9 +301,9 @@ const readerFor = (entry, ask, who) => {
   };
 };
 
-const readList = async (entry, ask, who) => {
-  const reader = readerFor(entry, ask, who);
-  const first = await readFirst(reader, ask);
+const readList = async ({ entry, view }, ask, who) => {
+  const reader = readerFor(entry, view, ask, who);
+  const first = await readFirst(reader, ask).catch(listFailureOf(view, ask));
   const { pages, stopped } =
     first.refusedSearch === null
       ? await readOn(reader, [first.page], ask.pages)
@@ -278,12 +322,13 @@ const readList = async (entry, ask, who) => {
 export const queryListUseCase = async ({ ask, caller, actor }) => {
   logger.info("Query list");
 
-  const entry = await findEntry(ask.path);
+  const found = await findEntry(ask.path);
+  const { entry } = found;
 
   checkAddress(entry, addressOf(ask.params));
   checkRange(entry, ask);
 
-  const list = ask.read ? await readList(entry, ask, { caller, actor }) : null;
+  const list = ask.read ? await readList(found, ask, { caller, actor }) : null;
 
   logger.info(
     `Finished: Query list ${entry.id} (${list ? list.rows.length : 0} rows)`,

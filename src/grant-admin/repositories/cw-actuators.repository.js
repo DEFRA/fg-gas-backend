@@ -276,8 +276,17 @@ const BAD_REQUEST = 400;
 const BUCKETS_LABEL = "buckets";
 const CW_BUCKET_PREFIX = "cw.";
 
+export const isCwBucketId = (id) => id.startsWith(CW_BUCKET_PREFIX);
+
+// A bucket drawn on no page of its own may name none; GAS reads it as null.
 const catalogueSchema = Joi.object({
-  buckets: Joi.array().items(catalogueEntrySchema).required(),
+  buckets: Joi.array()
+    .items(
+      catalogueEntrySchema.fork(["page", "tab"], (schema) =>
+        schema.optional().default(null),
+      ),
+    )
+    .required(),
 });
 
 const bucketsUnavailable = (error) =>
@@ -324,7 +333,7 @@ const toCwEntries = (payload) => {
     );
   }
 
-  return value.buckets.filter(({ id }) => id.startsWith(CW_BUCKET_PREFIX));
+  return value.buckets.filter(({ id }) => isCwBucketId(id));
 };
 
 // Only the entries GAS can route: those whose id Caseworking owns.
@@ -336,19 +345,30 @@ export const findCwBuckets = async ({ timeout } = {}) =>
     }),
   );
 
+const TIME_LEFT_HEADER = "x-read-time-left-ms";
+
+const timeLeftHeader = ({ timeLeftMs }) =>
+  timeLeftMs === undefined ? {} : { [TIME_LEFT_HEADER]: String(timeLeftMs) };
+
 // Caseworking's answer is returned as it is; it audits the read itself.
-// `timeout`, when given, is the time left of a read that spans several pages.
-export const queryCwBucket = async (bucketId, body, options = {}) =>
-  cwRequest(
+// `timeout`, when given, is the time left of a read that spans several pages,
+// and `timeLeftMs` how long Caseworking may read for; `signal` stops it.
+export const queryCwBucket = async (bucketId, body, options = {}) => {
+  const { failures, headers } = bucketRequestOptions(options);
+
+  return cwRequest(
     "post",
     `/actuators/buckets/${encodeURIComponent(bucketId)}/query`,
     BUCKETS_LABEL,
     {
-      ...bucketRequestOptions(options),
+      failures,
+      headers: { ...headers, ...timeLeftHeader(options) },
       ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
+      signal: options.signal,
       body,
     },
   );
+};
 
 const readBucketAnswer = (schema, payload, what) => {
   const { error, value } = schema.validate(payload);
@@ -414,10 +434,8 @@ const deadLettersSchema = Joi.object({
     .items(
       Joi.object({
         id: Joi.string().required(),
-        list: Joi.object({
-          path: Joi.string().required(),
-          query: Joi.object().pattern(Joi.string(), Joi.string()).required(),
-        }).required(),
+        // Caseworking sends it; GAS doesn't read it.
+        list: Joi.any(),
         bins: Joi.array().items(binSchema).required(),
       }),
     )
@@ -432,7 +450,7 @@ const coversWindow =
     bins[0]?.from === from;
 
 // Caseworking's dead letters in `binMs` bins over the window, one list of
-// bins per bucket that holds them, each with the list it opens.
+// bins per bucket that holds them.
 export const countCwDeadLetters = async ({ from, to, binMs }, options = {}) => {
   const answer = readBucketAnswer(
     deadLettersSchema,
