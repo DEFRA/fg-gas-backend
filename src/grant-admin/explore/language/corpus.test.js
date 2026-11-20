@@ -160,7 +160,7 @@ const MEANING_REFUSALS = [
   "db.applications.find({ 'identifiers.nino': 'x' })",
   "db.applications.find({}, { _id: 1 })",
   "db.cases.find({ 'comments.text': /x/ })",
-  "db.cases.find({}, { a: '$payload.answers.other' })",
+  "db.cases.find({}, { a: '$payload.answers.sortCode' })",
   "db.cases.find({ createdAt: { $gte: '2026-10-01' } })",
   "db.applications.find({}, { n: '$nope' })",
   "db.applications.find({}, { n: { $size: 'phases' } })",

@@ -9,9 +9,7 @@ import {
 
 // The whole Overview is kept for CACHE_MS on each instance, and requests that
 // arrive while it is read share that read. A part that failed is never kept as
-// data: the next request reads it again, over the kept answer's window. A
-// Caseworking that does not offer a part is not asked again until the answer
-// expires.
+// data: the next request reads it again, over the kept answer's window.
 export const CACHE_MS = 60_000;
 
 const blankOverview = (at) => ({
@@ -39,11 +37,7 @@ export const failedParts = (overview, parts = EVERY_PART) =>
     ([part, service]) => overview[part][service].sourceError !== null,
   );
 
-const toReadAgain = (overview) =>
-  failedParts(overview, KEPT_PARTS).filter(
-    ([part, service]) =>
-      overview[part][service].sourceError.reason !== "NOT_OFFERED",
-  );
+const toReadAgain = (overview) => failedParts(overview, KEPT_PARTS);
 
 const withParts = (overview, read) =>
   read.reduce(

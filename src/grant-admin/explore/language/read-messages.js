@@ -28,8 +28,6 @@ export const READ_MESSAGES = {
   [DENIED]: (path) => `“${path}” can’t be read: it names something private`,
   [NOT_A_ROOT]: (path, source) =>
     `${capitalised(source.name)} can’t read “${path}”. A path starts with ${listed(source.roots)}`,
-  NOT_LISTED: (path) =>
-    `Caseworking doesn’t let Explore read “${path}”: it isn’t one of the answers it lists`,
   ref: (what) =>
     `${what} takes a path as '$path', e.g. '$phases.answers.parcels.parcelId'`,
   filter: "A filter is an object: { path: value }",

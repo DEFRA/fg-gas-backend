@@ -218,7 +218,7 @@ describe("read", () => {
       expect(whereOf("{ 'code': 'a' }")).toEqual(test("code", "eq", ["a"]));
     });
 
-    it("reads an answer of a case on Caseworking's list", () => {
+    it("reads an answer of a case", () => {
       expect(
         queryOf(
           "db.cases.find({ 'payload.answers.applicant.business.name': /x/ })",
@@ -436,9 +436,9 @@ describe("read", () => {
       "'comments.text'",
     ],
     [
-      "db.cases.find({}, { a: '$payload.answers.other' })",
-      READ_MESSAGES.NOT_LISTED("payload.answers.other"),
-      "'$payload.answers.other'",
+      "db.cases.find({}, { a: '$payload.answers.sortCode' })",
+      READ_MESSAGES.DENIED("payload.answers.sortCode"),
+      "'$payload.answers.sortCode'",
     ],
     [
       "db.applications.find({ 'identifiers.nino': 'x' })",

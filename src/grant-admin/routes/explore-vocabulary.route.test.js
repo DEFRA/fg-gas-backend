@@ -42,30 +42,18 @@ describe("exploreVocabularyRoute", () => {
 
   afterAll(() => server.stop());
 
-  it("answers the vocabulary for the caller's roles", async () => {
+  it("answers the vocabulary, ignoring a roles header", async () => {
     exploreVocabularyUseCase.mockResolvedValue(VOCABULARY);
 
-    const response = await server.inject({
-      method: "GET",
-      url: "/grant-admin/explore/vocabulary",
-      headers: { "x-actor-roles": "devops,finance" },
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.result).toEqual(VOCABULARY);
-    expect(response.headers["cache-control"]).toBe("no-store");
-    expect(exploreVocabularyUseCase).toHaveBeenCalledWith({
-      roles: "devops,finance",
-    });
-  });
-
-  it("refuses a roles header that is too long", async () => {
     const response = await server.inject({
       method: "GET",
       url: "/grant-admin/explore/vocabulary",
       headers: { "x-actor-roles": "r".repeat(2_001) },
     });
 
-    expect(response.statusCode).toBe(400);
+    expect(response.statusCode).toBe(200);
+    expect(response.result).toEqual(VOCABULARY);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(exploreVocabularyUseCase).toHaveBeenCalledWith();
   });
 });

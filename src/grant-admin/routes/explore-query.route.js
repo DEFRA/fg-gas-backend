@@ -4,7 +4,6 @@ import {
   exploreQueryResponseSchema,
 } from "../schemas/explore.schema.js";
 import { clientGoneSignal } from "../services/client-gone.js";
-import { callerOf } from "../services/request-caller.js";
 import { SHELL_ALWAYS, answersShell } from "../services/shell-tag.js";
 import {
   safeFailAction,
@@ -40,8 +39,6 @@ export const exploreQueryRoute = {
       body: request.payload,
       actorId: request.headers["x-actor-id"],
       actor: request.headers["x-actor"],
-      roles: request.headers["x-actor-roles"],
-      caller: callerOf(request),
       signal: clientGoneSignal(request),
     }),
 };

@@ -1048,7 +1048,7 @@ describe("Caseworking buckets", () => {
     );
 
     it.each([
-      [404, "UNKNOWN_BUCKET", "NOT_OFFERED"],
+      [404, "UNKNOWN_BUCKET", "ERRORED"],
       [400, "UNKNOWN_FACT", "ERRORED"],
     ])(
       "says a %i refusal %s is Caseworking's %s",
@@ -1176,7 +1176,7 @@ describe("Caseworking buckets", () => {
       expect(error.output.statusCode).toBe(502);
     });
 
-    it("says a summary Caseworking does not have is not offered", async () => {
+    it("passes on a summary Caseworking does not have as an error", async () => {
       wreck.post.mockRejectedValue(failure(404, { reason: "UNKNOWN_SUMMARY" }));
 
       const error = await summariseCwBucket("cw.inbox", "errors", BODY).catch(
@@ -1184,7 +1184,7 @@ describe("Caseworking buckets", () => {
       );
 
       expect(error.output.payload.reason).toBe("UNKNOWN_SUMMARY");
-      expect(error.cwReason).toBe("NOT_OFFERED");
+      expect(error.cwReason).toBe("ERRORED");
     });
   });
 
@@ -1283,14 +1283,14 @@ describe("Caseworking buckets", () => {
       );
     });
 
-    it("says a bucket Caseworking does not have is not offered", async () => {
+    it("passes on a bucket Caseworking does not have as an error", async () => {
       wreck.post.mockRejectedValue(failure(404, { reason: "UNKNOWN_BUCKET" }));
 
       const error = await readCwBucketPage("cw.workflows", BODY).catch(
         (e) => e,
       );
 
-      expect(error.cwReason).toBe("NOT_OFFERED");
+      expect(error.cwReason).toBe("ERRORED");
     });
   });
 
@@ -1455,11 +1455,11 @@ describe("Caseworking buckets", () => {
     });
 
     it.each([
-      ["a bare 404", failure(404, { message: "Not Found" }), "NOT_OFFERED"],
+      ["a bare 404", failure(404, { message: "Not Found" }), "ERRORED"],
       [
         "a 404 for a bucket it does not have",
         failure(404, { reason: "UNKNOWN_BUCKET" }),
-        "NOT_OFFERED",
+        "ERRORED",
       ],
       ["a 504", failure(504, {}), "TIMED_OUT"],
       ["its own client timeout", Boom.gatewayTimeout(), "TIMED_OUT"],

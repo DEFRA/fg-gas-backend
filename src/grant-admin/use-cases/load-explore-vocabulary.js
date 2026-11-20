@@ -115,7 +115,7 @@ const readingCw = shared(async () => {
   const sources = await findCwExploreSources();
 
   if (sharedVersion(sources.versions) === null) {
-    throw cwExploreFailure("NOT_OFFERED");
+    throw cwExploreFailure("ERRORED");
   }
 
   cw = { at: Date.now(), sources };
@@ -139,7 +139,7 @@ const loadCw = async (timeLeftMs) =>
     ? { cw: cw.sources }
     : cwFrom(await within(readingCw(), timeLeftMs));
 
-const NOT_ASKED = { cw: null, cwFailure: cwExploreFailure("NOT_OFFERED") };
+const NOT_ASKED = { cw: null, cwFailure: cwExploreFailure("ERRORED") };
 
 const cwPartFor = (withCw, timeLeftMs) =>
   withCw ? loadCw(timeLeftMs) : NOT_ASKED;
@@ -174,58 +174,45 @@ export const loadExploreValues = async () => {
   return values.bySource;
 };
 
-// The editor's vocabulary for one set of roles is kept a minute, one missing
-// a source only FAILED_MS. A kept one is answered at once and built again
-// behind it; only the first for a set of roles waits, and requests that
-// arrive while one is built share it.
+// The editor's vocabulary is kept a minute, one missing a source only
+// FAILED_MS. A kept one is answered at once and built again behind it; only
+// the first waits, and requests that arrive while it is built share it.
 export const VOCABULARY_MS = MINUTE_MS;
 export const FAILED_MS = 10_000;
-const MAX_ROLE_SETS = 50;
 
-const kept = new Map();
-const building = new Map();
+let kept = null;
+let building = null;
 
-const keep = (key, { vocabulary, failed }) => {
-  kept.delete(key);
-
-  if (kept.size >= MAX_ROLE_SETS) {
-    kept.delete(kept.keys().next().value);
-  }
-
-  kept.set(key, {
+const keep = ({ vocabulary, failed }) => {
+  kept = {
     vocabulary,
     expiresAt: Date.now() + (failed ? FAILED_MS : VOCABULARY_MS),
-  });
+  };
 
   return vocabulary;
 };
 
-const buildFor = (key, build) => {
-  if (!building.has(key)) {
-    building.set(
-      key,
-      build()
-        .then((built) => keep(key, built))
-        .finally(() => building.delete(key)),
-    );
-  }
+const buildWith = (build) => {
+  building ??= build()
+    .then(keep)
+    .finally(() => {
+      building = null;
+    });
 
-  return building.get(key);
+  return building;
 };
 
 // `build` answers `{ vocabulary, failed }`; `failed` keeps it a short while.
-export const keptVocabulary = (key, build) => {
-  const held = kept.get(key);
-
-  if (!held) {
-    return buildFor(key, build);
+export const keptVocabulary = (build) => {
+  if (!kept) {
+    return buildWith(build);
   }
 
-  if (Date.now() >= held.expiresAt) {
-    buildFor(key, build).catch(() => {});
+  if (Date.now() >= kept.expiresAt) {
+    buildWith(build).catch(() => {});
   }
 
-  return Promise.resolve(held.vocabulary);
+  return Promise.resolve(kept.vocabulary);
 };
 
 export const forgetExploreVocabulary = () => {
@@ -234,6 +221,6 @@ export const forgetExploreVocabulary = () => {
   values = null;
   readingAnswers.forget();
   readingCw.forget();
-  kept.clear();
-  building.clear();
+  kept = null;
+  building = null;
 };

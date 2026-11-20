@@ -55,8 +55,6 @@ const cw = {
       star: ["caseRef"],
       roots: ["caseRef", "payload"],
       answersAt: "payload.answers",
-      listedAt: "payload.answers",
-      answerPaths: ["applicant.business", "landParcels", "selectedParcelId"],
       paths: [
         knownPath("caseRef", { type: "text", index: "ref" }),
         knownPath("currentStatus", {
@@ -99,37 +97,17 @@ describe("buildVocabulary", () => {
     expect(vocabulary.unavailable.size).toBe(0);
   });
 
-  it("gives cases the grants' answer paths on Caseworking's list, and the list's own", () => {
+  it("gives cases the grants' answer paths, as it gives applications", () => {
     const vocabulary = buildVocabulary({ own, answers, cw });
 
     expect(pathsOf(vocabulary, "cases")).toEqual([
       "caseRef",
       "currentStatus",
       "payload.answers.applicant.business.name",
+      "payload.answers.referenceNumber",
       "payload.answers.landParcels.areaHa",
-      "payload.answers.applicant.business",
-      "payload.answers.landParcels",
-      "payload.answers.selectedParcelId",
+      "payload.answers.agentDeclaration",
     ]);
-    expect(
-      vocabulary.sources.get("cases").isListed("landParcels.0.areaHa"),
-    ).toBe(true);
-    expect(vocabulary.sources.get("cases").isListed("agentDeclaration")).toBe(
-      false,
-    );
-  });
-
-  it("gives cases no answers when Caseworking lists none", () => {
-    const vocabulary = buildVocabulary({
-      own,
-      answers,
-      cw: {
-        ...cw,
-        sources: [{ ...cw.sources[0], answerPaths: undefined }],
-      },
-    });
-
-    expect(pathsOf(vocabulary, "cases")).toEqual(["caseRef", "currentStatus"]);
   });
 
   it("names Caseworking's sources unavailable, with why, when it didn't answer", () => {
@@ -155,29 +133,18 @@ describe("sharedVersion", () => {
 });
 
 describe("publicVocabulary", () => {
-  const anyone = () => true;
-
-  it("lists only the sources the caller may query", () => {
+  it("lists every source", () => {
     const built = buildVocabulary({ own, answers, cw });
-    const all = publicVocabulary(built, new Map(), anyone);
-    const some = publicVocabulary(
-      built,
-      new Map(),
-      ({ name }) => name !== "applications",
-    );
 
-    expect(some.sources.map(({ name }) => name)).toEqual(
-      all.sources
-        .map(({ name }) => name)
-        .filter((name) => name !== "applications"),
-    );
+    expect(
+      publicVocabulary(built, new Map()).sources.map(({ name }) => name),
+    ).toEqual(["applications", "cases"]);
   });
 
   it("tells the editor each path, its type and whether it is indexed", () => {
     const vocabulary = publicVocabulary(
       buildVocabulary({ own, answers, cw }),
       new Map(),
-      anyone,
     );
 
     expect(vocabulary.sources[0]).toEqual({
@@ -215,7 +182,6 @@ describe("publicVocabulary", () => {
           new Map([["clientRef", [{ value: "a", label: "A" }]]]),
         ],
       ]),
-      anyone,
     );
 
     expect(vocabulary.sources[0].paths[0].values).toEqual([
@@ -231,7 +197,6 @@ describe("publicVocabulary", () => {
     const vocabulary = publicVocabulary(
       buildVocabulary({ own, answers, cw }),
       new Map(),
-      anyone,
     );
     const names = vocabulary.sources.map(({ name }) => name);
 
