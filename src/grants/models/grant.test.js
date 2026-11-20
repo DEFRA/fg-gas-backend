@@ -69,6 +69,7 @@ describe("Grant", () => {
       amendablePositions: [],
       externalStatusMap: undefined,
       entitlementTemplates: [],
+      referenceData: [],
       phases: [
         {
           code: "PRE_AWARD",

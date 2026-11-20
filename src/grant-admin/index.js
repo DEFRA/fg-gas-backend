@@ -32,6 +32,13 @@ import { viewApplicationEventsRoute } from "./routes/view-application-events.rou
 import { viewApplicationOverviewRoute } from "./routes/view-application-overview.route.js";
 import { viewApplicationRawRoute } from "./routes/view-application-raw.route.js";
 import { redriveEventRoute } from "./routes/redrive-event.route.js";
+import {
+  addDbReferenceDataItemRoute,
+  changeDbReferenceDataItemRoute,
+  getDbReferenceDataRoute,
+  listReferenceDataRoute,
+  removeDbReferenceDataItemRoute,
+} from "./routes/reference-data.route.js";
 import { replaceAllowListRoute } from "./routes/replace-allow-list.route.js";
 import { viewCaseEventsRoute } from "./routes/view-case-events.route.js";
 import { viewCaseOverviewRoute } from "./routes/view-case-overview.route.js";
@@ -83,6 +90,11 @@ export const grantAdmin = {
       getGrantSettingsRoute,
       saveGrantSettingsRoute,
       replaceAllowListRoute,
+      listReferenceDataRoute,
+      getDbReferenceDataRoute,
+      addDbReferenceDataItemRoute,
+      changeDbReferenceDataItemRoute,
+      removeDbReferenceDataItemRoute,
       redriveEventRoute,
       purgeEventRoute,
       editPayloadRoute,

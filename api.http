@@ -5,6 +5,27 @@
 GET {{base}}/api/allow-list/grants/sbi/900000001 HTTP/1.1
 Authorization: Bearer {{serviceToken}}
 
+### Get reference data held inline in the grant definition
+
+# @name getInlineReferenceData
+
+GET {{base}}/grants/pigs-might-fly/reference/fly-inline HTTP/1.1
+Authorization: Bearer {{serviceToken}}
+
+### Get reference data GAS holds in its database
+
+# @name getDbReferenceData
+
+GET {{base}}/grants/pigs-might-fly/reference/fly-db HTTP/1.1
+Authorization: Bearer {{serviceToken}}
+
+### Get reference data fetched from another service
+
+# @name getEndpointReferenceData
+
+GET {{base}}/grants/pigs-might-fly/reference/fly-endpoint HTTP/1.1
+Authorization: Bearer {{serviceToken}}
+
 ### Submit application
 
 # @name submitApplication

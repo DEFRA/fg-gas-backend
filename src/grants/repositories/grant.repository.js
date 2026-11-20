@@ -31,6 +31,7 @@ export const toGrant = (doc) =>
     pages: optionalBlock(doc.pages),
     claims: optionalBlock(doc.claims),
     admin: optionalBlock(doc.admin),
+    referenceData: doc.referenceData ?? [],
   });
 
 export const collection = "grants";

@@ -8,12 +8,17 @@ import { ExternalStatusMapping } from "./external-status-mapping.js";
 import { GrantLifecycle } from "./grant-lifecycle.js";
 import { describePhases, distinctPositions } from "./lifecycle-phases.js";
 import { Position } from "./position.js";
+import { ReferenceDataDeclaration } from "./reference-data-declaration.js";
 import { ValidFrom } from "./valid-from.js";
 
 const formatPosition = ({ phase, stage, status }) =>
   [phase, stage, status].filter((part) => part != null).join(":");
 
 const positionParts = ["phase", "stage", "status"];
+
+// Always a collection, like entitlementTemplates.
+const toReferenceDataDeclarations = (declarations = []) =>
+  declarations.map((declaration) => new ReferenceDataDeclaration(declaration));
 const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
 
@@ -38,6 +43,8 @@ export class Grant {
     pages,
     claims,
     admin,
+    // The Reference Data Sets this grant declares.
+    referenceData,
   }) {
     this.code = code;
     this.version = version;
@@ -56,8 +63,10 @@ export class Grant {
     this.pages = pages;
     this.claims = claims;
     this.admin = admin;
+    this.referenceData = toReferenceDataDeclarations(referenceData);
 
     this.#assertActionsIsArray();
+    this.#assertReferenceDataNamesUnique();
     this.#assertEntitlementTemplateClaimCodesUnique();
     this.#assertEntitlementTemplatePositionsExist();
     this.#assertClaimApprovalPositionsExist();
@@ -124,6 +133,10 @@ export class Grant {
     }
   }
 
+  findReferenceData(name) {
+    return this.referenceData.find((declaration) => declaration.name === name);
+  }
+
   findEntitlementTemplate(claimCode) {
     return this.entitlementTemplates.find(
       (template) => template.claimCode === claimCode,
@@ -154,6 +167,23 @@ export class Grant {
 
   #isSamePosition(a, b) {
     return a.phase === b.phase && a.stage === b.stage && a.status === b.status;
+  }
+
+  // findReferenceData returns the first match, so a repeated name would hide
+  // every set after the first. The definition schema refuses it on ingest;
+  // a stored grant is held to it here.
+  #assertReferenceDataNamesUnique() {
+    const names = new Set();
+
+    for (const { name } of this.referenceData) {
+      if (names.has(name)) {
+        throw Boom.badImplementation(
+          `Grant "${this.code}" declares reference data "${name}" more than once`,
+        );
+      }
+
+      names.add(name);
+    }
   }
 
   #assertActionsIsArray() {

@@ -201,9 +201,10 @@ describe("grants", () => {
           method: "post",
           path: "/grants/{grantCode}/applications/{clientRef}/claims",
         },
+        { method: "get", path: "/grants/{code}/reference/{name}" },
       ]),
     );
-    expect(routePaths).toHaveLength(10);
+    expect(routePaths).toHaveLength(11);
   });
 
   it.each(["/grants", "/grants/woodland"])(

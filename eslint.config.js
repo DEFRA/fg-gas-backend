@@ -227,6 +227,7 @@ export default [
                 "**/grants/services/allow-list.service.js",
                 "**/grants/services/grant-settings.service.js",
                 "**/grants/services/config-version.service.js",
+                "**/grants/services/reference-data.service.js",
               ],
               message:
                 "Grant Admin may only enter Grants through its reviewed application services. " +

@@ -60,6 +60,7 @@ export const auditActions = {
   CHECK_ALLOW_LIST: "CHECK_ALLOW_LIST",
   GET_AVAILABLE_GRANTS: "GET_AVAILABLE_GRANTS",
   REPLACE_ALLOW_LIST: "REPLACE_ALLOW_LIST",
+  CHANGE_REFERENCE_DATA: "CHANGE_REFERENCE_DATA",
   // Written by no route; kept for the stored audit rows that carry it.
   SEARCH_CASES: "SEARCH_CASES",
   // One tab of one case in Grant Admin.

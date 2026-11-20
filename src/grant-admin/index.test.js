@@ -21,6 +21,7 @@ describe("grant-admin", () => {
 
     expect(routes).toEqual([
       "delete /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}",
+      "delete /grant-admin/grants/{code}/reference-data/{name}/items/{itemCode}",
       "get /grant-admin/buckets",
       "get /grant-admin/clients/{service}",
       "get /grant-admin/events/{service}/{box}/{id}",
@@ -32,6 +33,8 @@ describe("grant-admin", () => {
       "get /grant-admin/grants/{code}/applications/{clientRef}/events",
       "get /grant-admin/grants/{code}/applications/{clientRef}/overview",
       "get /grant-admin/grants/{code}/applications/{clientRef}/raw",
+      "get /grant-admin/grants/{code}/reference-data",
+      "get /grant-admin/grants/{code}/reference-data/{name}",
       "get /grant-admin/grants/{code}/settings",
       "get /grant-admin/grants/{code}/versions",
       "get /grant-admin/grants/{code}/versions/{version}/agreement",
@@ -62,12 +65,14 @@ describe("grant-admin", () => {
       "post /grant-admin/events/{service}/{box}/{id}/redrive",
       "post /grant-admin/explore/query",
       "post /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements",
+      "post /grant-admin/grants/{code}/reference-data/{name}/items",
       "post /grant-admin/grants/{code}/versions/{version}/fetch",
       "post /grant-admin/lists/query",
       "post /grant-admin/workflows/{code}/versions/{version}/fetch",
       "put /grant-admin/clients/{service}/{clientId}/tokens/{tokenId}/expiry",
       "put /grant-admin/grants/{code}/allow-list",
       "put /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
+      "put /grant-admin/grants/{code}/reference-data/{name}/items/{itemCode}",
       "put /grant-admin/grants/{code}/settings",
     ]);
   });

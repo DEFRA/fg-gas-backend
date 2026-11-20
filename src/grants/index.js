@@ -23,6 +23,7 @@ import {
   missingAllowListIdentifiersRoute,
 } from "./routes/check-allow-list.route.js";
 import { getAvailableClaimsRoute } from "./routes/get-available-claims.route.js";
+import { getReferenceDataRoute } from "./routes/get-reference-data.route.js";
 import {
   getAvailableGrantsRoute,
   missingAvailableGrantsIdentifiersRoute,
@@ -81,6 +82,7 @@ export const grants = {
       missingAvailableGrantsIdentifiersRoute,
       checkAllowListRoute,
       missingAllowListIdentifiersRoute,
+      getReferenceDataRoute,
       invokeGetActionRoute,
       invokePostActionRoute,
       submitApplicationRoute,

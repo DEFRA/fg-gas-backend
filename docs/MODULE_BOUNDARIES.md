@@ -17,7 +17,7 @@
 
 `agreements`, `grants` and `payments` must not directly import each other's internals (models, repositories, use-cases, services, routes, schemas, etc.). The boundary is enforced in both directions, except for explicitly documented reviewed seams below. Direct cross-module imports create hidden coupling that prevents either context from evolving independently.
 
-`grant-admin` is a backend-for-frontend (BFF) for `fg-grants-platform-admin`, not a peer domain module - it shapes screens, `grants` owns the rules. It validates and maps HTTP/UI concerns only: no access to Grants models, repositories, schemas, use cases or general services. Its only way into Grants is six reviewed services - `entitlement.service.js`, `claims.service.js`, `application-read.service.js`, `allow-list.service.js`, `config-version.service.js`, `grant-settings.service.js`. `grants` never imports from `grant-admin`, and `grant-admin` never imports from `agreements`. See [View models vs. services](#view-models-vs-services) for the same split enforced inside `grant-admin` itself.
+`grant-admin` is a backend-for-frontend (BFF) for `fg-grants-platform-admin`, not a peer domain module - it shapes screens, `grants` owns the rules. It validates and maps HTTP/UI concerns only: no access to Grants models, repositories, schemas, use cases or general services. Its only way into Grants is seven reviewed services - `entitlement.service.js`, `claims.service.js`, `application-read.service.js`, `allow-list.service.js`, `config-version.service.js`, `grant-settings.service.js`, `reference-data.service.js`. `grants` never imports from `grant-admin`, and `grant-admin` never imports from `agreements`. See [View models vs. services](#view-models-vs-services) for the same split enforced inside `grant-admin` itself.
 
 `payments` knows nothing about the modules that source a Payment: it never imports `agreements` or `grants`, and it takes the identifiers it needs as plain values.
 
@@ -46,7 +46,7 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 
 ### Grant Admin entry points
 
-Grant Admin enters the Grants application layer through six named services,
+Grant Admin enters the Grants application layer through seven named services,
 Payments through two named use cases, and Auth through one named service. It
 reads a stored Agreement definition through the definition-stores registry, and
 event administration enters the shared event module directly:
@@ -58,6 +58,7 @@ event administration enters the shared event module directly:
 | `grant-admin` | `grants/services/application-read.service.js`                        | Read-only application facts, stored documents and series                                                                                                                                                              |
 | `grant-admin` | `grants/services/allow-list.service.js`                              | Audited grant allow-list reads and transactional whole-list replacement                                                                                                                                               |
 | `grant-admin` | `grants/services/grant-settings.service.js`                          | Audited grant settings reads and transactional availability changes                                                                                                                                                   |
+| `grant-admin` | `grants/services/reference-data.service.js`                          | The Reference Data Sets a grant declares, and audited item-by-item changes to its DB Reference Data                                                                                                                   |
 | `grant-admin` | `grants/services/config-version.service.js`                          | Config version reads: versions, files, the stored grant, its lifecycle and entitlements, grant version existence, the audited operator Fetch Definitions, and the question schemas Explore suggests answer paths from |
 | `grant-admin` | `common/config-broker/definition-stores.js` (`findStoredDefinition`) | A grant version's stored Agreement definition and its Service Addresses, read-only, for its Agreement tab                                                                                                             |
 | `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js`                 | Which of an application's Claims have raised a Payment                                                                                                                                                                |

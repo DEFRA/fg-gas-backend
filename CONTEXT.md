@@ -41,6 +41,19 @@
 **Claim Approval Transition**
 : The move GAS makes itself, from one Position to another, when a claim submitted at that Position leaves no claim to make, unless the claim requires approval. GAS publishes the move to Case Working.
 
+**Reference Data Set**
+: A named list of Reference Data Items a grant declares, such as `fly`. Its name is unique within the grant, and its items' codes are unique within it, so an answer can be checked against it.
+
+**Reference Data Item**
+: One allowed value of a Reference Data Set: a `code` and a `description`.
+
+**Reference Data Source**
+: Where a Reference Data Set's items come from: `inline` in the Grant Definition, changed only by a new Config Version; `db`, held by GAS and changed in Grant Admin; or `endpoint`, fetched from another service by its Service Address each time it is read.
+_Avoid_: `mongo`, `static`, `managed`.
+
+**DB Reference Data**
+: The items GAS holds for one grant's `db` Reference Data Set, independent of the grant's Config Versions. Grant Admin adds, changes and removes them one item at a time; an item's code never changes.
+
 ## Applications
 
 **Client Reference**
