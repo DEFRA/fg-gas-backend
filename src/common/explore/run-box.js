@@ -1,10 +1,10 @@
+import { ObjectId } from "mongodb";
 import { decodeCursor } from "../buckets/cursor.js";
 import {
   COUNT_CAP,
   MAX_TIME_MS_EXPIRED,
   SECONDARY,
   and,
-  collectionOf,
   findOptions,
   keysetParts,
   matchParts,
@@ -23,8 +23,11 @@ import {
 import { compareRows } from "./merge.js";
 import { chargeWork, eachStep, freely, step } from "./meter.js";
 import { testsOf } from "./query-schema.js";
+import { readCollection } from "./read-only.js";
 import { refusalOf, refuseQuery } from "./refusal.js";
 import { rowMaker, unwinder } from "./rows.js";
+
+const readCollectionOf = ({ bucket }) => readCollection(bucket.collection);
 
 export const WINDOW = 5_000;
 export const SORT_CAP = 5_000;
@@ -56,8 +59,8 @@ const sortsInMongo = (orderBy, time) =>
 
 // ── One box ──
 
-export const boxContext = (source, box, query, lens) => {
-  const readers = readersFor(source, lens);
+export const boxContext = (source, box, query, charge) => {
+  const readers = readersFor(source, { charge });
 
   return {
     box,
@@ -134,7 +137,7 @@ const options = (read, extra) => ({
 });
 
 export const countBox = async (read, cap) => {
-  const found = await collectionOf(read)
+  const found = await readCollectionOf(read)
     .countDocuments(filterOf(read), {
       hint: findOptions(read).hint,
       maxTimeMS: timeLeft(read),
@@ -160,7 +163,7 @@ const keysetOf = (read) =>
     : [];
 
 export const readEdge = async (read) => {
-  const [edge = null] = await collectionOf(read)
+  const [edge = null] = await readCollectionOf(read)
     .find(
       and([filterOf(read), ...keysetOf(read)]),
       options(read, {
@@ -210,7 +213,7 @@ const ascending = (read) => ({
 });
 
 export const findDocs = (read, context, extra = {}) =>
-  collectionOf(read).find(
+  readCollectionOf(read).find(
     filterOf(read),
     options(read, { projection: context.projection, ...extra }),
   );
@@ -279,7 +282,7 @@ export const readWindow = async (context, planned, query, meter) => {
 
   try {
     await eachDoc(
-      collectionOf(read).find(
+      readCollectionOf(read).find(
         and([filterOf(read), ...keysetParts(read), ...withinEdge(read, edge)]),
         options(read, { projection: context.projection }),
       ),
@@ -468,6 +471,45 @@ const readUnwound = async (context, planned, query, meter) => {
   );
 
   return { id: context.box.id, to: null, end: true, ...found.answer() };
+};
+
+// ── By id ──
+
+const ID_HINT = { _id: 1 };
+
+const idsPart = (planned) => ({
+  _id: { $in: planned.ids.map((hex) => ObjectId.createFromHexString(hex)) },
+});
+
+// The records an id read finds in one box, each tested as the query asks:
+// at most MAX_IDS, read through the `_id` index every collection has.
+export const idDocs = async (context, planned, meter) => {
+  const read = engineRead(planned, null, meter);
+  const found = await readCollectionOf(read)
+    .find(and([idsPart(planned), ...matchParts(read)]), {
+      projection: context.projection,
+      hint: ID_HINT,
+      maxTimeMS: timeLeft(read),
+      readPreference: SECONDARY,
+      allowDiskUse: false,
+      limit: planned.ids.length,
+    })
+    .toArray()
+    .catch(readFailed);
+  const test = compileWhere(
+    planned.residual,
+    context.readers.readerOf,
+    chargeTo(meter),
+  );
+  const docs = [];
+
+  await eachStep(found, meter, costOf(planned.residual), (doc) => {
+    if (test(doc, context.box)) {
+      docs.push(doc);
+    }
+  });
+
+  return docs;
 };
 
 export const readBox = (context, planned, query, meter) =>

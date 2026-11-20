@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { exploreVocabulary } from "../../../../test/helpers/explore-vocabulary.js";
+import { MESSAGES as PARSE_MESSAGES } from "./parse.js";
 import { readQuery } from "./query.js";
 import { READ_MESSAGES } from "./read.js";
 
@@ -18,8 +19,6 @@ const test = (path, op, values = []) => ({ path, op, values });
 
 const NAME = "phases.answers.applicant.business.name";
 const AREA = "phases.answers.parcels.areaHa";
-const applications = vocabulary.sources.get("applications");
-const cases = vocabulary.sources.get("cases");
 
 // The error and the text it points at.
 const pointed = (text) => {
@@ -32,7 +31,7 @@ describe("read", () => {
   describe("find", () => {
     it("reads find() as rows with the source's default columns", () => {
       expect(queryOf("db.applications.find()")).toEqual({
-        v: 2,
+        v: 3,
         source: "applications",
         mode: "rows",
         columns: [
@@ -103,10 +102,17 @@ describe("read", () => {
       ).toBeNull();
     });
 
-    it("caps a limit over 5,000", () => {
+    it("refuses a limit over 5,000 where it is written", () => {
       expect(
-        readOf("db.agreements.find({}, { state: 1 }).limit(9000)"),
-      ).toMatchObject({ query: { limit: 5000 } });
+        pointed("db.agreements.find({}, { state: 1 }).limit(9000)"),
+      ).toEqual([READ_MESSAGES.limitMost, "9000"]);
+      expect(pointed("db.agreements.aggregate([{ $limit: 5001 }])")).toEqual([
+        READ_MESSAGES.limitMost,
+        "5001",
+      ]);
+      expect(
+        queryOf("db.agreements.find({}, { state: 1 }).limit(5000)").limit,
+      ).toBe(5000);
     });
 
     it("takes no projection, or an empty one, as the defaults", () => {
@@ -299,16 +305,6 @@ describe("read", () => {
         "$unwind",
       ],
       [
-        "db.applications.aggregate([{ $unwind: '$identifiers.nino' }])",
-        undefined,
-        "'$identifiers.nino'",
-      ],
-      [
-        "db.cases.aggregate([{ $unwind: '$comments' }])",
-        undefined,
-        "'$comments'",
-      ],
-      [
         "db.applications.aggregate([{ $group: { _id: '$code', $match: { $sum: 1 } } }])",
         READ_MESSAGES.dollarName("$match"),
         "$match",
@@ -413,6 +409,211 @@ describe("read", () => {
     });
   });
 
+  describe("every field, _id and ObjectId('…')", () => {
+    const HEX = "6741a0c2e4b0f1a2b3c4d5e6";
+    const ID = `ObjectId('${HEX}')`;
+    const oid = { oid: HEX };
+    const SCHEMA = "phases.questions.$schema";
+
+    it("reads any well-formed path, wherever it is", () => {
+      expect(
+        queryOf(
+          "db.cases.find({ 'comments.text': /x/, 'payload.answers.sortCode': 'x', 'a._b': 1 }, { timeline: 1, n: '$payload.bank.iban' })",
+        ),
+      ).toMatchObject({
+        columns: [{ path: "timeline" }, { path: "payload.bank.iban", as: "n" }],
+      });
+      expect(
+        queryOf("db.agreements.find().sort({ colour: 1 })").orderBy,
+      ).toMatchObject({ path: "colour" });
+      expect(
+        queryOf("db.cases.aggregate([{ $unwind: '$comments' }])").unwind,
+      ).toEqual([{ path: "comments", preserve: false }]);
+      expect(queryOf("db.payments.distinct('bank.iban')").groupBy).toEqual({
+        path: "bank.iban",
+      });
+    });
+
+    it.each([
+      [`{ _id: ${ID} }`, test("_id", "eq", [oid])],
+      [`{ _id: { $eq: ${ID} } }`, test("_id", "eq", [oid])],
+      [`{ _id: { $ne: ${ID} } }`, test("_id", "ne", [oid])],
+      [`{ _id: { $in: [${ID}, null] } }`, test("_id", "in", [oid, null])],
+      [`{ _id: { $nin: [${ID}] } }`, test("_id", "nin", [oid])],
+      [`{ _id: { $gt: ${ID} } }`, test("_id", "gt", [oid])],
+      [`{ _id: { $lte: ${ID} } }`, test("_id", "lte", [oid])],
+      [`{ refs: ${ID} }`, test("refs", "eq", [oid])],
+      [`{ _id: ObjectId("${HEX.toUpperCase()}") }`, test("_id", "eq", [oid])],
+    ])("reads %s", (filter, where) => {
+      expect(whereOf(filter)).toEqual(where);
+    });
+
+    it.each([
+      [`{ _id: ObjectId('${HEX.slice(1)}') }`, `'${HEX.slice(1)}'`],
+      [`{ _id: ObjectId('${HEX.slice(1)}g') }`, `'${HEX.slice(1)}g'`],
+      ["{ _id: ObjectId(6741) }", "6741"],
+      [`{ _id: ObjectId('${HEX}', 1) }`, ","],
+      ["{ _id: ObjectId() }", ")"],
+    ])("refuses %s where it goes wrong", (filter, at) => {
+      expect(pointed(`db.applications.find(${filter})`)).toEqual([
+        PARSE_MESSAGES.objectId,
+        at,
+      ]);
+    });
+
+    it("refuses new ObjectId(…) at new", () => {
+      expect(pointed(`db.applications.find({ _id: new ${ID} })`)).toEqual([
+        PARSE_MESSAGES.objectIdNew,
+        "new",
+      ]);
+    });
+
+    it("refuses text on a path stored as an ObjectId, as mongosh would match nothing", () => {
+      expect(
+        pointed(`db.applications.find({ _id: { $in: [${ID}, '${HEX}'] } })`),
+      ).toEqual([READ_MESSAGES.objectIdStored("_id"), `'${HEX}'`]);
+      expect(queryOf(`db.agreements.find({ _id: '${HEX}' })`).where).toEqual(
+        test("_id", "eq", [HEX]),
+      );
+    });
+
+    it("shows _id first with 1, leaves it out with 0, and the defaults with 0 alone", () => {
+      expect(
+        queryOf("db.applications.find({}, { clientRef: 1, _id: 1 })").columns,
+      ).toEqual([{ path: "_id" }, { path: "clientRef" }]);
+      expect(
+        queryOf("db.applications.find({}, { clientRef: 1, _id: 0 })").columns,
+      ).toEqual([{ path: "clientRef" }]);
+      expect(
+        queryOf("db.applications.find({}, { _id: 0 })").columns,
+      ).toHaveLength(4);
+    });
+
+    it.each([["{ _id: '$code' }"], ["{ _id: { $size: '$phases' } }"]])(
+      "refuses _id named otherwise: %s",
+      (projection) => {
+        expect(pointed(`db.applications.find({}, ${projection})`)).toEqual([
+          READ_MESSAGES.ownId,
+          "_id",
+        ]);
+      },
+    );
+
+    it("reads _id in a sort, a group, distinct and a reference", () => {
+      expect(
+        queryOf(`db.applications.find({ _id: ${ID} }).sort({ _id: -1 })`)
+          .orderBy,
+      ).toEqual({ path: "_id", fn: null, desc: true });
+      expect(
+        queryOf(
+          `db.applications.aggregate([{ $match: { _id: ${ID} } }, { $group: { _id: '$_id', n: { $sum: 1 } } }])`,
+        ).groupBy,
+      ).toEqual({ path: "_id" });
+      expect(
+        queryOf(`db.applications.distinct('_id', { _id: ${ID} })`).groupBy,
+      ).toEqual({ path: "_id" });
+      expect(
+        queryOf("db.applications.find({}, { id: '$_id' })").columns,
+      ).toEqual([{ path: "_id", as: "id" }]);
+    });
+
+    it("reads by ObjectIds exactly, whatever else the query tests", () => {
+      expect(
+        errorOf(
+          `db.applications.find({ _id: { $in: [${ID}] }, currentStatus: 'x' }).sort({ clientRef: 1 })`,
+        ),
+      ).toBeUndefined();
+      expect(
+        errorOf(
+          "db.applications.find({ currentStatus: 'x' }).sort({ clientRef: 1 })",
+        ),
+      ).toBeDefined();
+    });
+
+    it("reads keys starting $ after the first in filters, sorts and groups", () => {
+      expect(
+        queryOf(
+          `db.agreements.find({ '${SCHEMA}': 'x' }).sort({ '${SCHEMA}': 1 })`,
+        ),
+      ).toMatchObject({
+        where: test(SCHEMA, "eq", ["x"]),
+        orderBy: { path: SCHEMA },
+      });
+      expect(queryOf(`db.agreements.distinct('${SCHEMA}')`).groupBy).toEqual({
+        path: SCHEMA,
+      });
+      expect(
+        queryOf(
+          `db.agreements.aggregate([{ $group: { _id: '$${SCHEMA}', n: { $sum: 1 } } }])`,
+        ).groupBy,
+      ).toEqual({ path: SCHEMA });
+    });
+
+    it.each([
+      ["db.applications.find({ 'a.$': 1 })", "'a.$'"],
+      ["db.applications.find({ 'a.$[]': 1 })", "'a.$[]'"],
+      ["db.applications.find({ 'a.$schema.$': 1 })", "'a.$schema.$'"],
+    ])("refuses %s, a $ alone", (text, at) => {
+      expect(pointed(text)?.[1]).toBe(at);
+    });
+
+    it.each([
+      [`db.agreements.find({}, { '${SCHEMA}': 1 })`, `'${SCHEMA}'`],
+      [`db.agreements.find({}, { s: '$${SCHEMA}' })`, `'$${SCHEMA}'`],
+      [
+        `db.agreements.find({}, { s: { $size: '$${SCHEMA}' } })`,
+        `'$${SCHEMA}'`,
+      ],
+      [`db.agreements.aggregate([{ $unwind: '$${SCHEMA}' }])`, `'$${SCHEMA}'`],
+      [
+        `db.agreements.aggregate([{ $group: { _id: '$state', s: { $max: '$${SCHEMA}' } } }])`,
+        `'$${SCHEMA}'`,
+      ],
+    ])("refuses %s with mongod's words", (text, at) => {
+      expect(pointed(text)).toEqual([
+        READ_MESSAGES.dollarKey("$schema", "phases.questions"),
+        at,
+      ]);
+    });
+
+    it.each([
+      [
+        "db.agreements.find({}, { state: 1, 'state.x': 1 })",
+        ["state", "state.x"],
+        "'state.x'",
+      ],
+      [
+        "db.agreements.find({}, { 'state.x': 1, state: 1 })",
+        ["state", "state.x"],
+        "state",
+      ],
+      [
+        "db.agreements.find({}, { 'items.code': 1, items: { $size: '$items' } })",
+        ["items", "items.code"],
+        "items",
+      ],
+    ])("refuses the path collision %s", (text, [shorter, longer], at) => {
+      expect(pointed(text)).toEqual([
+        READ_MESSAGES.collision(shorter, longer),
+        at,
+      ]);
+    });
+
+    it("reads an error key by its code points", () => {
+      const wide = String.fromCodePoint(0x1f600);
+
+      expect(
+        errorOf(`db.events.find({ errorKey: '${wide.repeat(120)}' })`),
+      ).toBeUndefined();
+      expect(
+        pointed(`db.events.find({ errorKey: '${"e".repeat(121)}' })`)?.[0],
+      ).toBe(READ_MESSAGES.valueLength("errorKey"));
+      expect(READ_MESSAGES.valueLength("errorKey")).toBe(
+        "A value is at most 120 characters",
+      );
+    });
+  });
+
   it("throws the failure of a source whose service didn't answer", () => {
     expect(() => readOf("db.workflows.find()")).toThrow(
       "not in this vocabulary",
@@ -420,36 +621,6 @@ describe("read", () => {
   });
 
   it.each([
-    [
-      "db.applications.find({}, { clientRef: 1, colour: 1 })",
-      READ_MESSAGES.NOT_A_ROOT("colour", applications),
-      "colour",
-    ],
-    [
-      "db.applications.find({ anything: /9238/ })",
-      READ_MESSAGES.NOT_A_ROOT("anything", applications),
-      "anything",
-    ],
-    [
-      "db.cases.find({ 'comments.text': /x/ })",
-      READ_MESSAGES.NOT_A_ROOT("comments.text", cases),
-      "'comments.text'",
-    ],
-    [
-      "db.cases.find({}, { a: '$payload.answers.sortCode' })",
-      READ_MESSAGES.DENIED("payload.answers.sortCode"),
-      "'$payload.answers.sortCode'",
-    ],
-    [
-      "db.applications.find({ 'identifiers.nino': 'x' })",
-      READ_MESSAGES.DENIED("identifiers.nino"),
-      "'identifiers.nino'",
-    ],
-    [
-      "db.applications.find({}, { _id: 1 })",
-      READ_MESSAGES.DENIED("_id"),
-      "_id",
-    ],
     [
       "db.applications.find({ 'phases..x': 1 })",
       READ_MESSAGES.MALFORMED("phases..x"),
@@ -464,11 +635,6 @@ describe("read", () => {
       "db.applications.find({ 'phases.$': 1 })",
       READ_MESSAGES.MALFORMED("phases.$"),
       "'phases.$'",
-    ],
-    [
-      "db.applications.find({}, { n: '$nope' })",
-      READ_MESSAGES.NOT_A_ROOT("nope", applications),
-      "'$nope'",
     ],
     [
       "db.applications.find({}, { n: { $size: 'phases' } })",
@@ -588,7 +754,7 @@ describe("read", () => {
     ["db.events.find({ box: 'sideways' })", READ_MESSAGES.box, "'sideways'"],
     [
       `db.applications.find({ '${NAME}': '${"x".repeat(201)}' })`,
-      READ_MESSAGES.valueLength,
+      READ_MESSAGES.valueLength(NAME),
       `'${"x".repeat(201)}'`,
     ],
     [
@@ -608,11 +774,6 @@ describe("read", () => {
       READ_MESSAGES.sortWay,
       "'desc'",
     ],
-    [
-      "db.applications.find().sort({ colour: 1 })",
-      READ_MESSAGES.NOT_A_ROOT("colour", applications),
-      "colour",
-    ],
     ["db.applications.find().limit(0)", READ_MESSAGES.limit, "0"],
     ["db.applications.find().limit(2.5)", READ_MESSAGES.limit, "2.5"],
     ["db.applications.find({}, {}, {})", READ_MESSAGES.find, "{}"],
@@ -625,15 +786,10 @@ describe("read", () => {
     ["db.payments.distinct()", READ_MESSAGES.distinct, "distinct"],
     [
       "db.payments.distinct(sbi)",
-      "A value goes here: 'text', a number, /pattern/i, true, or { … }",
+      "A value goes here: 'text', a number, /pattern/i, true, ObjectId('…'), or { … }",
       "sbi",
     ],
     ["db.payments.distinct(1)", READ_MESSAGES.distinct, "1"],
-    [
-      "db.payments.distinct('bank.iban')",
-      READ_MESSAGES.DENIED("bank.iban"),
-      "'bank.iban'",
-    ],
     ["db.agreements.aggregate([])", READ_MESSAGES.aggregate, "[]"],
     ["db.agreements.aggregate({})", READ_MESSAGES.aggregate, "{}"],
     [

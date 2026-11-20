@@ -92,7 +92,7 @@ const REFUSED = {
   BAD_POSITION: () => "These results can’t be continued. Run the query again",
   INVALID: () => "This query can’t be read",
   PATH_NOT_ALLOWED: ({ who }) =>
-    `${who} doesn’t let Explore read a path this query uses`,
+    `${who} can’t read a malformed path in this query`,
 };
 
 const ANSWERS = {
@@ -156,18 +156,15 @@ const answerOfError = (source, query) => (error) => {
 // ── Reading the parts ──
 
 const cwPart = (query, run) => {
-  if (run.cwVersion === null) {
+  if (run.cwFailure) {
     throw run.cwFailure;
   }
 
-  return queryCwExplore(
-    { ...query, v: run.cwVersion },
-    {
-      actor: run.actor,
-      timeLeftMs: timeLeftOf(run.meter),
-      signal: run.stop.signal,
-    },
-  );
+  return queryCwExplore(query, {
+    actor: run.actor,
+    timeLeftMs: timeLeftOf(run.meter),
+    signal: run.stop.signal,
+  });
 };
 
 const readAnswer = async ({ query, run, csv, target, shows }) => {
@@ -251,7 +248,6 @@ const runOf = ({ source, vocabulary, actor, meter, stop, signal }) => ({
   meter,
   stop,
   cwPart,
-  cwVersion: vocabulary.cwVersion,
   cwFailure: vocabulary.unavailable.get("cases") ?? null,
 });
 

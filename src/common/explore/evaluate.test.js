@@ -255,6 +255,13 @@ describe("compileWhere", () => {
     );
   });
 
+  it("tests every element of a list too long to spread", () => {
+    const long = { values: Array.from({ length: 250_000 }, (_, n) => n) };
+
+    expect(matches(test("values", "eq", 249_999), long)).toBe(true);
+    expect(matches(test("values", "gt", 250_000), long)).toBe(false);
+  });
+
   it("charges each pattern's work", () => {
     const charged = [];
 
@@ -302,7 +309,9 @@ describe("shapeValue and cellOf", () => {
       "2026-10-14T09:00:00.000Z",
     );
     expect(shapeValue(doc._id)).toBe("65f000000000000000000001");
-    expect(shapeValue({ bank: { sortCode: "1" } })).toEqual({ text: "{}" });
+    expect(shapeValue({ bank: { sortCode: "1" } })).toEqual({
+      text: "{ bank: { sortCode: '1' } }",
+    });
     expect(shapeValue({ a: 1, n: { first: "Sam", last: "Rowe" } })).toEqual({
       text: "{ a: 1, n: 'Sam Rowe' }",
     });
@@ -332,25 +341,22 @@ describe("shapeValue and cellOf", () => {
     });
   });
 
-  it("shows an object inline, only what may be read of it", () => {
-    const reader = {
-      ...at("plan"),
-      readable: (path) => path !== "plan.hidden",
-    };
-
+  it("shows an object inline, every key of it", () => {
     expect(
       cellOf(
         {
           plan: {
             reference: "WMP-1",
-            hidden: "h",
-            bank: "b",
+            _hidden: "h",
+            $ref: "b",
             amount: Decimal128.fromString("2.5"),
           },
         },
-        reader,
+        at("plan"),
       ),
-    ).toEqual({ text: "{ reference: 'WMP-1', amount: Decimal128('2.5') }" });
+    ).toEqual({
+      text: "{ reference: 'WMP-1', _hidden: 'h', '$ref': 'b', amount: Decimal128('2.5') }",
+    });
   });
 
   it("shows a name object as one name", () => {
@@ -840,19 +846,15 @@ describe("orderValueOf and compareBson", () => {
     expect(partialValue("max", undefined)).toBeNull();
   });
 
-  it("sends only what may be read of an object it sorts by", () => {
-    const reader = {
-      ...at("a"),
-      path: "a",
-      readable: (path) => path !== "a.secret",
-    };
-
+  it("sends every key of an object it sorts by", () => {
     expect(
-      orderValueOf({ a: { name: "x", secret: "s" } }, reader, false),
-    ).toEqual({ k: [["name", "x"]] });
-    expect(JSON.stringify(orderedOf({ secret: "s" }, reader))).not.toContain(
-      '"s"',
-    );
+      orderValueOf({ a: { name: "x", secret: "s" } }, at("a"), false),
+    ).toEqual({
+      k: [
+        ["name", "x"],
+        ["secret", "s"],
+      ],
+    });
   });
 
   it("orders values by type, then value", () => {
@@ -1096,5 +1098,74 @@ describe("as mongod answers", () => {
     ]);
     expect(unwound("a.b", true)).toHaveLength(11);
     expect(unwound("a.0", false)).toEqual([]);
+  });
+});
+
+describe("ObjectIds and keys starting $", () => {
+  const hex = "65f000000000000000000001";
+  const oid = (text) => ({ oid: text });
+  const test = (path, op, ...values) => ({ path, op, values });
+
+  it("matches an ObjectId by its type and value, never its hex as text", () => {
+    expect(matches(test("_id", "eq", oid(hex)))).toBe(true);
+    expect(matches(test("_id", "eq", hex))).toBe(false);
+    expect(matches(test("_id", "eq", oid("65f000000000000000000002")))).toBe(
+      false,
+    );
+    expect(matches(test("_id", "ne", oid(hex)))).toBe(false);
+    expect(matches(test("_id", "in", hex, oid(hex)))).toBe(true);
+    expect(matches(test("_id", "nin", hex, oid(hex)))).toBe(false);
+    expect(matches(test("id", "eq", oid(hex)), { id: hex })).toBe(false);
+  });
+
+  it("compares ObjectIds by their bytes, and with nothing of another type", () => {
+    expect(matches(test("_id", "gt", oid("65e0ffffffffffffffffffff")))).toBe(
+      true,
+    );
+    expect(matches(test("_id", "lt", oid("65f000000000000000000010")))).toBe(
+      true,
+    );
+    expect(matches(test("_id", "gte", oid(hex)))).toBe(true);
+    expect(matches(test("_id", "lt", oid(hex)))).toBe(false);
+    expect(matches(test("_id", "gt", "0"))).toBe(false);
+    expect(matches(test("id", "lt", oid("f".repeat(24))), { id: "65f0" })).toBe(
+      false,
+    );
+  });
+
+  it("never matches an ObjectId with a pattern", () => {
+    expect(
+      matches({
+        path: "_id",
+        op: "regex",
+        values: [{ pattern: "65f", flags: "" }],
+      }),
+    ).toBe(false);
+  });
+
+  it("walks a key starting $ as any other key, through lists", () => {
+    const stored = {
+      phases: [
+        { questions: { $schema: "draft-07", $defs: { a: { $ref: "#/b" } } } },
+        { questions: { $schema: "draft-04" } },
+      ],
+    };
+
+    expect(
+      matches(test("phases.questions.$schema", "eq", "draft-04"), stored),
+    ).toBe(true);
+    expect(valuesOf(stored, at("phases.questions.$defs.a.$ref"))).toEqual([
+      "#/b",
+    ]);
+    expect(cellOf(stored, at("phases.questions.$schema"))).toEqual([
+      "draft-07",
+      "draft-04",
+    ]);
+  });
+
+  it("keys a group of an ObjectId apart from its hex, and of an object by all of it", () => {
+    expect(groupKeyOf(new ObjectId(hex))).toBe(`objectId:${hex}`);
+    expect(groupKeyOf(hex)).toBe(`string:${hex}`);
+    expect(groupKeyOf({ a: 1, _b: 2 })).not.toBe(groupKeyOf({ a: 1 }));
   });
 });

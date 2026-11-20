@@ -1,32 +1,5 @@
 import { EVENT_BOXES, EVENT_SERVICES } from "../event-boxes.js";
 
-// What an event's record holds, in either service's inbox or outbox, that
-// Explore may read. Internal claim fields aren't, nor an audit event's
-// actor and address.
-export const eventRoots = [
-  "eventType",
-  "status",
-  "publicationDate",
-  "eventTime",
-  "target",
-  "type",
-  "source",
-  "messageId",
-  "event.id",
-  "event.type",
-  "event.source",
-  "event.time",
-  "event.specversion",
-  "event.datacontenttype",
-  "event.data",
-  "completionAttempts",
-  "completionDate",
-  "lastResubmissionDate",
-  "lastError",
-  "errorKey",
-  "refs",
-];
-
 // What the union of the boxes adds to each record: where it was read, as a
 // $unionWith with a $set of the box would.
 export const eventAdded = {
@@ -37,6 +10,7 @@ export const eventAdded = {
 // The paths an event's record is read through an index by, and those worth
 // suggesting. Audit events carry no `id:` or `ref:` refs.
 export const eventPaths = [
+  { path: "_id", type: "objectId", index: { id: true } },
   { path: "publicationDate", type: "date", index: { time: true } },
   {
     path: "service",

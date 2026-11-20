@@ -1,3 +1,4 @@
+import { OBJECT_ID_HEX } from "../../../common/object-id-hex.js";
 import { LITERALS, MAX_NESTING, MAX_TOKENS, VALUE_CALLS } from "./allowlist.js";
 import { OUTLINE_MESSAGES } from "./outline.js";
 
@@ -7,7 +8,8 @@ export const MESSAGES = {
   length: `A query is at most ${MAX_LENGTH.toLocaleString("en-GB")} characters`,
   tokens: `A query is at most ${MAX_TOKENS.toLocaleString("en-GB")} words, values and signs`,
   nesting: `Objects and lists go at most ${MAX_NESTING} deep`,
-  value: "A value goes here: 'text', a number, /pattern/i, true, or { … }",
+  value:
+    "A value goes here: 'text', a number, /pattern/i, true, ObjectId('…'), or { … }",
   key: "A path goes here, in quotes if it has a dot",
   colon: (key) => `Add : after ${key}`,
   comma: (text) => `Add a , before “${text}”`,
@@ -17,6 +19,9 @@ export const MESSAGES = {
   close: (name) => `Close ${name}( with )`,
   extra: (text) => `I didn’t expect “${text}” here`,
   once: (name) => `Give .${name}(…) once`,
+  objectId:
+    "ObjectId takes 24 hex characters in quotes: ObjectId('6741a0c2e4b0f1a2b3c4d5e6')",
+  objectIdNew: "Write ObjectId('…') without new",
   number: `A number goes here between -${Number.MAX_SAFE_INTEGER.toLocaleString("en-GB")} and ${Number.MAX_SAFE_INTEGER.toLocaleString("en-GB")}`,
 };
 
@@ -147,6 +152,35 @@ const dateOf = (read) => {
   };
 };
 
+// ObjectId('…') reads as its hex, lower case.
+const objectIdOf = (read) => {
+  const name = read.take();
+
+  read.need("(", MESSAGES.open(name.v));
+
+  const id = read.need("str", MESSAGES.objectId);
+
+  if (!OBJECT_ID_HEX.test(id.v)) {
+    read.fail(MESSAGES.objectId, id);
+  }
+
+  const close = read.need(")", MESSAGES.objectId);
+
+  return {
+    type: "objectId",
+    value: id.v.toLowerCase(),
+    at: name.at,
+    end: close.end,
+  };
+};
+
+const CALLS = { ISODate: dateOf, Date: dateOf, ObjectId: objectIdOf };
+
+const isNewObjectId = (read, token) =>
+  token.v === "new" &&
+  read.peek(1)?.k === "word" &&
+  read.peek(1).v === "ObjectId";
+
 const SCALARS = {
   str: (token) => ({ type: "text", value: token.v }),
   // -0 is read as 0, as it travels.
@@ -164,7 +198,13 @@ const wordValue = (read, token) => {
     return { type: "literal", value: LITERALS.get(token.v), ...spanOf(token) };
   }
 
-  return VALUE_CALLS.has(token.v) ? dateOf(read) : read.fail(MESSAGES.value);
+  if (isNewObjectId(read, token)) {
+    read.fail(MESSAGES.objectIdNew);
+  }
+
+  return VALUE_CALLS.has(token.v)
+    ? CALLS[token.v](read)
+    : read.fail(MESSAGES.value);
 };
 
 const valueReader = (read) => {

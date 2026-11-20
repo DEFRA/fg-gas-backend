@@ -23,7 +23,6 @@ vi.mock("../../common/wreck.js", () => ({
 }));
 
 const SOURCES = {
-  versions: [2, 3],
   sources: [
     {
       name: "cases",
@@ -124,7 +123,7 @@ describe("findCwExploreSources", () => {
   });
 
   it("refuses an answer it can't read", async () => {
-    wreck.get.mockResolvedValue({ payload: { sources: [] } });
+    wreck.get.mockResolvedValue({ payload: {} });
 
     expect((await failure(findCwExploreSources())).output.payload.reason).toBe(
       "ERRORED",
@@ -260,7 +259,7 @@ describe("queryCwExplore", () => {
       httpError(400, {
         reason: "EXPLORE_QUERY_REFUSED",
         refusal: "GROUP_NEEDS_EXACT",
-        detail: { why: "NOT_INDEXED", path: "payload.bank.sortCode" },
+        detail: { why: "NOT_INDEXED", path: "payload..sortCode" },
       }),
     );
     wreck.post.mockRejectedValueOnce(

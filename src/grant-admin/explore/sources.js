@@ -12,23 +12,15 @@ const withBucket = (box) => ({
 });
 
 // A record attached from another source is read from that source's
-// collection, and only through that source's roots.
+// collection.
 const attachedFrom = ({ source: name, ...attach }) =>
   name ? { ...attach, collection: findExploreSource(name).collection } : attach;
-
-const attachedRoots = (attach = []) =>
-  attach
-    .filter(({ source }) => source)
-    .flatMap(({ as, source }) =>
-      findExploreSource(source).roots.map((root) => `${as}.${root}`),
-    );
 
 // A source with its buckets read from the bucket registry and its attached
 // records from the sources they come from, as every module has registered
 // them by the time a query arrives.
 const resolved = (source) => ({
   ...source,
-  roots: [...source.roots, ...attachedRoots(source.attach)],
   ...(source.bucket && { bucket: findBucket(source.bucket) }),
   ...(source.boxes && { boxes: source.boxes.map(withBucket) }),
   ...(source.attach && { attach: source.attach.map(attachedFrom) }),

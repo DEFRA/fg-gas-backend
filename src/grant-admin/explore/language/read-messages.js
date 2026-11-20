@@ -1,33 +1,20 @@
-import {
-  DENIED,
-  MALFORMED,
-  NOT_A_ROOT,
-} from "../../../common/explore/paths.js";
+import { MALFORMED } from "../../../common/explore/paths.js";
 import {
   MAX_COLUMNS,
+  MAX_LIMIT,
   MAX_TESTS,
   MAX_UNWINDS,
-  MAX_VALUE_LENGTH,
   MAX_VALUES,
+  maxLengthOf,
 } from "../../../common/explore/query-schema.js";
 import { FILTER_OPS, OPERATORS, MAX_STAGES } from "./allowlist.js";
 import { OUTLINE_MESSAGES, listOf } from "./outline.js";
 
 export const MAX_NAME = 64;
 
-const capitalised = (text) => text.charAt(0).toUpperCase() + text.slice(1);
-
-const listed = (names) =>
-  names.length > 1
-    ? `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`
-    : names.join("");
-
 export const READ_MESSAGES = {
   [MALFORMED]: (path) =>
-    `“${path}” isn’t a path: names of letters, digits, _ and - joined by dots, as 'identifiers.sbi'`,
-  [DENIED]: (path) => `“${path}” can’t be read: it names something private`,
-  [NOT_A_ROOT]: (path, source) =>
-    `${capitalised(source.name)} can’t read “${path}”. A path starts with ${listed(source.roots)}`,
+    `“${path}” isn’t a path: names of letters, digits, _ and - joined by dots, as 'identifiers.sbi', any but the first may start with $`,
   ref: (what) =>
     `${what} takes a path as '$path', e.g. '$phases.answers.parcels.parcelId'`,
   filter: "A filter is an object: { path: value }",
@@ -40,8 +27,9 @@ export const READ_MESSAGES = {
   list: (name) => `A list needs $in: { ${name}: { $in: [ … ] } }`,
   inList: (key) => `${key} takes a list: ['a', 'b']`,
   value:
-    "A value goes here: 'text', a number, true, false, null or ISODate('2026-10-01')",
-  compared: "Compare with text, a number, true, false or ISODate('2026-10-01')",
+    "A value goes here: 'text', a number, true, false, null, ISODate('2026-10-01') or ObjectId('…')",
+  compared:
+    "Compare with text, a number, true, false, ISODate('2026-10-01') or ObjectId('…')",
   exists: "$exists takes true or false: { $exists: true }",
   regex: "$regex takes a pattern: /hill/i or 'hill'",
   options: "$options goes with $regex: { $regex: 'hill', $options: 'i' }",
@@ -51,13 +39,20 @@ export const READ_MESSAGES = {
   date: "A date goes here, in quotes, in UTC: '2026-10-01'",
   dateStored: (path) =>
     `${path} is stored as a date: compare it with ISODate('2026-10-01')`,
+  objectIdStored: (path) =>
+    `${path} is stored as an ObjectId: compare it with ObjectId('…')`,
   service: "Events come from GAS or CW: service: 'GAS'",
   box: "Events are in an outbox or an inbox: box: 'inbox'",
   tests: `A query has at most ${MAX_TESTS} conditions`,
   values: `A list has at most ${MAX_VALUES} values`,
-  valueLength: `A value is at most ${MAX_VALUE_LENGTH} characters`,
+  valueLength: (path) => `A value is at most ${maxLengthOf(path)} characters`,
   fields: "Paths to show are an object: { clientRef: 1, 'identifiers.sbi': 1 }",
   zero: "List the paths to show with 1. Leaving paths out isn’t needed: only those listed show",
+  ownId: "_id is the record’s own id: name this column otherwise",
+  collision: (shorter, longer) =>
+    `Path collision at ${longer}: list ${shorter} or ${longer}`,
+  dollarKey: (key, parent) =>
+    `mongod can’t project a path holding ${key}: project its parent, '${parent}'`,
   show: "Show a path with 1, or work one out with $size, $sum, $min or $max: { parcels: { $size: '$phases.answers.parcels' } }",
   columns: `Show at most ${MAX_COLUMNS} columns`,
   name: `A name is at most ${MAX_NAME} characters`,
@@ -68,6 +63,7 @@ export const READ_MESSAGES = {
   sortWay: "Sort with 1 (lowest first) or -1 (highest first)",
   sortGroups: "Sort groups by _id or a name worked out in $group",
   limit: "limit takes a number: .limit(100)",
+  limitMost: `Explore shows at most ${MAX_LIMIT.toLocaleString("en-GB")} rows`,
   stageLimit: "$limit takes a number: { $limit: 100 }",
   afterFind: (name) =>
     `.${name}(…) goes after find only: use $sort or $limit in aggregate`,

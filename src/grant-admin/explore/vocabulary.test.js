@@ -6,7 +6,6 @@ import {
   buildVocabulary,
   publicVocabulary,
   readsCaseworking,
-  sharedVersion,
 } from "./vocabulary.js";
 
 const own = [
@@ -43,7 +42,6 @@ const knownPath = (path, extra = {}) => ({
 });
 
 const cw = {
-  versions: [2, 7],
   sources: [
     {
       name: "cases",
@@ -93,7 +91,6 @@ describe("buildVocabulary", () => {
         .get("applications")
         .paths.get("phases.answers.landParcels.areaHa"),
     ).toMatchObject({ type: "number", index: null });
-    expect(vocabulary.cwVersion).toBe(2);
     expect(vocabulary.unavailable.size).toBe(0);
   });
 
@@ -122,13 +119,6 @@ describe("buildVocabulary", () => {
     expect([...vocabulary.sources.keys()]).toEqual(["applications"]);
     expect(vocabulary.unavailable.get("cases")).toBe(failure);
     expect(vocabulary.unavailable.get("workflows")).toBe(failure);
-  });
-});
-
-describe("sharedVersion", () => {
-  it("is the highest Query version both read, or null", () => {
-    expect(sharedVersion([2, 9])).toBe(2);
-    expect(sharedVersion([1])).toBeNull();
   });
 });
 

@@ -34,20 +34,6 @@ export const testSource = (boxes = [outbox(), inbox()]) => ({
   noun: { one: "event", many: "events" },
   time: "publicationDate",
   star: ["publicationDate", "box", "eventType", "status"],
-  roots: [
-    "ref",
-    "msg",
-    "status",
-    "eventType",
-    "code",
-    "version",
-    "grantCode",
-    "note",
-    "publicationDate",
-    "attempts",
-    "refs",
-    "payload",
-  ],
   added: { box: (_, { box }) => [box] },
   answersAt: "payload.answers",
   boxes: boxes.map((bucket) => ({
@@ -59,6 +45,7 @@ export const testSource = (boxes = [outbox(), inbox()]) => ({
   open: (doc, { box }) => ({ kind: "event", box, id: String(doc._id) }),
   openPaths: [],
   paths: [
+    { path: "_id", type: "objectId", index: { id: true } },
     { path: "ref", type: "text", index: { ref: "ref" } },
     { path: "refs", type: "text", index: { refs: true } },
     { path: "msg", type: "text", index: { ref: "msg", stable: true } },

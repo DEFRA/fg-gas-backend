@@ -1,6 +1,6 @@
 import Joi from "joi";
 import { checkEach, hasCells } from "../../common/explore/large-answers.js";
-import { MAX_LIMIT, MODES } from "../../common/explore/query-schema.js";
+import { MAX_LIMIT, MODES, TYPES } from "../../common/explore/query-schema.js";
 import { MAX_WINDOWS } from "../explore/windows.js";
 import { adminReadHeadersSchema } from "./actor-header.schema.js";
 
@@ -32,7 +32,7 @@ export const exploreQueryRequestSchema = Joi.object({
   .label("ExploreQueryRequest");
 
 // A cell is a value as stored, a list of cells, or an object as `{ text }`:
-// its readable fields inline, without denied names.
+// its fields inline.
 const cell = Joi.alternatives(
   Joi.string().allow(""),
   Joi.number(),
@@ -43,7 +43,6 @@ const cell = Joi.alternatives(
   .id("answerCell");
 
 const KINDS = ["text", "number", "date"];
-const TYPES = ["text", "number", "boolean", "date"];
 
 export const exploreVocabularyResponseSchema = Joi.object({
   sources: Joi.array()

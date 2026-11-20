@@ -1,17 +1,18 @@
+import { isDollarSegment } from "./paths.js";
 import { testsOf } from "./query-schema.js";
 
 const POSITION = /^\d+$/;
 
 // How a path is read from one box's records: walked from the record, or,
 // for what the source adds to each record (an event's service and box),
-// read from the box. `readable` says which paths below it may be read;
-// `charge`, when given, is told the list elements each walk visits.
+// read from the box. `charge`, when given, is told the list elements each
+// walk visits.
 const readerOfPath =
-  (source, { readable, charge }) =>
+  (source, { charge }) =>
   (path) =>
     Object.hasOwn(source.added ?? {}, path)
       ? { path, read: source.added[path] }
-      : { path, names: path.split("."), readable, charge };
+      : { path, names: path.split("."), charge };
 
 const isStar = (ref) => ref?.path === "*";
 
@@ -28,10 +29,8 @@ export const pathsOfQuery = (query) =>
     .filter((ref) => ref && !isStar(ref))
     .map(({ path }) => path);
 
-const everyPath = () => true;
-
-export const readersFor = (source, { readable = everyPath, charge } = {}) => {
-  const reader = readerOfPath(source, { readable, charge });
+export const readersFor = (source, { charge } = {}) => {
+  const reader = readerOfPath(source, { charge });
 
   return { readerOf: ({ path }) => reader(path) };
 };
@@ -39,10 +38,14 @@ export const readersFor = (source, { readable = everyPath, charge } = {}) => {
 export const usedReaders = (query, { readerOf }) =>
   pathsOfQuery(query).map((path) => readerOf({ path }));
 
-// Mongo projects a list's position as a key, so a path is projected down to
-// its first position.
+// Mongo projects a list's position as a key, and refuses a key starting $,
+// so a path is projected down to its first position or $ key. A record is
+// no list, so its own keys are kept whatever they are.
+const isCut = (name, at) =>
+  at > 0 && (POSITION.test(name) || isDollarSegment(name));
+
 const projectedOf = ({ names }) => {
-  const at = names.findIndex((name) => POSITION.test(name));
+  const at = names.findIndex(isCut);
 
   return (at === -1 ? names : names.slice(0, at)).join(".");
 };

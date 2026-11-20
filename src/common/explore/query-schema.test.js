@@ -7,7 +7,7 @@ import {
 } from "./query-schema.js";
 
 const query = (overrides = {}) => ({
-  v: 2,
+  v: 3,
   source: "cases",
   mode: "rows",
   columns: [
@@ -73,16 +73,18 @@ describe("querySchema", () => {
 
   it.each([
     ["version 1, which names fields", { v: 1 }],
+    ["version 2", { v: 2 }],
     ["a path named as an operator", { columns: [{ path: "$where" }] }],
     ["a malformed path", { columns: [{ path: "a..b" }] }],
-    ["a denied path", { columns: [{ path: "payload.bank.x" }] }],
+    ["a path starting $", { columns: [{ path: "$schema.x" }] }],
+    ["a $ segment alone", { columns: [{ path: "a.$" }] }],
     ["an inherited name", { where: test({ path: "a.__proto__" }) }],
     ["a field name", { columns: [{ field: "ref" }] }],
     ["an answers map", { answers: {} }],
     ["no unwind", { unwind: undefined }],
     [
-      "an unwind of a denied path",
-      { unwind: [{ path: "payload.bank", preserve: false }] },
+      "an unwind of a malformed path",
+      { unwind: [{ path: "payload..bank", preserve: false }] },
     ],
     ["an unwind without preserve", { unwind: [{ path: "payload" }] }],
     [
@@ -181,8 +183,114 @@ describe("querySchema", () => {
       { where: test({ values: [{ date: "2026-10-01T25:00:00Z" }] }) },
     ],
     ["a position that is no box", { positions: { $where: "x" } }],
+    ["version 4", { v: 4 }],
+    [
+      "an ObjectId of 23 hex",
+      { where: test({ values: [{ oid: "a".repeat(23) }] }) },
+    ],
+    [
+      "an ObjectId in upper case",
+      { where: test({ values: [{ oid: "A".repeat(24) }] }) },
+    ],
+    [
+      "an ObjectId of what isn't hex",
+      { where: test({ values: [{ oid: "g".repeat(24) }] }) },
+    ],
+    [
+      "an error key over 120 code points",
+      { where: test({ path: "errorKey", values: ["é".repeat(121)] }) },
+    ],
+    [
+      "an error key over 240 UTF-16 units",
+      { where: test({ path: "errorKey", values: ["😀".repeat(121)] }) },
+    ],
   ])("refuses %s", (_, overrides) => {
     expect(isValid(query(overrides))).toBe(false);
+  });
+
+  it("reads _id, $ keys after the first and ObjectIds in v3", () => {
+    const oid = { oid: "6741a0c2e4b0f1a2b3c4d5e6" };
+
+    expect(
+      isValid(
+        query({
+          v: 3,
+          columns: [{ path: "_id" }, { path: "a._x" }],
+          where: {
+            all: [
+              test({ path: "_id", op: "in", values: [oid, oid] }),
+              test({ path: "_id", op: "gte", values: [oid] }),
+              test({
+                path: "phases.questions.$schema",
+                op: "filled",
+                values: [],
+              }),
+            ],
+          },
+          orderBy: { path: "_id", fn: null, desc: true },
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isValid(
+        query({
+          v: 3,
+          mode: "groups",
+          columns: [{ path: "_id" }],
+          groupBy: { path: "_id" },
+          orderBy: null,
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["an _id column", { columns: [{ path: "_id" }] }],
+    ["an _id test", { where: test({ path: "_id", op: "filled", values: [] }) }],
+    [
+      "a $ key in a test",
+      { where: test({ path: "a.$schema", op: "filled", values: [] }) },
+    ],
+    [
+      "an ObjectId on another path",
+      { where: test({ values: [{ oid: "6741a0c2e4b0f1a2b3c4d5e6" }] }) },
+    ],
+    ["a sort by _id", { orderBy: { path: "_id", fn: null, desc: true } }],
+    [
+      "a group by a $ key",
+      {
+        mode: "groups",
+        columns: [{ path: "a.$schema" }],
+        groupBy: { path: "a.$schema" },
+        orderBy: null,
+      },
+    ],
+    [
+      "an unwind of _id",
+      { unwind: [{ path: "_id", preserve: false }], orderBy: null },
+    ],
+  ])("reads %s", (_, overrides) => {
+    expect(isValid(query(overrides))).toBe(true);
+  });
+
+  it("reads an error key by its code points, up to 120 however long in UTF-16", () => {
+    expect(
+      isValid(
+        query({
+          where: test({ path: "errorKey", values: ["😀".repeat(120)] }),
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isValid(
+        query({ where: test({ path: "status", values: ["😀".repeat(120)] }) }),
+      ),
+    ).toBe(false);
+    expect(
+      isValid(
+        query({ where: test({ path: "errorKey", values: ["x".repeat(200)] }) }),
+      ),
+    ).toBe(false);
   });
 
   it("checks the size and depth of a WHERE apart", () => {
@@ -269,7 +377,6 @@ describe("partSchema", () => {
 
 describe("sourcesSchema", () => {
   const sources = (source = {}) => ({
-    versions: [2],
     sources: [
       {
         name: "cases",
@@ -311,8 +418,27 @@ describe("sourcesSchema", () => {
     ],
   });
 
-  it("reads a source's roots and known paths", () => {
+  it("reads a source's known paths, with or without roots", () => {
     expect(sourcesSchema.validate(sources()).error).toBeUndefined();
+    expect(
+      sourcesSchema.validate(sources({ roots: undefined })).error,
+    ).toBeUndefined();
+  });
+
+  it("reads an _id path typed objectId and indexed by id", () => {
+    const withId = sources({
+      paths: [
+        {
+          path: "_id",
+          type: "objectId",
+          index: "id",
+          closed: false,
+          within: null,
+        },
+      ],
+    });
+
+    expect(sourcesSchema.validate(withId).error).toBeUndefined();
   });
 
   it("ignores the fields an older service still sends", () => {
@@ -334,7 +460,6 @@ describe("sourcesSchema", () => {
       },
     ],
     ["a type it doesn't know", { paths: [{ path: "a", type: "blob" }] }],
-    ["no roots", { roots: undefined }],
   ])("refuses %s", (_, source) => {
     expect(sourcesSchema.validate(sources(source)).error).toBeDefined();
   });

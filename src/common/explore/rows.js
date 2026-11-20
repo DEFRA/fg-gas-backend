@@ -91,7 +91,6 @@ const addTo = (group, doc, aggregates, ctx) => {
       fn,
       group.raw[key],
       valueOfExpr(reader, doc, ctx),
-      reader,
     );
   });
 };
@@ -105,7 +104,7 @@ const sentGroup =
     aggs: Object.fromEntries(
       Object.entries(raw).map(([key, value]) => [
         key,
-        sentPartial(aggregates.get(key).fn, value, aggregates.get(key).reader),
+        sentPartial(aggregates.get(key).fn, value),
       ]),
     ),
   });
@@ -123,11 +122,11 @@ export const grouper = ({ query, readerOf }) => {
   const groups = new Map();
 
   const groupOf = (value) => {
-    const key = groupKeyOf(value, reader);
+    const key = groupKeyOf(value);
     const id = JSON.stringify(key);
 
     if (!groups.has(id)) {
-      groups.set(id, { key, value: orderedOf(value, reader), n: 0, raw: {} });
+      groups.set(id, { key, value: orderedOf(value), n: 0, raw: {} });
     }
 
     return groups.get(id);

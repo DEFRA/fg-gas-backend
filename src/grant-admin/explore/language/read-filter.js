@@ -4,31 +4,32 @@ import { pathProblem } from "../../../common/explore/paths.js";
 import { patternProblem } from "../../../common/explore/pattern.js";
 import {
   MAX_TESTS,
-  MAX_VALUE_LENGTH,
   MAX_VALUES,
+  isTooLong,
 } from "../../../common/explore/query-schema.js";
 import { LOGIC } from "./allowlist.js";
 import { READ_MESSAGES, fail, isObject, notAllowed } from "./read-messages.js";
 
 // ── Paths ──
 
-// A stored path the source may read, as typed: well formed, under one of its
-// roots, nothing in it denied.
-export const pathOf = (ctx, path, node) => {
-  const problem = pathProblem(path, ctx.source);
+// A stored path, as typed: every well-formed one is read.
+export const pathOf = (path, node) => {
+  const problem = pathProblem(path);
 
-  return problem
-    ? fail(READ_MESSAGES[problem](path, ctx.source), node)
-    : { path };
+  if (problem) {
+    fail(READ_MESSAGES[problem](path), node);
+  }
+
+  return { path };
 };
 
 export const isRef = (node) =>
   node.type === "text" && node.value.startsWith("$") && node.value.length > 1;
 
 // '$path': a path of the source, named in text.
-export const refOf = (ctx, node, what) =>
+export const refOf = (node, what) =>
   isRef(node)
-    ? pathOf(ctx, node.value.slice(1), node)
+    ? pathOf(node.value.slice(1), node)
     : fail(READ_MESSAGES.ref(what), node);
 
 // ── Values ──
@@ -41,11 +42,14 @@ const dateValue = (node) =>
         end: node.valueEnd,
       });
 
+const objectIdValue = (node) => ({ oid: node.value });
+
 const VALUES = {
   text: (node) => node.value,
   number: (node) => node.value,
   literal: (node) => node.value,
   date: dateValue,
+  objectId: objectIdValue,
 };
 
 const scalarOf = (node, message = READ_MESSAGES.value) =>
@@ -69,18 +73,29 @@ const boxValuesOf = (ctx, path) =>
 const isBoxValue = (values, value) =>
   !values || value === null || values.some((entry) => entry.value === value);
 
-const isLong = (value) => isText(value) && value.length > MAX_VALUE_LENGTH;
+const isLong = (path, value) => isText(value) && isTooLong(path, value);
 
-// Text never equals or compares with a stored Date, so text on a time some
-// box stores as a Date can't be what was meant.
+// Text never equals or compares with a stored Date, nor with an ObjectId,
+// so text on a time some box stores as a Date, or on a path stored as an
+// ObjectId, can't be what was meant.
 const isDateStored = (ctx, path) =>
   ctx.source.paths.get(path)?.stored === "date";
 
+const isObjectIdStored = (ctx, path) =>
+  ctx.source.paths.get(path)?.type === "objectId";
+
 const VALUE_RULES = [
-  [(_ctx, _path, value) => isLong(value), () => READ_MESSAGES.valueLength],
+  [
+    (_ctx, path, value) => isLong(path, value),
+    (path) => READ_MESSAGES.valueLength(path),
+  ],
   [
     (ctx, path, value) => isText(value) && isDateStored(ctx, path),
     (path) => READ_MESSAGES.dateStored(path),
+  ],
+  [
+    (ctx, path, value) => isText(value) && isObjectIdStored(ctx, path),
+    (path) => READ_MESSAGES.objectIdStored(path),
   ],
   [
     (ctx, path, value) => !isBoxValue(boxValuesOf(ctx, path), value),
@@ -310,7 +325,7 @@ const pathValueTest = (ctx, target, node) => {
 };
 
 const pathTest = (ctx, entry) =>
-  pathValueTest(ctx, pathOf(ctx, entry.key, entry), entry.value);
+  pathValueTest(ctx, pathOf(entry.key, entry), entry.value);
 
 const logicTest = (ctx, entry) => {
   const list = entry.value;

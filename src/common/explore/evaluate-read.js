@@ -1,4 +1,4 @@
-import { Decimal128 } from "mongodb";
+import { Decimal128, ObjectId } from "mongodb";
 
 // A day, then nothing or a time: hours, minutes, seconds if given, and the
 // zone's offset if not Z.
@@ -68,14 +68,29 @@ export const dateOf = (value) => {
   return isDateText(value) ? new Date(value) : null;
 };
 
-const isTypedDate = (value) =>
-  value !== null && typeof value === "object" && Object.hasOwn(value, "date");
+const isTagged = (value, tag) =>
+  value !== null && typeof value === "object" && Object.hasOwn(value, tag);
 
-// A date typed as ISODate travels as { date }; it is read as its text.
-export const plainValue = (value) => (isTypedDate(value) ? value.date : value);
+// An ObjectId as it travels, { oid }.
+export const isOidTag = (value) => isTagged(value, "oid");
 
-export const typedOf = (value) =>
-  isTypedDate(value) ? new Date(value.date) : value;
+// A date typed as ISODate travels as { date }, an ObjectId as { oid }: each
+// is read as its text.
+export const plainValue = (value) => {
+  if (isTagged(value, "date")) {
+    return value.date;
+  }
+
+  return isOidTag(value) ? value.oid : value;
+};
+
+export const typedOf = (value) => {
+  if (isTagged(value, "date")) {
+    return new Date(value.date);
+  }
+
+  return isOidTag(value) ? ObjectId.createFromHexString(value.oid) : value;
+};
 
 // ── Reading ──
 
@@ -240,7 +255,12 @@ export const isDecimalTag = (text) =>
 // element taken by position.
 const found = (into, value, whole) => {
   into.present = true;
-  into.values.push(...(Array.isArray(value) && !whole ? value : [value]));
+
+  if (Array.isArray(value) && !whole) {
+    value.forEach((element) => into.values.push(element));
+  } else {
+    into.values.push(value);
+  }
 };
 
 const walkKey = (value, [name, ...rest], into) => {
@@ -335,31 +355,6 @@ export const valueAt = (doc, reader, ctx = {}) =>
     ? reader.read(doc, ctx)[0]
     : fieldPath(doc, reader.names, reader.charge);
 
-// A value with what may not be read below its path taken out, so comparing
-// or keying objects never tells apart what is hidden in them. A list's
-// elements are at its own path.
-const readableAt = (value, path, reader) => {
-  reader.charge?.(1);
-
-  if (Array.isArray(value)) {
-    return value.map((element) => readableAt(element, path, reader));
-  }
-
-  return isOpenObject(value)
-    ? Object.fromEntries(
-        Object.entries(value)
-          .filter(([key]) => reader.readable(`${path}.${key}`))
-          .map(([key, inner]) => [
-            key,
-            readableAt(inner, `${path}.${key}`, reader),
-          ]),
-      )
-    : value;
-};
-
-export const readableOf = (value, reader) =>
-  reader?.readable ? readableAt(value, reader.path, reader) : value;
-
 // ── Types, as Mongo orders them ──
 
 export const TYPE_ORDER = {
@@ -400,12 +395,18 @@ export const order = (a, b) => {
   return a < b ? -1 : 1;
 };
 
+// ObjectIds in order of their 12 bytes, as their lower-case hex is.
+const SAME_TYPE_ORDER = {
+  date: (a, b) => order(a.getTime(), b.getTime()),
+  objectId: (a, b) => order(a.toHexString(), b.toHexString()),
+};
+
 export const sameTypeOrder = (a, b) =>
-  isDate(a) ? order(a.getTime(), b.getTime()) : order(a, b);
+  (SAME_TYPE_ORDER[typeOf(a)] ?? order)(a, b);
 
 // How a stored value compares with a typed one of its type, or null when
 // their types differ and no comparison holds.
-const COMPARABLE = new Set(["number", "string", "boolean", "date"]);
+const COMPARABLE = new Set(["number", "string", "boolean", "date", "objectId"]);
 
 export const compared = (stored, wanted) => {
   const value = asTypeOf(stored, wanted);
