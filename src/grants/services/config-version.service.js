@@ -83,6 +83,9 @@ export const findStoredGrantDefinition = async (
 
 export { fetchConfigDefinitionsUseCase as fetchConfigDefinitions } from "../use-cases/fetch-config-definitions.use-case.js";
 
+// The current grants the user administers, as `{ code, description }`.
+export { findAdministeredGrantsUseCase as findAdministeredGrants } from "../use-cases/find-administered-grants.use-case.js";
+
 export {
   GRANT_VERSION_NOT_FOUND,
   configVersionNotFound,

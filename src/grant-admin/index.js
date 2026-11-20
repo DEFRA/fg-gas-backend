@@ -22,6 +22,7 @@ import { getEventRoute } from "./routes/get-event.route.js";
 import { getAllowListRoute } from "./routes/get-allow-list.route.js";
 import { fetchGrantDefinitionsRoute } from "./routes/fetch-grant-definitions.route.js";
 import { fetchWorkflowDefinitionRoute } from "./routes/fetch-workflow-definition.route.js";
+import { listGrantTypesRoute } from "./routes/list-grant-types.route.js";
 import { listGrantVersionsRoute } from "./routes/list-grant-versions.route.js";
 import { listBucketsRoute } from "./routes/list-buckets.route.js";
 import { purgeEventRoute } from "./routes/purge-event.route.js";
@@ -92,6 +93,7 @@ export const grantAdmin = {
       viewCaseOverviewRoute,
       viewCaseEventsRoute,
       viewCaseRawRoute,
+      listGrantTypesRoute,
       listGrantVersionsRoute,
       viewGrantVersionOverviewRoute,
       viewGrantVersionDefinitionRoute,
