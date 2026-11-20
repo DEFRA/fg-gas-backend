@@ -130,6 +130,7 @@ describe("validateConfigDefinitions", () => {
 
   it.each([
     "compose/seed/pigs-might-fly/1.0.0/gas/gas.json",
+    "compose/seed/pigs-might-fly/1.2.0/gas/gas.json",
     "compose/seed/woodland/1.39.1/gas/gas.json",
     "test/fixtures/pmf-grant-definition.json",
     "test/fixtures/wmp/woodland.json",
