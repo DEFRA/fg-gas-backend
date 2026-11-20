@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import {
   EndpointServiceUrlError,
   validateEndpointServiceUrls,
-} from "../services/integrations/resolve-endpoint-service-url.js";
+} from "../../common/resolve-endpoint-service-url.js";
 import { logger } from "../../common/logger.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
 import { callAgreementEndpoint } from "../services/integrations/call-agreement-endpoint.js";

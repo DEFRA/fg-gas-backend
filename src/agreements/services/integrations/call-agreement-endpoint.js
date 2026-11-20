@@ -3,7 +3,7 @@ import { wreck } from "../../../common/wreck.js";
 import {
   resolveEndpointServiceHeaders,
   resolveEndpointUrl,
-} from "./resolve-endpoint-service-url.js";
+} from "../../../common/resolve-endpoint-service-url.js";
 
 const HTTP_SUCCESS_MIN = 200;
 const HTTP_SUCCESS_MAX = 300;

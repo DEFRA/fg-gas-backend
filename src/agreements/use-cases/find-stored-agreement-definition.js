@@ -3,7 +3,7 @@ import { findStoredAgreementDefinitionDocument } from "../repositories/agreement
 import {
   missingEndpointServiceUrls,
   toServiceAddress,
-} from "../services/integrations/resolve-endpoint-service-url.js";
+} from "../../common/resolve-endpoint-service-url.js";
 import { checkStoredAgreementDefinition } from "./compile-agreement-definition.js";
 
 const MAX_PROBLEM_LENGTH = 500;

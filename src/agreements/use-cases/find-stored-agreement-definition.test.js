@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
 import { findStoredAgreementDefinitionDocument } from "../repositories/agreement-definition.repository.js";
-import { validateEndpointServiceUrls } from "../services/integrations/resolve-endpoint-service-url.js";
+import { validateEndpointServiceUrls } from "../../common/resolve-endpoint-service-url.js";
 import { findStoredAgreementDefinition } from "./find-stored-agreement-definition.js";
 
 vi.mock("../../common/logger.js");

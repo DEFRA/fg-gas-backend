@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { wreck } from "../../../common/wreck.js";
 import { callAgreementEndpoint } from "./call-agreement-endpoint.js";
-import { resolveEndpointServiceHeaders } from "./resolve-endpoint-service-url.js";
+import { resolveEndpointServiceHeaders } from "../../../common/resolve-endpoint-service-url.js";
 
-vi.mock("./resolve-endpoint-service-url.js", async (importOriginal) => ({
-  ...(await importOriginal()),
-  resolveEndpointServiceHeaders: vi.fn(),
-}));
+vi.mock(
+  "../../../common/resolve-endpoint-service-url.js",
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    resolveEndpointServiceHeaders: vi.fn(),
+  }),
+);
 vi.mock("../../../common/wreck.js");
 
 const endpointConfig = {
