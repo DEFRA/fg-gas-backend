@@ -11,5 +11,5 @@ const sources = {
 
 // Every source answers with a ReferenceDataSet, so callers never branch on
 // where the items live.
-export const loadReferenceDataSet = (grantCode, declaration) =>
-  sources[declaration.type]({ grantCode, declaration });
+export const loadReferenceDataSet = (grant, declaration) =>
+  sources[declaration.type]({ grant, declaration });

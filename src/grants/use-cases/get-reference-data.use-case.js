@@ -19,7 +19,7 @@ export const findReferenceDataDeclaration = (grant, name) => {
 export const getReferenceDataUseCase = async ({ code, name }) => {
   const { grant } = await resolveAndFetchGrant(code);
   const declaration = findReferenceDataDeclaration(grant, name);
-  const set = await loadReferenceDataSet(grant.code, declaration);
+  const set = await loadReferenceDataSet(grant, declaration);
 
   return { ...set.toJSON(), source: declaration.type };
 };

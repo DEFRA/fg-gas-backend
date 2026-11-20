@@ -2,6 +2,7 @@ import Joi from "joi";
 
 const MAX_SETS = 50;
 const MAX_ITEMS = 1000;
+const MAX_ENDPOINTS = 20;
 
 export const referenceDataName = Joi.string()
   .pattern(/^[a-z0-9]+(-[a-z0-9]+)*$/)
@@ -42,20 +43,37 @@ const dbSource = Joi.object({
   type: Joi.string().valid("db").required(),
 }).label("DbReferenceDataSource");
 
-// The same named-service shape as an agreement's endpoint process: the
-// address comes from {service}_URL, never from the published definition.
+const output = Joi.object({
+  items: Joi.any().required(),
+}).label("ReferenceDataOutput");
+
+// The same shape as an agreement definition's endpoints: the address comes from
+// {service}_URL, never from the published definition. {name} in the path is
+// the name of the list being read, so one endpoint can serve several lists.
+export const grantEndpoint = Joi.object({
+  code: Joi.string()
+    .pattern(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+    .max(64)
+    .required(),
+  method: Joi.string().valid("GET").required(),
+  path: Joi.string().pattern(/^\//).required(),
+  service: Joi.string()
+    .pattern(/^[A-Z][A-Z0-9_]*$/)
+    .required(),
+  output: output.optional(),
+}).label("Endpoint");
+
+export const endpoints = Joi.array()
+  .items(grantEndpoint)
+  .unique("code")
+  .max(MAX_ENDPOINTS)
+  .label("Endpoints");
+
+// Names one of the grant's endpoints. Its own output overrides the endpoint's.
 const endpointSource = Joi.object({
   type: Joi.string().valid("endpoint").required(),
-  endpoint: Joi.object({
-    method: Joi.string().valid("GET").required(),
-    path: Joi.string().pattern(/^\//).required(),
-    service: Joi.string()
-      .pattern(/^[A-Z][A-Z0-9_]*$/)
-      .required(),
-  }).required(),
-  output: Joi.object({
-    items: Joi.any().required(),
-  }).required(),
+  endpoint: Joi.string().required(),
+  output: output.optional(),
 }).label("EndpointReferenceDataSource");
 
 const source = Joi.alternatives()

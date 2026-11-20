@@ -15,8 +15,8 @@ import { resolveAndFetchGrant } from "../services/resolve-config-version.service
 import { findReferenceDataDeclaration } from "./get-reference-data.use-case.js";
 import { resolveGrantAdministration } from "./resolve-grant-administration.use-case.js";
 
-// Only a set the grant's current version declares as db can be read or
-// changed here; an inline or endpoint set has no items GAS holds.
+// Only a set the grant's current version declares as db can be changed here;
+// an inline or endpoint set has no items GAS holds.
 const assertHeldInDb = async ({ grantCode, name, ...access }) => {
   await resolveGrantAdministration({ grantCode, ...access });
   const { grant } = await resolveAndFetchGrant(grantCode);
@@ -32,12 +32,6 @@ const assertHeldInDb = async ({ grantCode, name, ...access }) => {
 const load = async (grantCode, name, session) =>
   (await findByGrantCodeAndName(grantCode, name, session)) ??
   DbReferenceData.empty(grantCode, name);
-
-export const getDbReferenceDataUseCase = async (args) => {
-  await assertHeldInDb(args);
-
-  return (await load(args.grantCode, args.name)).toJSON();
-};
 
 const changes = {
   add: (referenceData, { item }) => referenceData.addItem(item),

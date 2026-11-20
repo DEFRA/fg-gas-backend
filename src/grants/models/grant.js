@@ -5,6 +5,7 @@ import { assertEntitlementAnswerDecimalsCapped } from "./entitlement-answer-deci
 import { EntitlementTemplate } from "./entitlement-template.js";
 import { ExternalStatusMap } from "./external-status-map.js";
 import { ExternalStatusMapping } from "./external-status-mapping.js";
+import { GrantEndpoint } from "./grant-endpoint.js";
 import { GrantLifecycle } from "./grant-lifecycle.js";
 import { describePhases, distinctPositions } from "./lifecycle-phases.js";
 import { Position } from "./position.js";
@@ -16,9 +17,12 @@ const formatPosition = ({ phase, stage, status }) =>
 
 const positionParts = ["phase", "stage", "status"];
 
-// Always a collection, like entitlementTemplates.
+// Always collections, like entitlementTemplates.
 const toReferenceDataDeclarations = (declarations = []) =>
   declarations.map((declaration) => new ReferenceDataDeclaration(declaration));
+
+const toEndpoints = (endpoints = []) =>
+  endpoints.map((endpoint) => new GrantEndpoint(endpoint));
 const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
 
@@ -43,7 +47,9 @@ export class Grant {
     pages,
     claims,
     admin,
-    // The Reference Data Sets this grant declares.
+    // The calls to other services this grant declares once for its lists to
+    // share, and the Reference Data Sets it declares.
+    endpoints,
     referenceData,
   }) {
     this.code = code;
@@ -63,10 +69,13 @@ export class Grant {
     this.pages = pages;
     this.claims = claims;
     this.admin = admin;
+    this.endpoints = toEndpoints(endpoints);
     this.referenceData = toReferenceDataDeclarations(referenceData);
 
     this.#assertActionsIsArray();
+    this.#assertEndpointCodesUnique();
     this.#assertReferenceDataNamesUnique();
+    this.#assertReferenceDataEndpointsResolve();
     this.#assertEntitlementTemplateClaimCodesUnique();
     this.#assertEntitlementTemplatePositionsExist();
     this.#assertClaimApprovalPositionsExist();
@@ -137,6 +146,25 @@ export class Grant {
     return this.referenceData.find((declaration) => declaration.name === name);
   }
 
+  findEndpoint(code) {
+    return this.endpoints.find((endpoint) => endpoint.code === code);
+  }
+
+  // The call that reads an endpoint list: its endpoint, with {name} filled in,
+  // and the list's own output Mapping, or else the endpoint's.
+  referenceDataCallFor(declaration) {
+    const endpoint = this.findEndpoint(declaration.endpointCode);
+
+    return {
+      endpoint: {
+        method: endpoint.method,
+        path: endpoint.pathFor(declaration.name),
+        service: endpoint.service,
+      },
+      output: declaration.source.output ?? endpoint.output,
+    };
+  }
+
   findEntitlementTemplate(claimCode) {
     return this.entitlementTemplates.find(
       (template) => template.claimCode === claimCode,
@@ -183,6 +211,46 @@ export class Grant {
       }
 
       names.add(name);
+    }
+  }
+
+  #assertEndpointCodesUnique() {
+    const codes = new Set();
+
+    for (const { code } of this.endpoints) {
+      if (codes.has(code)) {
+        throw Boom.badImplementation(
+          `Grant "${this.code}" declares endpoint "${code}" more than once`,
+        );
+      }
+
+      codes.add(code);
+    }
+  }
+
+  // A list naming an endpoint that doesn't exist, or with no output to read
+  // its answer by, could never load. Refuse it before the version is recorded.
+  #assertReferenceDataEndpointsResolve() {
+    for (const declaration of this.referenceData) {
+      if (declaration.isFromEndpoint) {
+        this.#assertEndpointResolves(declaration);
+      }
+    }
+  }
+
+  #assertEndpointResolves(declaration) {
+    const endpoint = this.findEndpoint(declaration.endpointCode);
+
+    if (!endpoint) {
+      throw Boom.badImplementation(
+        `Grant "${this.code}" reference data "${declaration.name}" names endpoint "${declaration.endpointCode}", which it does not declare`,
+      );
+    }
+
+    if (!declaration.source.output && !endpoint.output) {
+      throw Boom.badImplementation(
+        `Grant "${this.code}" reference data "${declaration.name}" has no output, and endpoint "${endpoint.code}" has none to share`,
+      );
     }
   }
 

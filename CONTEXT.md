@@ -48,8 +48,11 @@
 : One allowed value of a Reference Data Set: a `code` and a `description`.
 
 **Reference Data Source**
-: Where a Reference Data Set's items come from: `inline` in the Grant Definition, changed only by a new Config Version; `db`, held by GAS and changed in Grant Admin; or `endpoint`, fetched from another service by its Service Address each time it is read.
+: Where a Reference Data Set's items come from: `inline` in the Grant Definition, changed only by a new Config Version; `db`, held by GAS and changed in Grant Admin; or `endpoint`, fetched through one of the grant's Grant Endpoints each time it is read.
 _Avoid_: `mongo`, `static`, `managed`.
+
+**Grant Endpoint**
+: A call to another service a Grant Definition declares once, by code, for its Reference Data Sets to share: a method, a path and a service, whose Service Address comes from `{service}_URL`. `{name}` in its path becomes the name of the set being read, and the output Mapping it may carry is the default for every set that names it. It takes the same shape as an agreement definition's endpoints.
 
 **DB Reference Data**
 : The items GAS holds for one grant's `db` Reference Data Set, independent of the grant's Config Versions. Grant Admin adds, changes and removes them one item at a time; an item's code never changes.

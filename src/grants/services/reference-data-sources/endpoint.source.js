@@ -27,8 +27,7 @@ const resolveAddress = (endpoint, declaration) => {
   }
 };
 
-const fetchResponse = async (declaration) => {
-  const { endpoint } = declaration.source;
+const fetchResponse = async (endpoint, declaration) => {
   const { url, headers } = resolveAddress(endpoint, declaration);
 
   try {
@@ -41,20 +40,19 @@ const fetchResponse = async (declaration) => {
   }
 };
 
-// The service answers in its own shape; the declaration's output Mapping turns
-// it into items, with the response at $.response as an agreement process has.
-export const loadEndpointReferenceData = async ({ declaration }) => {
-  const response = await fetchResponse(declaration);
+// The service answers in its own shape; the output Mapping turns it into
+// items, with the response at $.response as an agreement process has.
+export const loadEndpointReferenceData = async ({ grant, declaration }) => {
+  const { endpoint, output } = grant.referenceDataCallFor(declaration);
+  const response = await fetchResponse(endpoint, declaration);
 
   try {
-    const items = await resolveProcessMapping(declaration.source.output.items, {
-      response,
-    });
+    const items = await resolveProcessMapping(output.items, { response });
 
     return new ReferenceDataSet({ name: declaration.name, items });
   } catch (error) {
     throw Boom.badGateway(
-      `${declaration.source.endpoint.service} answered ${describe(declaration)} with unusable items: ${error.message}`,
+      `${endpoint.service} answered ${describe(declaration)} with unusable items: ${error.message}`,
     );
   }
 };

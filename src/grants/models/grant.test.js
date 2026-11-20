@@ -69,6 +69,7 @@ describe("Grant", () => {
       amendablePositions: [],
       externalStatusMap: undefined,
       entitlementTemplates: [],
+      endpoints: [],
       referenceData: [],
       phases: [
         {

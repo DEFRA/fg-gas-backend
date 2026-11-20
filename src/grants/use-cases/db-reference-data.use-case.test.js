@@ -12,7 +12,6 @@ import { resolveAndFetchGrant } from "../services/resolve-config-version.service
 import {
   addDbReferenceDataItemUseCase,
   changeDbReferenceDataItemUseCase,
-  getDbReferenceDataUseCase,
   removeDbReferenceDataItemUseCase,
 } from "./db-reference-data.use-case.js";
 import { resolveGrantAdministration } from "./resolve-grant-administration.use-case.js";
@@ -58,14 +57,6 @@ describe("DB Reference Data use cases", () => {
     findByGrantCodeAndName.mockResolvedValue(held());
     replace.mockResolvedValue();
     writeAuditEvent.mockResolvedValue();
-  });
-
-  it("reads the items GAS holds", async () => {
-    await expect(getDbReferenceDataUseCase(args)).resolves.toEqual({
-      name: "fly-db",
-      items: [{ code: "WINGS", description: "Wings" }],
-      updatedAt: null,
-    });
   });
 
   it("adds an item and audits it in the same transaction", async () => {

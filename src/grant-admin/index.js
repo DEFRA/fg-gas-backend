@@ -35,9 +35,9 @@ import { redriveEventRoute } from "./routes/redrive-event.route.js";
 import {
   addDbReferenceDataItemRoute,
   changeDbReferenceDataItemRoute,
-  getDbReferenceDataRoute,
   listReferenceDataRoute,
   removeDbReferenceDataItemRoute,
+  viewReferenceDataRoute,
 } from "./routes/reference-data.route.js";
 import { replaceAllowListRoute } from "./routes/replace-allow-list.route.js";
 import { viewCaseEventsRoute } from "./routes/view-case-events.route.js";
@@ -91,7 +91,7 @@ export const grantAdmin = {
       saveGrantSettingsRoute,
       replaceAllowListRoute,
       listReferenceDataRoute,
-      getDbReferenceDataRoute,
+      viewReferenceDataRoute,
       addDbReferenceDataItemRoute,
       changeDbReferenceDataItemRoute,
       removeDbReferenceDataItemRoute,

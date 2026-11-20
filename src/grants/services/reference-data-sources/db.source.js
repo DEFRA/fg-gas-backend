@@ -3,10 +3,10 @@ import { findByGrantCodeAndName } from "../../repositories/reference-data.reposi
 
 // A db set nobody has added items to yet is empty, not missing: the grant
 // declares it, so it exists.
-export const loadDbReferenceData = async ({ grantCode, declaration }) => {
+export const loadDbReferenceData = async ({ grant, declaration }) => {
   const referenceData =
-    (await findByGrantCodeAndName(grantCode, declaration.name)) ??
-    DbReferenceData.empty(grantCode, declaration.name);
+    (await findByGrantCodeAndName(grant.code, declaration.name)) ??
+    DbReferenceData.empty(grant.code, declaration.name);
 
   return referenceData.toSet();
 };

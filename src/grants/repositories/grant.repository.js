@@ -31,6 +31,7 @@ export const toGrant = (doc) =>
     pages: optionalBlock(doc.pages),
     claims: optionalBlock(doc.claims),
     admin: optionalBlock(doc.admin),
+    endpoints: doc.endpoints ?? [],
     referenceData: doc.referenceData ?? [],
   });
 

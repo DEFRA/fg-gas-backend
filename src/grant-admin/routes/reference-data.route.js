@@ -1,9 +1,9 @@
 import {
   addDbReferenceDataItem,
   changeDbReferenceDataItem,
-  getDbReferenceData,
   listGrantReferenceData,
   removeDbReferenceDataItem,
+  viewGrantReferenceData,
 } from "../../grants/services/reference-data.service.js";
 import { adminReadHeadersSchema } from "../schemas/actor-header.schema.js";
 import { allowListParamsSchema } from "../schemas/allow-list-params.schema.js";
@@ -14,6 +14,7 @@ import {
   grantReferenceDataResponseSchema,
   referenceDataItemParamsSchema,
   referenceDataParamsSchema,
+  viewReferenceDataResponseSchema,
 } from "../schemas/reference-data.schema.js";
 import { findOperatorRoles } from "../services/operator-roles.js";
 import { callerOf } from "../services/request-caller.js";
@@ -57,17 +58,18 @@ export const listReferenceDataRoute = {
   handler: (request) => listGrantReferenceData(argsOf(request)),
 };
 
-export const getDbReferenceDataRoute = {
+export const viewReferenceDataRoute = {
   method: "GET",
   path: `${base}/{name}`,
   options: {
-    description: "Admin: view the items GAS holds for a db reference data set",
+    description:
+      "Admin: view a reference data set's current items, fetching an endpoint set now",
     tags: ["api"],
     cache: { otherwise: "no-store" },
     validate: validate(referenceDataParamsSchema),
-    response: response(dbReferenceDataResponseSchema),
+    response: response(viewReferenceDataResponseSchema),
   },
-  handler: (request) => getDbReferenceData(argsOf(request)),
+  handler: (request) => viewGrantReferenceData(argsOf(request)),
 };
 
 export const addDbReferenceDataItemRoute = {

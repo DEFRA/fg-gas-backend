@@ -44,6 +44,9 @@ export class GrantDocument {
     this.pages = grant.pages;
     this.claims = grant.claims;
     this.admin = grant.admin;
+    this.endpoints = (grant.endpoints ?? []).map((endpoint) =>
+      endpoint.toJSON(),
+    );
     this.referenceData = (grant.referenceData ?? []).map((declaration) =>
       declaration.toJSON(),
     );
