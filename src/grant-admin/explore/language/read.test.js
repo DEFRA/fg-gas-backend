@@ -31,7 +31,7 @@ describe("read", () => {
   describe("find", () => {
     it("reads find() as rows with the source's default columns", () => {
       expect(queryOf("db.applications.find()")).toEqual({
-        v: 3,
+        v: 4,
         source: "applications",
         mode: "rows",
         columns: [
@@ -865,6 +865,16 @@ describe("read", () => {
     ],
     ["db.agreements.find({}, { '': '$state' })", READ_MESSAGES.emptyName, "''"],
     [
+      "db.agreements.find({}, { 'a..b': '$state' })",
+      READ_MESSAGES.emptyName,
+      "'a..b'",
+    ],
+    [
+      "db.agreements.find({}, { 'a.$b': '$state' })",
+      READ_MESSAGES.dollarName("a.$b"),
+      "'a.$b'",
+    ],
+    [
       "db.agreements.aggregate([{ $group: { _id: '$state', '': { $sum: 1 } } }])",
       READ_MESSAGES.emptyName,
       "''",
@@ -889,5 +899,53 @@ describe("read", () => {
     expect(
       pointed(`db.applications.find({ $or: [${tests.join(", ")}] })`),
     ).toEqual([READ_MESSAGES.tests, "'30'"]);
+  });
+
+  describe("what a document is", () => {
+    const shapeOf = (text) => readOf(text).shape;
+
+    it.each([
+      ["db.applications.find()", { whole: true, id: true }],
+      ["db.applications.find({}, {})", { whole: true, id: true }],
+      ["db.applications.find({}, { _id: 0 })", { whole: true, id: false }],
+      [
+        "db.applications.find({}, { _id: 0, clientRef: 1 })",
+        { whole: false, id: false },
+      ],
+      [
+        "db.applications.find({}, { clientRef: 1 })",
+        { whole: false, id: true },
+      ],
+      [
+        "db.applications.aggregate([{ $project: { clientRef: 1 } }])",
+        { whole: false, id: true },
+      ],
+      [
+        "db.applications.aggregate([{ $match: { code: 'x' } }])",
+        { whole: true, id: true },
+      ],
+    ])("reads %s as %j", (text, shape) => {
+      expect(shapeOf(text)).toEqual(shape);
+    });
+  });
+
+  describe("where each column was written", () => {
+    it("keeps each column's value, in the columns' order, _id first", () => {
+      const text =
+        "db.applications.find({}, { clientRef: 1, n: { $size: '$phases.answers.parcels' }, _id: 1 })";
+      const { query, spans } = readOf(text);
+      const written = spans.columns.map(({ at, end }) => text.slice(at, end));
+
+      expect(query.columns.map(({ path }) => path)).toEqual([
+        "_id",
+        "clientRef",
+        "phases.answers.parcels",
+      ]);
+      expect(written).toEqual([
+        "1",
+        "1",
+        "{ $size: '$phases.answers.parcels' }",
+      ]);
+    });
   });
 });

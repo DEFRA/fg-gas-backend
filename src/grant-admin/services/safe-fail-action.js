@@ -23,3 +23,13 @@ export const safeResponseFailAction = (label) => (_request, _h, error) => {
 
   throw Boom.badImplementation(`${label} response failed validation`);
 };
+
+// An answer checked as a response schema checks one, for a route that may
+// also answer a stream, which hapi checks no response of.
+export const checkedResponse = (check, label) => async (answer) => {
+  try {
+    return await check(answer);
+  } catch (error) {
+    return safeResponseFailAction(label)(null, null, error);
+  }
+};

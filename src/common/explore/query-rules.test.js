@@ -1,3 +1,4 @@
+import { BSON } from "mongodb";
 import { describe, expect, it } from "vitest";
 import { keepsRules, refusedPathsOf } from "./query-rules.js";
 
@@ -8,7 +9,7 @@ const source = {
 };
 
 const query = (overrides = {}) => ({
-  v: 3,
+  v: 4,
   source: "cases",
   mode: "rows",
   columns: [{ path: "caseRef" }],
@@ -153,5 +154,45 @@ describe("refusedPathsOf", () => {
         }),
       ),
     ).toBe(2);
+  });
+});
+
+describe("keepsRules on a documents fetch", () => {
+  const id = BSON.serialize({ _id: 1 }).toString("base64");
+  const fetch = (rows, unwind = []) =>
+    query({ mode: "documents", unwind, rows, limit: rows.length || 1 });
+
+  it("keeps a fetch of its own box's rows by their _id, at as many positions as it unwinds", () => {
+    expect(keepsRules(source, fetch([{ box: "cw.cases", id, at: [] }]))).toBe(
+      true,
+    );
+    expect(
+      keepsRules(
+        source,
+        fetch(
+          [{ box: "cw.cases", id, at: [2, null] }],
+          [
+            { path: "a", preserve: false },
+            { path: "a.b", preserve: true },
+          ],
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["another source's box", { box: "cw.other", id, at: [] }],
+    ["an id that is no BSON", { box: "cw.cases", id: "AAAA", at: [] }],
+    [
+      "an id of more than _id",
+      {
+        box: "cw.cases",
+        id: BSON.serialize({ _id: 1, x: 2 }).toString("base64"),
+        at: [],
+      },
+    ],
+    ["positions it doesn't unwind", { box: "cw.cases", id, at: [0] }],
+  ])("refuses a fetch of %s, before any read", (_, row) => {
+    expect(keepsRules(source, fetch([row]))).toBe(false);
   });
 });

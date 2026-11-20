@@ -188,7 +188,10 @@ describe("mergeGroups", () => {
             key: "a",
             value: "A",
             n: 2,
-            aggs: { "sum(area)": [1.5, 0], "max(created)": at(1) },
+            aggs: {
+              "sum(area)": [1.5, 0, 1.5, "f", null],
+              "max(created)": at(1),
+            },
           },
           {
             key: null,
@@ -202,7 +205,10 @@ describe("mergeGroups", () => {
             key: "a",
             value: "A",
             n: 3,
-            aggs: { "sum(area)": [2, 0], "max(created)": at(9) },
+            aggs: {
+              "sum(area)": [2, 0, 2, "i", null],
+              "max(created)": at(9),
+            },
           },
         ],
       ]),
@@ -211,7 +217,7 @@ describe("mergeGroups", () => {
         key: "a",
         value: "A",
         n: 5,
-        aggs: { "sum(area)": [3.5, 0, 3.5], "max(created)": at(9) },
+        aggs: { "sum(area)": [3.5, 0, 3.5, "f", null], "max(created)": at(9) },
       },
       {
         key: null,

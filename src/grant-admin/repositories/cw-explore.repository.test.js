@@ -1,3 +1,5 @@
+import Boom from "@hapi/boom";
+import { BSON } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   accumulate,
@@ -7,8 +9,10 @@ import {
 import { mergeGroups } from "../../common/explore/merge.js";
 import { refusalOf } from "../../common/explore/refusal.js";
 import { wreck } from "../../common/wreck.js";
+import { cwRequest } from "./cw-http.js";
 import {
   findCwExploreSources,
+  maxBytesOf,
   queryCwExplore,
 } from "./cw-explore.repository.js";
 
@@ -170,7 +174,7 @@ describe("queryCwExplore", () => {
       { actor: "Jo", timeLeftMs: 6000 },
     );
     const sumOf = (lists) =>
-      partialValue("sum", mergeGroups(lists)[0].aggs["sum(x)"]);
+      Number(partialValue("sum", mergeGroups(lists)[0].aggs["sum(x)"]));
 
     expect(sumOf([groups])).toBe(Infinity);
     expect(sumOf([[groupOf([5])], groups])).toBe(Infinity);
@@ -371,5 +375,213 @@ describe("queryCwExplore", () => {
 
       expect(request.req.destroy).toHaveBeenCalled();
     });
+  });
+
+  describe("bounded by maxBytes", () => {
+    const MIB = 1024 * 1024;
+    const ROWS = 10_000 * 1024;
+    const pending = (res) =>
+      Object.assign(Promise.resolve(res), { req: { destroy: vi.fn() } });
+    const signal = () => new AbortController().signal;
+
+    it("allows a page the cells it holds, a CSV its download's and a fetch its documents in base64, or one row's, beside its rows", () => {
+      expect(maxBytesOf({ mode: "rows" })).toBe(ROWS + 8 * MIB);
+      expect(maxBytesOf({ mode: "rows", cellBytes: 256 * MIB })).toBe(
+        ROWS + 256 * MIB,
+      );
+      expect(
+        maxBytesOf({ mode: "documents", documents: { bytes: 64 * MIB } }),
+      ).toBe(ROWS + Math.ceil((64 * MIB) / 3) * 4);
+      expect(
+        maxBytesOf({ mode: "documents", documents: { bytes: 1 * MIB } }),
+      ).toBe(ROWS + Math.ceil((32 * MIB) / 3) * 4);
+      expect(
+        maxBytesOf({
+          mode: "documents",
+          documents: { mode: "starts" },
+          rows: [{}, {}],
+        }),
+      ).toBe(ROWS + 2 * Math.ceil((8 * 1024) / 3) * 4);
+    });
+
+    it("reads Caseworking's answer no longer than that", async () => {
+      wreck.request.mockReturnValue(pending({ statusCode: 200 }));
+      wreck.read.mockResolvedValue(PART);
+
+      await queryCwExplore(
+        { v: 4, mode: "rows" },
+        { timeLeftMs: 5000, signal: signal() },
+      );
+
+      expect(wreck.read.mock.calls[0][1].maxBytes).toBe(
+        maxBytesOf({ mode: "rows" }),
+      );
+    });
+
+    it("refuses a longer answer with what to do, as Caseworking's", async () => {
+      wreck.request.mockReturnValue(pending({ statusCode: 200 }));
+      wreck.read.mockRejectedValue(
+        Boom.entityTooLarge(
+          "Payload content length greater than maximum allowed",
+        ),
+      );
+
+      const error = await failure(
+        queryCwExplore(
+          { v: 4, mode: "rows" },
+          { timeLeftMs: 5000, signal: signal() },
+        ),
+      );
+
+      expect(refusalOf(error)).toBe("ANSWER_TOO_LARGE");
+      expect(error.service).toBe("CW");
+    });
+  });
+
+  describe("a refusal of mongod's", () => {
+    const refusedWith = async (detail) => {
+      wreck.post.mockRejectedValue(
+        httpError(400, {
+          reason: "EXPLORE_QUERY_REFUSED",
+          refusal: "MONGOD_ERROR",
+          detail,
+        }),
+      );
+
+      return failure(queryCwExplore({ v: 4 }, { timeLeftMs: 5000 }));
+    };
+
+    it("keeps the type mongod named and the column, nothing else", async () => {
+      const error = await refusedWith({
+        fn: "count",
+        type: "string",
+        column: 2,
+        value: "Sentinel",
+      });
+
+      expect(refusalOf(error)).toBe("MONGOD_ERROR");
+      expect(error.service).toBe("CW");
+      expect(error.detail).toEqual({ fn: "count", type: "string", column: 2 });
+    });
+
+    it.each([
+      [
+        "a column past the columns",
+        { fn: "count", type: "string", column: 20 },
+        { fn: "count", type: "string", column: null },
+      ],
+      [
+        "a column that isn't one",
+        { fn: "count", type: "string", column: "1" },
+        { fn: "count", type: "string", column: null },
+      ],
+      ["a type that is no word", { fn: "count", type: "a b", column: 1 }, null],
+      [
+        "an expression it doesn't know",
+        { fn: "sum", type: "string", column: 1 },
+        null,
+      ],
+    ])("reads %s as no more than it can trust", async (_, detail, kept) => {
+      expect((await refusedWith(detail)).detail).toEqual(kept);
+    });
+  });
+
+  describe("a documents fetch", () => {
+    const asked = {
+      box: "cw.cases",
+      id: BSON.serialize({ _id: 1 }).toString("base64"),
+      at: [],
+    };
+    const query = {
+      v: 4,
+      mode: "documents",
+      documents: { whole: true, id: true, bytes: 100 },
+      rows: [asked, asked],
+    };
+    const entry = (more) => ({ ...asked, context: null, ...more });
+
+    it("reads documents checked by hand", async () => {
+      const answer = {
+        documents: [
+          entry({ doc: BSON.serialize({ a: 1 }).toString("base64") }),
+          entry({ gone: true }),
+        ],
+      };
+
+      wreck.post.mockResolvedValue({ payload: answer });
+
+      expect(await queryCwExplore(query, { timeLeftMs: 5000 })).toEqual(answer);
+      expect(wreck.post.mock.calls[0][1].maxBytes).toBe(maxBytesOf(query));
+    });
+
+    it.each([
+      [
+        "a document that isn't BSON",
+        [entry({ doc: "AAAA" }), entry({ gone: true })],
+      ],
+      [
+        "more bytes than it asked for, past the first",
+        [
+          entry({
+            doc: BSON.serialize({ a: "x".repeat(90) }).toString("base64"),
+          }),
+          entry({
+            doc: BSON.serialize({ a: "x".repeat(90) }).toString("base64"),
+          }),
+        ],
+      ],
+      ["fewer entries than rows asked", [entry({ gone: true })]],
+      [
+        "an entry for a row it wasn't asked for",
+        [
+          entry({ gone: true }),
+          entry({
+            id: BSON.serialize({ _id: 2 }).toString("base64"),
+            gone: true,
+          }),
+        ],
+      ],
+    ])("says Caseworking errored for %s", async (_, documents) => {
+      wreck.post.mockResolvedValue({ payload: { documents } });
+
+      const error = await failure(queryCwExplore(query, { timeLeftMs: 5000 }));
+
+      expect(error.output.payload).toMatchObject({
+        hop: "CW-BE",
+        reason: "ERRORED",
+      });
+    });
+  });
+});
+
+describe("cwRequest with maxBytes", () => {
+  const pending = (res) =>
+    Object.assign(Promise.resolve(res), { req: { destroy: vi.fn() } });
+  const failures = {
+    tooLarge: () => new Error("too large"),
+    otherwise: () => new Error("other"),
+  };
+  const ask = (options) =>
+    failure(
+      cwRequest("post", "/x", "x", {
+        body: {},
+        failures,
+        signal: new AbortController().signal,
+        ...options,
+      }),
+    );
+
+  beforeEach(() => {
+    wreck.request.mockReturnValue(pending({ statusCode: 200 }));
+    wreck.read.mockRejectedValue(Boom.entityTooLarge("too long"));
+  });
+
+  it("reads an answer over maxBytes as too large", async () => {
+    expect((await ask({ maxBytes: 10 })).message).toBe("too large");
+    expect(wreck.read.mock.calls[0][1].maxBytes).toBe(10);
+  });
+
+  it("reads a 413 asked no maxBytes as any other failure", async () => {
+    expect((await ask({})).message).toBe("other");
   });
 });

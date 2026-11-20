@@ -1,4 +1,8 @@
 import { beforeDeadline } from "../common/before-deadline.js";
+import {
+  getRequestContext,
+  withRequestContext,
+} from "../common/get-request-context.js";
 import { logger } from "../common/logger.js";
 import {
   transactionOptions,
@@ -119,5 +123,34 @@ export const auditedRead = (read, buildAudit, options = {}) => {
     });
 
     return result;
+  };
+};
+
+// A read whose answer is streamed, audited once: FAILURE when it is
+// refused before its first byte, as auditedRead writes one; else, once the
+// stream has ended, however it ended, `ended(result, error)` writes what it
+// gave. A stream releases as it goes, so its audit can't come first. It may
+// end after its request has, so it is audited with the request's context
+// as it was when the read began.
+export const auditedStream = (read, buildAudit) => {
+  const readAudited = auditedRead(read, buildAudit, { releases: () => false });
+
+  return (args) => {
+    const context = getRequestContext();
+
+    return {
+      read: () => readAudited(args),
+      ended: (result, error) =>
+        withRequestContext(context, async () => {
+          try {
+            await writeAuditEvent({
+              ...buildAudit(args, result, error),
+              status: error ? auditStatus.FAILURE : auditStatus.SUCCESS,
+            });
+          } catch {
+            logger.error("Streamed read audit not written");
+          }
+        }),
+    };
   };
 };
