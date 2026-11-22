@@ -1,4 +1,4 @@
-import { MongoClient, ObjectId } from "mongodb";
+import { BSON, Binary, Long, MongoClient, ObjectId } from "mongodb";
 import { createHash, randomBytes } from "node:crypto";
 import { env } from "node:process";
 import {
@@ -15,6 +15,12 @@ import {
   resetCwStub,
   setCwStub,
 } from "../helpers/cw-stub.js";
+import {
+  documentOf,
+  objectIdElement,
+  rawInsert,
+  stringElement,
+} from "../helpers/raw-bson.js";
 import { endOfUkDay } from "../../src/common/end-of-uk-day.js";
 import { createServer } from "../../src/server.js";
 import { wreck } from "../helpers/wreck.js";
@@ -163,6 +169,12 @@ const listed = async (service) => {
 const rowOf = (payload, tokenId) =>
   payload.tokens.find((token) => token.tokenId === tokenId.toString());
 
+const HEX_RUN = /[0-9a-f]{64}/i;
+
+const bytesOf = (token) => Buffer.from(token.document, "base64");
+
+const storedRowOf = (token) => BSON.deserialize(bytesOf(token));
+
 describe("GAS API clients", () => {
   it("lists every token row, nameless ones with no name, and no hash", async () => {
     const createdAt = new Date("2026-10-01T10:00:00.000Z");
@@ -203,18 +215,29 @@ describe("GAS API clients", () => {
       revokedBy: null,
       inUse: false,
       expiringSoon: false,
-      stored: {
-        _id: { $oid: named.toHexString() },
-        id: `${namedHash.slice(0, 3)}••••••${namedHash.slice(-3)}`,
+      document: expect.any(String),
+    });
+
+    const masked = `${namedHash.slice(0, 3)}••••••${namedHash.slice(-3)}`;
+    const namedBytes = bytesOf(rowOf(payload, named));
+
+    expect(Object.entries(BSON.deserialize(namedBytes))).toEqual(
+      Object.entries({
+        _id: named,
+        id: masked,
+        expiresAt: null,
         clientId: "it-dated",
         client: "it-dated",
-        expiresAt: null,
-        createdAt: { $date: "2026-10-01T10:00:00Z" },
+        createdAt,
         createdBy: "Ann Operator",
         tokenHint: "wxyz",
-      },
+      }),
+    );
+    expect(namedBytes.includes(Buffer.from(masked))).toBe(true);
+    expect(namedBytes.includes(Buffer.from(namedHash))).toBe(false);
+    expect(storedRowOf(rowOf(payload, nameless))).toMatchObject({
+      itFixture: true,
     });
-    expect(rowOf(payload, nameless).stored).toMatchObject({ itFixture: true });
     for (const id of [nameless, adminLegacy, misnamed]) {
       expect(rowOf(payload, id)).toMatchObject({
         clientId: null,
@@ -228,9 +251,14 @@ describe("GAS API clients", () => {
     expect(payload.tokens.filter(({ inUse }) => inUse)).toHaveLength(1);
     expect(JSON.stringify(payload)).not.toContain(SUITE_HASH);
     expect(JSON.stringify(payload)).not.toMatch(/[0-9a-f]{64}/);
-    expect(payload.tokens.every(({ stored }) => stored.id.length === 12)).toBe(
-      true,
-    );
+    expect(
+      payload.tokens.every((token) => storedRowOf(token).id.length === 12),
+    ).toBe(true);
+    expect(
+      payload.tokens.every(
+        (token) => !HEX_RUN.test(bytesOf(token).toString("latin1")),
+      ),
+    ).toBe(true);
 
     const [viewed] = await auditRows("VIEW_API_CLIENT");
     expect(viewed.event.audit).toMatchObject({
@@ -238,6 +266,41 @@ describe("GAS API clients", () => {
       entities: [{ entity: "API_CLIENT", entityid: "gas" }],
     });
     expect(await everyOutboxRow()).not.toContain(SUITE_HASH);
+  });
+
+  it.each([
+    [
+      "a second id, the whole hash",
+      (hash) =>
+        rawInsert(env.MONGO_URI, client.db().databaseName, "access_tokens", [
+          documentOf([
+            objectIdElement("_id", new ObjectId()),
+            stringElement("id", hashOf(newRawToken())),
+            stringElement("id", hash),
+            [0x08, "itFixture", Buffer.from([1])],
+          ]),
+        ]),
+    ],
+    [
+      "the hash as a Binary(32)",
+      (hash) =>
+        insertRow({
+          itFixture: true,
+          id2: new Binary(Buffer.from(hash, "hex")),
+        }),
+    ],
+    ["the hash nested", (hash) => insertRow({ itFixture: true, at: { hash } })],
+    ["no id", () => accessTokens.insertOne({ itFixture: true })],
+    ["an id not a string", () => insertRow({ itFixture: true, id: 7 })],
+  ])("answers no list rather than a row holding %s", async (_, insert) => {
+    const hash = hashOf(newRawToken());
+    await insert(hash);
+
+    const failure = await failureOf(() => listed("gas"));
+
+    expect(failure.statusCode).toBe(500);
+    expect(JSON.stringify(failure.body)).not.toContain(hash);
+    expect(JSON.stringify(failure.body)).not.toContain(SUITE_HASH);
   });
 
   it("issues a client's first token, which works at once and stops on revoke", async () => {
@@ -303,10 +366,10 @@ describe("GAS API clients", () => {
       },
     });
     expect(issued.event.security.pmccode).toBe("0705");
-    expect(rowOf(payload, payload.token.tokenId)).toMatchObject({
-      status: "ACTIVE",
-      stored: { clientId: "it-consumer" },
-    });
+    expect(rowOf(payload, payload.token.tokenId).status).toBe("ACTIVE");
+    expect(storedRowOf(rowOf(payload, payload.token.tokenId)).clientId).toBe(
+      "it-consumer",
+    );
     expect(await auditRows("REVOKE_API_TOKEN")).toHaveLength(1);
     expect(await everyOutboxRow()).not.toContain(hashOf(raw));
     expect(await everyOutboxRow()).not.toContain(SUITE_HASH);
@@ -1066,6 +1129,12 @@ describe("GAS API clients", () => {
 
 describe("Caseworking API clients, through GAS", () => {
   const TOKEN_ID = new ObjectId().toHexString();
+  const cwDocumentOf = (fields = {}) =>
+    BSON.serialize({
+      _id: new ObjectId(TOKEN_ID),
+      id: "abc••••••def",
+      ...fields,
+    }).toString("base64");
   const cwRow = {
     tokenId: TOKEN_ID,
     clientId: "fg-gas-backend",
@@ -1082,12 +1151,11 @@ describe("Caseworking API clients, through GAS", () => {
   it("passes Caseworking's rows on, its inUse and nameless rows included", async () => {
     const listedRow = {
       ...cwRow,
-      stored: {
-        _id: { $oid: TOKEN_ID },
-        id: "abc••••••def",
+      document: cwDocumentOf({
         client: "fg-gas-backend",
         expiresAt: null,
-      },
+        count: Long.fromNumber(2),
+      }),
     };
     const tokens = [
       listedRow,
@@ -1109,6 +1177,25 @@ describe("Caseworking API clients, through GAS", () => {
     });
     const [viewed] = await auditRows("VIEW_API_CLIENT");
     expect(viewed.event.audit.entities[0].entityid).toBe("cw");
+  });
+
+  it.each([
+    [
+      "a row holding a hash as a Binary(32)",
+      () => ({
+        document: cwDocumentOf({ id2: new Binary(randomBytes(32)) }),
+      }),
+    ],
+    [
+      "the row as `stored`, as Caseworking answered before",
+      () => ({ stored: { _id: { $oid: TOKEN_ID }, id: "abc••••••def" } }),
+    ],
+  ])("answers 502 to Caseworking's list with %s", async (_, rowOf) => {
+    await setCwStub({
+      clients: { list: { tokens: [{ ...cwRow, ...rowOf() }] } },
+    });
+
+    expect((await failureOf(() => listed("cw"))).statusCode).toBe(502);
   });
 
   // Node refuses a header above U+00FF, so the name goes on as it came.
@@ -1302,7 +1389,7 @@ describe("Caseworking API clients, through GAS", () => {
           ...cwRow,
           expiresAt: LATER.toISOString(),
           inUse: false,
-          stored: { _id: { $oid: TOKEN_ID }, id: "abc••••••def" },
+          document: cwDocumentOf(),
         },
       ];
       await setCwStub({ clients: { list: { tokens } } });

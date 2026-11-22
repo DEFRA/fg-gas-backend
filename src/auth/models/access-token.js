@@ -68,8 +68,8 @@ const assertTokenHint = (tokenHint) => {
   }
 };
 
-// The last a listing can show: relaxed Extended JSON writes a date as an ISO
-// string only up to year 9999.
+// The last a token may have: normalise-access-token-dates keeps every stored
+// token date from 1970 to 9999.
 export const LAST_EXPIRY = new Date("9999-12-31T23:59:59.999Z");
 
 // Null is never.

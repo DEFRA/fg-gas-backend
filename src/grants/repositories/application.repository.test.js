@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
-import { MongoServerError } from "mongodb";
+import { BSON, Int32, MongoServerError } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
+import { readStoredDocuments } from "../../common/explore/stored-document.js";
 import { db } from "../../common/mongo-client.js";
 import {
   Agreement,
@@ -28,6 +29,7 @@ import {
 } from "./application.repository.js";
 
 vi.mock("../../common/mongo-client.js");
+vi.mock("../../common/explore/stored-document.js");
 
 describe("update", () => {
   it("should update application", async () => {
@@ -634,45 +636,44 @@ describe("findApplicationSummaryRow", () => {
 });
 
 describe("findStoredApplicationDocument", () => {
-  const aggregating = (docs) => {
-    const aggregate = vi.fn().mockReturnValue({ toArray: async () => docs });
-    db.collection.mockReturnValue({ aggregate });
-    return aggregate;
+  const find = (found, maxBytes = 1024) => {
+    readStoredDocuments.mockResolvedValue(found);
+
+    return findStoredApplicationDocument(
+      { clientRef: "ref-1", code: "woodland" },
+      { maxBytes },
+    );
   };
 
-  it("answers the document as stored beside its size, never setting a field on it", async () => {
-    const document = { clientRef: "ref-1", storedBytes: "the document's own" };
-    const aggregate = aggregating([{ storedBytes: 512, document }]);
+  it("reads one application as stored, within the bound", async () => {
+    await find([]);
 
-    expect(
-      await findStoredApplicationDocument(
-        { clientRef: "ref-1", code: "woodland" },
-        { maxBytes: 1024 },
-      ),
-    ).toEqual({ storedBytes: 512, document });
-    expect(JSON.stringify(aggregate.mock.calls[0][0])).not.toContain("$set");
+    expect(readStoredDocuments).toHaveBeenCalledWith("applications", {
+      match: { clientRef: "ref-1", code: "woodland" },
+      maxBytes: 1024,
+      limit: 1,
+      maxTimeMS: expect.any(Number),
+    });
+  });
+
+  it("answers the document's own bytes as base64 beside its size", async () => {
+    const document = BSON.serialize({ clientRef: "ref-1", n: new Int32(1) });
+
+    expect(await find([{ storedBytes: 512, document }])).toEqual({
+      storedBytes: 512,
+      document: document.toString("base64"),
+    });
   });
 
   it("answers only the size of a document over the bound", async () => {
-    aggregating([{ storedBytes: 2048 }]);
-
-    expect(
-      await findStoredApplicationDocument(
-        { clientRef: "ref-1", code: "woodland" },
-        { maxBytes: 1024 },
-      ),
-    ).toEqual({ storedBytes: 2048, document: null });
+    expect(await find([{ storedBytes: 2048, document: null }])).toEqual({
+      storedBytes: 2048,
+      document: null,
+    });
   });
 
   it("answers null for no such application", async () => {
-    aggregating([]);
-
-    expect(
-      await findStoredApplicationDocument(
-        { clientRef: "x", code: "y" },
-        { maxBytes: 1 },
-      ),
-    ).toBeNull();
+    expect(await find([])).toBeNull();
   });
 });
 

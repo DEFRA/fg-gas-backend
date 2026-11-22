@@ -1,6 +1,12 @@
 import Boom from "@hapi/boom";
 import hapi from "@hapi/hapi";
+import { BSON, Binary, Double, Int32, Long, ObjectId } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
+import {
+  documentOf as rawDocumentOf,
+  objectIdElement,
+  stringElement,
+} from "../../../test/helpers/raw-bson.js";
 import { logger } from "../../common/logger.js";
 import { changeApiTokenExpiryUseCase } from "../use-cases/change-api-token-expiry.use-case.js";
 import { deleteApiTokenUseCase } from "../use-cases/delete-api-token.use-case.js";
@@ -152,19 +158,25 @@ describe("API client routes", () => {
   });
 });
 
-// As GAS's own list builds it, in relaxed Extended JSON.
-const stored = {
-  _id: { $oid: TOKEN_ID },
+// As GAS's own list builds it: the row's own BSON, its hash masked.
+const storedRow = {
+  _id: new ObjectId(TOKEN_ID),
   id: "bbb••••••bbb",
   clientId: "grants-ui",
   client: "grants-ui",
   tokenHint: "wxyz",
   expiresAt: null,
-  createdAt: { $date: "2026-11-02T10:00:00.000Z" },
+  createdAt: new Date("2026-11-02T10:00:00.000Z"),
   createdBy: "Ann",
 };
 
-const listed = { ...token, stored, expiringSoon: false };
+const documentOf = (fields = {}) =>
+  BSON.serialize(
+    { ...storedRow, ...fields },
+    { ignoreUndefined: true },
+  ).toString("base64");
+
+const listed = { ...token, document: documentOf(), expiringSoon: false };
 
 describe("closed response schemas", () => {
   const { schema: listSchema } = listApiTokensRoute.options.response;
@@ -214,14 +226,31 @@ describe("closed response schemas", () => {
   });
 
   it("lists the stored row with any field it has", () => {
-    const row = { ...stored, revokedAt: { $date: "2026-11-03T10:00:00Z" } };
+    const document = documentOf({
+      revokedAt: new Date("2026-11-03T10:00:00Z"),
+      legacy: new Int32(1),
+      count: Long.fromNumber(2),
+      ratio: new Double(0.5),
+      note: "",
+    });
 
     expect(
       listSchema.validate({
         service: "gas",
-        tokens: [{ ...listed, stored: { ...row, legacy: 1, note: "" } }],
+        tokens: [{ ...listed, document }],
       }).error,
     ).toBeUndefined();
+  });
+
+  it("refuses a row that still carries `stored` in place of its document", () => {
+    const { document, ...old } = listed;
+
+    expect(
+      listSchema.validate({
+        service: "gas",
+        tokens: [{ ...old, stored: { _id: { $oid: TOKEN_ID } } }],
+      }).error,
+    ).toBeDefined();
   });
 
   it.each([
@@ -232,13 +261,51 @@ describe("closed response schemas", () => {
     ["a hash inside a longer value", { note: `was ${HASH.toUpperCase()}` }],
     ["a nested document", { extra: { id: HASH } }],
     ["an array", { extra: [HASH] }],
+    ["a Binary(32)", { id2: new Binary(Buffer.from(HASH, "hex")) }],
     ["a hash as a key", { [HASH]: 1 }],
   ])("refuses a stored row with %s", (_, extra) => {
     expect(
       listSchema.validate({
         service: "gas",
-        tokens: [{ ...listed, stored: { ...stored, ...extra } }],
+        tokens: [{ ...listed, document: documentOf(extra) }],
       }).error,
+    ).toBeDefined();
+  });
+
+  it.each([
+    ["bytes that aren't BSON", Buffer.from("not bson").toString("base64")],
+    ["text that isn't base64", "not base64!"],
+    ["no text", ""],
+    [
+      "two ids, the second whole",
+      rawDocumentOf([
+        objectIdElement("_id", new ObjectId(TOKEN_ID)),
+        stringElement("id", "bbb••••••bbb"),
+        stringElement("id", HASH),
+      ]).toString("base64"),
+    ],
+  ])("refuses a stored row of %s", (_, document) => {
+    expect(
+      listSchema.validate({
+        service: "gas",
+        tokens: [{ ...listed, document }],
+      }).error,
+    ).toBeDefined();
+  });
+
+  it.each([
+    ["issue", issueApiTokenRoute],
+    ["rotate", rotateApiTokenRoute],
+  ])("checks the stored row of each token %s answers after it", (_, route) => {
+    const { schema } = route.options.response;
+    const answer = (tokens) => ({ service: "gas", token, tokens });
+
+    expect(schema.validate(answer([listed])).error).toBeUndefined();
+    expect(schema.validate(answer(null)).error).toBeUndefined();
+    expect(
+      schema.validate(
+        answer([{ ...listed, document: documentOf({ id: HASH }) }]),
+      ).error,
     ).toBeDefined();
   });
 
@@ -341,7 +408,9 @@ describe("API client handlers", () => {
 
   it("answers a refused write's list as unread when it would carry a hash", async () => {
     const refusal = Boom.conflict("refused");
-    refusal.output.payload.tokens = [{ ...token, stored: { id: HASH } }];
+    refusal.output.payload.tokens = [
+      { ...token, document: documentOf({ id: HASH }), expiringSoon: false },
+    ];
     revokeApiTokenUseCase.mockRejectedValue(refusal);
 
     const error = await revokeApiTokenRoute
@@ -362,10 +431,7 @@ describe("API client handlers", () => {
     const tokens = [
       {
         ...token,
-        stored: {
-          _id: { $oid: TOKEN_ID },
-          id: "bbb••••••bbb",
-        },
+        document: documentOf(),
         expiringSoon: false,
       },
     ];
@@ -604,7 +670,11 @@ describe("what a refused request logs", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload).tokens[0].stored.id).toBe("bbb••••••bbb");
+    const [{ document }] = JSON.parse(res.payload).tokens;
+
+    expect(BSON.deserialize(Buffer.from(document, "base64")).id).toBe(
+      "bbb••••••bbb",
+    );
   });
 
   it.each([
@@ -614,7 +684,7 @@ describe("what a refused request logs", () => {
   ])("answers 500 rather than list a stored row with %s", async (_, extra) => {
     listApiTokensUseCase.mockResolvedValue({
       service: "gas",
-      tokens: [{ ...listed, stored: { ...stored, ...extra } }],
+      tokens: [{ ...listed, document: documentOf(extra) }],
     });
     const server = await serverWith();
 

@@ -1,4 +1,4 @@
-import { MongoClient, ObjectId } from "mongodb";
+import { BSON, MongoClient, ObjectId } from "mongodb";
 import { createHash, randomBytes } from "node:crypto";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -205,10 +205,10 @@ describe("GET /grant-admin/overview", () => {
               revokedAt: null,
               revokedBy: null,
               inUse: false,
-              stored: {
-                _id: { $oid: "6650c1f2a9e4b1d07c20bd91" },
+              document: BSON.serialize({
+                _id: new ObjectId("6650c1f2a9e4b1d07c20bd91"),
                 id: "abc••••••def",
-              },
+              }).toString("base64"),
             },
           ],
         },
@@ -316,7 +316,12 @@ describe("GET /grant-admin/overview", () => {
         status: "EXPIRED",
       }),
     ]);
-    expect(first.tokensExpiring.cw.data.tokens[0]).not.toHaveProperty("stored");
+    expect(first.tokensExpiring.cw.data.tokens[0]).not.toHaveProperty(
+      "document",
+    );
+    expect(first.tokensExpiring.gas.data.tokens[0]).not.toHaveProperty(
+      "document",
+    );
 
     const requests = await cwStubRequests();
     expect(

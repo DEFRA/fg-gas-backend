@@ -1,4 +1,4 @@
-import { MongoClient, ObjectId } from "mongodb";
+import { BSON, Double, Int32, MongoClient, ObjectId } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { applicationPageSchemas } from "../../src/grant-admin/schemas/application-page.schema.js";
@@ -79,13 +79,13 @@ const aCaseRead = (caseRef) => ({
     series: SERIES,
   },
   storedBytes: 4096,
-  document: {
-    _id: "665f1c2e9a1b2c3d4e5f6a7b",
+  document: BSON.serialize({
+    _id: new ObjectId("665f1c2e9a1b2c3d4e5f6a7b"),
     caseRef,
     workflowCode: WORKFLOW,
-    payload: { answers: { parcels: [["AA0109-0118", 1.5]] } },
-    supplementaryData: { lookups: { anything: true } },
-  },
+    payload: { answers: { parcels: [["AA0109-0118", new Double(1.5)]] } },
+    supplementaryData: { lookups: { anything: true }, n: new Int32(1) },
+  }).toString("base64"),
 });
 
 const anApplication = (clientRef) => ({
@@ -297,15 +297,71 @@ describe("GET /grant-admin/workflows/{workflowCode}/cases/{caseRef}/{tab}", () =
     expect(page.sourceErrors).toEqual([{ hop: "CW outbox" }]);
   });
 
-  it("raw: Caseworking's document whole, with its size", async () => {
+  it("raw: Caseworking's document as its own bytes, with its size", async () => {
     const { payload: page } = await getTab("raw");
 
     expect(
       casePageSchemas.raw.validate(withoutShell(page)).error,
     ).toBeUndefined();
-    expect(page.raw).toEqual(aCaseRead("ref-1").document);
+    expect(page.document).toBe(aCaseRead("ref-1").document);
+    expect(page).not.toHaveProperty("raw");
     expect(page.storedBytes).toBe(4096);
+    expect(page.sectionErrors).toEqual([]);
   });
+
+  it("raw: a case Caseworking sends by its size alone is too large to show", async () => {
+    await setCwStub({
+      cases: {
+        records: {
+          [`${WORKFLOW}/ref-1`]: {
+            ...aCaseRead("ref-1"),
+            storedBytes: 2 * 1024 * 1024,
+            document: null,
+          },
+        },
+      },
+    });
+
+    const { payload: page } = await getTab("raw");
+
+    expect(
+      casePageSchemas.raw.validate(withoutShell(page)).error,
+    ).toBeUndefined();
+    expect(page.header.caseRef).toBe("ref-1");
+    expect(page.document).toBeNull();
+    expect(page.storedBytes).toBe(2 * 1024 * 1024);
+    expect(page.sectionErrors).toEqual([
+      { section: "raw", message: "too large to show" },
+    ]);
+  });
+
+  it.each([
+    ["the old shape, an object", { caseRef: "ref-1" }],
+    ["bytes that aren't BSON", Buffer.from("not bson").toString("base64")],
+  ])(
+    "raw: Caseworking's document as %s fails the tab alone",
+    async (_, document) => {
+      await setCwStub({
+        cases: {
+          records: {
+            [`${WORKFLOW}/ref-1`]: { ...aCaseRead("ref-1"), document },
+          },
+        },
+      });
+
+      const { payload: page } = await getTab("raw");
+
+      expect(
+        casePageSchemas.raw.validate(withoutShell(page)).error,
+      ).toBeUndefined();
+      expect(page.header.caseRef).toBe("ref-1");
+      expect(page.document).toBeNull();
+      expect(page.storedBytes).toBeNull();
+      expect(page.sectionErrors).toEqual([
+        { section: "raw", message: "The stored document can't be read" },
+      ]);
+    },
+  );
 
   it.each(["overview", "events", "raw"])(
     "%s: the header names the current config version",

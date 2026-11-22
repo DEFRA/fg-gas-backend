@@ -1,10 +1,8 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { config } from "../../common/config.js";
-import {
-  cappedField,
-  storedBytes,
-} from "../../common/mongo/capped-projection.js";
+import { readStoredDocuments } from "../../common/explore/stored-document.js";
+import { storedBytes } from "../../common/mongo/capped-projection.js";
 import { db } from "../../common/mongo-client.js";
 import { Agreement, AgreementHistoryEntry } from "../models/agreement.js";
 import {
@@ -254,25 +252,24 @@ export const findApplicationSummaryRow = async ({ clientRef, code }) => {
     : null;
 };
 
-// The Raw tab's stored document, exactly as stored. One over `maxBytes` is
-// never sent: only its size is.
+// The Raw tab's stored document, exactly as stored: base64 of its own BSON.
+// One over `maxBytes` is never sent: only its size is.
 export const findStoredApplicationDocument = async (
   { clientRef, code },
   { maxBytes },
 ) => {
-  const found = await readOne([
-    { $match: { clientRef, code } },
-    {
-      $project: {
-        _id: 0,
-        storedBytes,
-        document: cappedField("$$ROOT", maxBytes),
-      },
-    },
-  ]);
+  const [found] = await readStoredDocuments(collection, {
+    match: { clientRef, code },
+    maxBytes,
+    limit: 1,
+    maxTimeMS: config.adminReadTimeoutMs,
+  });
 
   return found
-    ? { storedBytes: found.storedBytes, document: found.document ?? null }
+    ? {
+        storedBytes: found.storedBytes,
+        document: found.document?.toString("base64") ?? null,
+      }
     : null;
 };
 

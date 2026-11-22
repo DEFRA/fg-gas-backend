@@ -10,6 +10,7 @@ import {
   recordPageSchema,
   seriesSchema,
   storedBytesSchema as storedBytes,
+  storedDocumentSchema,
 } from "./admin-record.schema.js";
 import { code } from "./code.js";
 
@@ -60,11 +61,8 @@ const overviewSchema = Joi.object({
 
 const eventsSchema = recordEventsSchema("CaseEvents");
 
-// The stored case as Caseworking keeps it, less its notes: never validated.
-const rawSchema = Joi.object({ comments: Joi.any().forbidden() })
-  .unknown(true)
-  .allow(null)
-  .required();
+// The stored case as Caseworking keeps it, whole.
+const documentSchema = storedDocumentSchema("CaseDocument");
 
 const pageSchema = (tab, keys, label) =>
   recordPageSchema(caseHeaderSchema, tab, keys, label);
@@ -76,5 +74,9 @@ export const casePageSchemas = {
     "CaseOverviewPage",
   ),
   events: pageSchema("events", { events: eventsSchema }, "CaseEventsPage"),
-  raw: pageSchema("raw", { raw: rawSchema, storedBytes }, "CaseRawPage"),
+  raw: pageSchema(
+    "raw",
+    { document: documentSchema, storedBytes },
+    "CaseRawPage",
+  ),
 };

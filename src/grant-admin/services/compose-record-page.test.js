@@ -22,6 +22,12 @@ const tabs = {
     empty: { raw: null, storedBytes: null },
     capped: "raw",
   },
+  stored: {
+    readTab: vi.fn(),
+    empty: { document: null, storedBytes: null },
+    capped: "document",
+    sized: true,
+  },
 };
 
 const compose = (tab) =>
@@ -120,6 +126,34 @@ describe("composeRecordPage", () => {
     expect(page.raw).toBeNull();
     expect(page.sectionErrors).toEqual([
       { section: "raw", message: TOO_LARGE },
+    ]);
+  });
+
+  it("never measures a tab that knows its own size", async () => {
+    const document = "x".repeat(SECTION_CAP_BYTES + 1);
+    tabs.stored.readTab.mockResolvedValue({
+      content: { document, storedBytes: 9 },
+      tooLarge: false,
+    });
+
+    const page = await view("stored");
+
+    expect(page.document).toBe(document);
+    expect(page.sectionErrors).toEqual([]);
+  });
+
+  it("names a too large section by its tab when the tab knows its own size", async () => {
+    tabs.stored.readTab.mockResolvedValue({
+      content: { document: null, storedBytes: SECTION_CAP_BYTES + 1 },
+      tooLarge: true,
+    });
+
+    const page = await view("stored");
+
+    expect(page.document).toBeNull();
+    expect(page.storedBytes).toBe(SECTION_CAP_BYTES + 1);
+    expect(page.sectionErrors).toEqual([
+      { section: "stored", message: TOO_LARGE },
     ]);
   });
 

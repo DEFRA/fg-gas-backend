@@ -17,18 +17,26 @@ const jsonBytes = (value) => Buffer.byteLength(JSON.stringify(value) ?? "");
 const isOverCap = (value) =>
   value !== null && jsonBytes(value) > SECTION_CAP_BYTES;
 
-const capSection = (read, key, sectionErrors) => {
-  if (!key || !(read.tooLarge || isOverCap(read.content[key]))) {
+// A tab that knows its own size says when it is too large, and its section
+// error is named by the tab; any other is measured by its JSON.
+const isTooLarge = (read, tab) =>
+  read.tooLarge || (!tab.sized && isOverCap(read.content[tab.capped]));
+
+const capSection = (read, { tab, name }, sectionErrors) => {
+  if (!tab.capped || !isTooLarge(read, tab)) {
     return read.content;
   }
 
-  sectionErrors.push({ section: key, message: TOO_LARGE });
+  sectionErrors.push({
+    section: tab.sized ? name : tab.capped,
+    message: TOO_LARGE,
+  });
 
-  return { ...read.content, [key]: null };
+  return { ...read.content, [tab.capped]: null };
 };
 
-const tabContent = (tab, read, sectionErrors) =>
-  read ? capSection(read, tab.capped, sectionErrors) : tab.empty;
+const tabContent = ({ tab, name }, read, sectionErrors) =>
+  read ? capSection(read, { tab, name }, sectionErrors) : tab.empty;
 
 const sourceErrorsOf = (...reads) =>
   reads.flatMap((read) => read?.sourceErrors ?? []);
@@ -51,7 +59,7 @@ export const composeRecordPage = async ({ readHeader, tab, args }) => {
   return {
     page: {
       header: header.value.header,
-      ...tabContent(tab, read, sectionErrors),
+      ...tabContent({ tab, name: args.tab }, read, sectionErrors),
       sourceErrors: sourceErrorsOf(header.value, read),
       sectionErrors,
     },

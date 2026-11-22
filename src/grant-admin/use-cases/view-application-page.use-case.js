@@ -1,3 +1,4 @@
+import { RAW_CAP_BYTES } from "../../common/explore/stored-document.js";
 import { logger } from "../../common/logger.js";
 import {
   PMC_0706_SECURITY,
@@ -5,17 +6,14 @@ import {
   auditEntities,
 } from "../../events/audit-constants.js";
 import { auditedRead } from "../../events/audited-read.js";
-import { withJsonNumbers } from "../../events/plain-json.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
 import {
   findApplicationDocument,
   findApplicationSeries,
 } from "../../grants/services/application-read.service.js";
 import { orNotFound } from "../services/application-not-found.js";
-import {
-  SECTION_CAP_BYTES,
-  composeRecordPage,
-} from "../services/compose-record-page.js";
+import { composeRecordPage } from "../services/compose-record-page.js";
+import { rawSectionOf } from "../services/raw-section.js";
 import {
   readApplicationHeader,
   readApplicationSummary,
@@ -51,19 +49,16 @@ const readEvents = ({ clientRef, code }) =>
 // Too large to show is known from the stored size, so an oversized document
 // is never fetched.
 const readRaw = async ({ clientRef, code }) => {
-  const { document, storedBytes } = orNotFound(
+  const found = orNotFound(
     await findApplicationDocument(
       { clientRef, code },
-      { maxBytes: SECTION_CAP_BYTES },
+      { maxBytes: RAW_CAP_BYTES },
     ),
   );
 
-  logger.info(`Read application document: ${storedBytes} bytes`);
+  logger.info(`Read application document: ${found.storedBytes} bytes`);
 
-  return {
-    content: { raw: document && withJsonNumbers(document), storedBytes },
-    tooLarge: document === null,
-  };
+  return rawSectionOf(found);
 };
 
 const APPLICATION_TABS = {
@@ -75,8 +70,9 @@ const APPLICATION_TABS = {
   events: { readTab: readEvents, empty: { events: null } },
   raw: {
     readTab: readRaw,
-    empty: { raw: null, storedBytes: null },
-    capped: "raw",
+    empty: { document: null, storedBytes: null },
+    capped: "document",
+    sized: true,
   },
 };
 
