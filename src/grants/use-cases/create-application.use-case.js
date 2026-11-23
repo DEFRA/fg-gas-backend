@@ -1,6 +1,7 @@
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { CreateNewCaseCommand } from "../commands/create-new-case.command.js";
+import { createApplicationReportingPublications } from "../events/application-reporting.event.js";
 import { ApplicationCreatedEvent } from "../events/application-created.event.js";
 import { Application } from "../models/application.js";
 import { saveEvents } from "../../events/index.js";
@@ -12,6 +13,7 @@ export const createApplicationUseCase = async (
   code,
   { metadata, answers },
   session,
+  { reportReceipt = false } = {},
 ) => {
   logger.info(`Create application with clientRef ${metadata.clientRef}`);
 
@@ -84,6 +86,9 @@ export const createApplicationUseCase = async (
         event: createNewCaseCommand,
         target: config.sns.createNewCaseTopicArn,
       },
+      ...(reportReceipt
+        ? createApplicationReportingPublications(application)
+        : []),
     ],
     session,
   );
