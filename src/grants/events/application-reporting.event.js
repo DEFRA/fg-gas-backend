@@ -16,13 +16,6 @@ export const reportingApplicationCreated = defineEventType({
     applicationRefsOf(eventData?.applicationType, eventData?.applicationId),
 });
 
-const reportingAnswers = ({ applicant, ...answers }) => {
-  const businessName = applicant?.business?.name;
-  return businessName === undefined
-    ? answers
-    : { ...answers, applicant: { business: { name: businessName } } };
-};
-
 const formatApplicantName = (name) => {
   if (typeof name === "string") {
     return name.trim();
@@ -66,7 +59,7 @@ export const createApplicationReportingPublications = (application) => {
       applicationReceiptDate: createdAt,
       applicantName,
       grantConfigVersion: originalConfigVersion,
-      applicationPayload: reportingAnswers(answers),
+      applicationPayload: answers,
     },
   };
   const { valid, errors } = validateReportingEvent(event);

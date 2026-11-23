@@ -72,6 +72,19 @@ describe("submitApplicationUseCase", () => {
         resolvedVersion: "1.0.0",
       });
 
+      const answers = {
+        applicant: {
+          business: {
+            name: "Example Farm",
+            phone: { mobile: "07000000000" },
+          },
+          customer: { name: { first: "Jane", last: "Doe" }, address: {} },
+        },
+        collaborationScore: 0,
+        estimatedMaxGrant: 62200,
+        extraSchemeAnswer: { selected: ["scheme-option"] },
+      };
+
       await submitApplicationUseCase(code, {
         metadata: {
           clientRef: "wmg-test-ref",
@@ -81,18 +94,7 @@ describe("submitApplicationUseCase", () => {
           submittedAt: "2000-01-01T12:00:00Z",
           configVersion: "1.0.0",
         },
-        answers: {
-          applicant: {
-            business: {
-              name: "Example Farm",
-              phone: { mobile: "07000000000" },
-            },
-            customer: { name: { first: "Jane", last: "Doe" }, address: {} },
-          },
-          collaborationScore: 0,
-          estimatedMaxGrant: 62200,
-          extraSchemeAnswer: { selected: ["scheme-option"] },
-        },
+        answers,
       });
 
       const [application, savedSession] = save.mock.lastCall;
@@ -111,12 +113,7 @@ describe("submitApplicationUseCase", () => {
         crn: "9000000001",
         grantConfigVersion: "1.0.0",
       });
-      expect(report.event.eventData.applicationPayload).toEqual({
-        applicant: { business: { name: "Example Farm" } },
-        collaborationScore: 0,
-        estimatedMaxGrant: 62200,
-        extraSchemeAnswer: { selected: ["scheme-option"] },
-      });
+      expect(report.event.eventData.applicationPayload).toEqual(answers);
     },
   );
 
