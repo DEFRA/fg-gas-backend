@@ -527,13 +527,16 @@ describe("the same Client Reference in two grants", () => {
   const REF = `client-wmp-test-${randomUUID()}`;
   const GRANTS = ["test-code-1", "test-code-2"];
 
-  const grantOf = ({ data }) =>
-    data?.code ?? data?.grantCode ?? data?.workflowCode;
+  const grantOf = ({ data, eventData }) =>
+    data?.code ??
+    data?.grantCode ??
+    data?.workflowCode ??
+    eventData?.applicationType;
 
   // The rows each grant's writers wrote, read from the stored envelopes.
   const storedRowsOf = async (code) => {
     const rows = [
-      ...(await outbox.find({ "event.data": { $exists: true } }).toArray()),
+      ...(await outbox.find().toArray()),
       ...(await inbox.find().toArray()),
     ];
 
@@ -591,6 +594,7 @@ describe("the same Client Reference in two grants", () => {
       expect(stored.map(({ type }) => type)).toEqual(
         expect.arrayContaining([
           "ApplicationCreated",
+          "ApplicationCreatedReport",
           "CreateCase",
           "CaseStatusUpdated",
         ]),
