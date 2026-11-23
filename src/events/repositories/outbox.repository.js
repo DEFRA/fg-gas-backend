@@ -88,7 +88,7 @@ export const claimEvents = async (claimedBy, segregationRef) => {
           claimExpiresAt: new Date(Date.now() + EXPIRES_IN_MS),
         },
       },
-      { sort: { publicationDate: 1 }, returnDocument: "after" },
+      { sort: { publicationDate: 1, _id: 1 }, returnDocument: "after" },
     );
     docs.push(doc);
   }

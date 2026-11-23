@@ -135,10 +135,11 @@ it to a status agreed with the data warehouse. For example, a grant might use:
 ]
 ```
 
-Once a grant opts in, its initial status must have a mapping. GAS uses that
-mapping as the starting point for reporting and publishes a status event only
-when a later transition changes the reported status. Unmapped positions do
-not replace the last reported status.
+Once a grant opts in, its initial status must have a mapping. On a new
+submission GAS queues `APPLICATION_CREATED` followed by
+`APPLICATION_STATUS_CHANGED` with the initial mapped status. The initial event
+omits the previous status. Later transitions report only changes to the mapped
+status. Unmapped positions do not replace the last reported status.
 
 ### Configure claim-approval transitions
 

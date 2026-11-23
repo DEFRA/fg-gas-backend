@@ -35,7 +35,7 @@ export const createApplicationStatusReportingPublication = ({
       applicationType: code,
       sbi: identifiers.sbi,
       applicationStatus,
-      previousApplicationStatus,
+      ...(previousApplicationStatus && { previousApplicationStatus }),
       statusDate: updatedAt,
       ...(userId && { userId }),
     },
