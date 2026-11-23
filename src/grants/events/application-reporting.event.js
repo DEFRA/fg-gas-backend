@@ -4,7 +4,6 @@ import {
 } from "@defra/grants-reporting-publisher";
 import { randomUUID } from "node:crypto";
 import { config } from "../../common/config.js";
-import { logger } from "../../common/logger.js";
 import { applicationRefsOf } from "../../events/case-refs.js";
 import { OUTBOX, defineEventType } from "../../events/event-types.js";
 
@@ -35,14 +34,6 @@ export const createApplicationReportingPublications = (application) => {
     application;
   const answers = application.getAnswers();
   const applicantName = getApplicantName(answers);
-  if (!applicantName) {
-    // The publisher currently requires a name, but some grants do not capture it.
-    logger.warn(
-      { code, clientRef },
-      "Application report skipped: no applicant name",
-    );
-    return [];
-  }
 
   const event = {
     correlationId: randomUUID(),
@@ -57,7 +48,7 @@ export const createApplicationReportingPublications = (application) => {
       applicationId: clientRef,
       applicationType: code,
       applicationReceiptDate: createdAt,
-      applicantName,
+      ...(applicantName ? { applicantName } : {}),
       grantConfigVersion: originalConfigVersion,
       applicationPayload: answers,
     },

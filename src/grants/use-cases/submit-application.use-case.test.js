@@ -28,7 +28,7 @@ describe("submitApplicationUseCase", () => {
     vi.useRealTimers();
   });
 
-  it("creates an application", async () => {
+  it("creates and reports an application without an applicant name", async () => {
     save.mockResolvedValue({ insertedId: "1234" });
     saveEvents.mockResolvedValueOnce(undefined);
     const mockSession = {};
@@ -58,7 +58,12 @@ describe("submitApplicationUseCase", () => {
     expect(application.currentPhase).toBe(ApplicationPhase.PreAward);
     expect(application.clientRef).toBe("test-client-ref");
     expect(application.originalConfigVersion).toBe("1.0.0");
-    expect(saveEvents.mock.lastCall[0]).toHaveLength(2);
+    const [publications] = saveEvents.mock.lastCall;
+    const report = publications.find(
+      ({ event }) => event.eventData?.eventType === "APPLICATION_CREATED",
+    );
+    expect(report.event.eventData.applicationId).toBe("test-client-ref");
+    expect(report.event.eventData).not.toHaveProperty("applicantName");
   });
 
   it.each(["water-management", "test-grant"])(
