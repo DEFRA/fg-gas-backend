@@ -9,6 +9,23 @@ import { save } from "../repositories/application.repository.js";
 import { validateAnswersAgainstSchema } from "../services/schema-validation.service.js";
 import { resolveGrantForSubmission } from "./resolve-current-grant.use-case.js";
 
+const applicationPublications = (application, reportReceipt) => [
+  {
+    event: new ApplicationCreatedEvent({
+      clientRef: application.clientRef,
+      code: application.code,
+      originalConfigVersion: application.originalConfigVersion,
+      status: application.getFullyQualifiedStatus(),
+    }),
+    target: config.sns.grantApplicationCreatedTopicArn,
+  },
+  {
+    event: new CreateNewCaseCommand(application),
+    target: config.sns.createNewCaseTopicArn,
+  },
+  ...(reportReceipt ? createApplicationReportingPublications(application) : []),
+];
+
 export const createApplicationUseCase = async (
   code,
   { metadata, answers },
@@ -67,29 +84,8 @@ export const createApplicationUseCase = async (
     `Created application "${application.clientRef}" for grant "${application.code}"`,
   );
 
-  const applicationCreatedEvent = new ApplicationCreatedEvent({
-    clientRef: application.clientRef,
-    code: application.code,
-    originalConfigVersion: application.originalConfigVersion,
-    status: application.getFullyQualifiedStatus(),
-  });
-
-  const createNewCaseCommand = new CreateNewCaseCommand(application);
-
   await saveEvents(
-    [
-      {
-        event: applicationCreatedEvent,
-        target: config.sns.grantApplicationCreatedTopicArn,
-      },
-      {
-        event: createNewCaseCommand,
-        target: config.sns.createNewCaseTopicArn,
-      },
-      ...(reportReceipt
-        ? createApplicationReportingPublications(application)
-        : []),
-    ],
+    applicationPublications(application, reportReceipt),
     session,
   );
 
