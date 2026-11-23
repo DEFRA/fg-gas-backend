@@ -53,6 +53,7 @@ export class Application {
       createdAt,
       updatedAt,
       submittedAt,
+      lastReportedStatus,
       identifiers,
       metadata,
       phases,
@@ -69,6 +70,7 @@ export class Application {
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
     this.submittedAt = submittedAt;
+    this.lastReportedStatus = lastReportedStatus;
     this.identifiers = identifiers;
     this.metadata = metadata ?? {};
     this.phases = phases;

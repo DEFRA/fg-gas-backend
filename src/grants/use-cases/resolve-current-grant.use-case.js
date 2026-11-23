@@ -100,12 +100,17 @@ export const resolveCurrentGrantUseCase = async (
 export const pinnedVersionOf = (application) =>
   application.currentConfigVersion ?? application.originalConfigVersion;
 
-export const persistResolvedVersion = async (application, resolvedVersion) => {
+export const persistResolvedVersion = async (
+  application,
+  resolvedVersion,
+  session,
+) => {
   if (resolvedVersion && resolvedVersion !== application.currentConfigVersion) {
     await updateCurrentConfigVersion(
       application.clientRef,
       application.code,
       resolvedVersion,
+      session,
     );
     application.currentConfigVersion = resolvedVersion;
   }

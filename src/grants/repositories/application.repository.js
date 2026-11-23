@@ -92,6 +92,7 @@ const toApplication = (doc) =>
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     submittedAt: doc.submittedAt,
+    lastReportedStatus: doc.lastReportedStatus,
     identifiers: doc.identifiers ?? {},
     metadata: doc.metadata ?? {},
     phases: doc.phases,
@@ -165,12 +166,18 @@ export const findByClientRef = async (clientRef) => {
   return toApplication(doc);
 };
 
-export const updateCurrentConfigVersion = async (clientRef, code, version) => {
+export const updateCurrentConfigVersion = async (
+  clientRef,
+  code,
+  version,
+  session,
+) => {
   await db
     .collection(collection)
     .updateOne(
       { clientRef, code },
       { $set: { currentConfigVersion: version } },
+      { session },
     );
 };
 

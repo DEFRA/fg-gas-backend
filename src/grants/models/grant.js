@@ -100,6 +100,7 @@ export class Grant {
         lifecycle,
       );
       this.#assertAmendablePositionsExistIn(lifecycle);
+      this.#assertInitialReportingStatus();
       assertEntitlementAnswerDecimalsCapped(
         this.phases,
         this.entitlementTemplates,
@@ -110,6 +111,19 @@ export class Grant {
       }
 
       throw Boom.badImplementation(`Grant "${this.code}" ${error.message}`);
+    }
+  }
+
+  #assertInitialReportingStatus() {
+    const hasReporting = this.phases.some(({ stages }) =>
+      stages.some(({ statuses }) =>
+        statuses.some(({ reporting }) => reporting),
+      ),
+    );
+    if (hasReporting && !this.getInitialState().status.reporting) {
+      throw Boom.badImplementation(
+        "needs an initial reporting status when any status is reportable",
+      );
     }
   }
 

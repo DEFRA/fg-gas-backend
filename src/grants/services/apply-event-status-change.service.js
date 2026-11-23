@@ -138,7 +138,10 @@ export const applyExternalStateChange = async (command) => {
     logger.info("applyExternalStateChange");
 
     const { clientRef, code } = command;
-    const application = await findByClientRefAndCode({ clientRef, code });
+    const application = await findByClientRefAndCode(
+      { clientRef, code },
+      session,
+    );
 
     if (!application) {
       throw Boom.notFound(
@@ -148,7 +151,7 @@ export const applyExternalStateChange = async (command) => {
 
     const { grant, resolvedVersion } =
       await resolveGrantForApplication(application);
-    await persistResolvedVersion(application, resolvedVersion);
+    await persistResolvedVersion(application, resolvedVersion, session);
 
     if (!grant) {
       throw Boom.notFound(`Grant with code "${application.code}" not found`);

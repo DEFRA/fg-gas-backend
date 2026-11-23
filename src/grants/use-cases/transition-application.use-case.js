@@ -2,6 +2,7 @@ import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { saveEvents } from "../../events/index.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
+import { reportApplicationStatusChange } from "../services/report-application-status-change.service.js";
 import { ApplicationStatus } from "../models/application.js";
 import { update } from "../repositories/application.repository.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
@@ -113,11 +114,13 @@ const publishCaseWorkingUpdateIfRequested = async (
   }
 };
 
-const runTransitionProcesses = async (processes, context, session) => {
-  for (const handler of getHandlersForAllProcesses(processes)) {
+const runTransitionProcesses = async (handlers, context, session) => {
+  for (const handler of handlers) {
     await handler(context, session);
   }
 };
+
+const transitionUserId = (context) => context?.eventData?.userId;
 
 export const transitionApplicationUseCase = async (
   {
@@ -154,5 +157,17 @@ export const transitionApplicationUseCase = async (
     session,
   );
 
-  await runTransitionProcesses(move.processes, sideEffectContext, session);
+  const handlers = getHandlersForAllProcesses(move.processes);
+  await runTransitionProcesses(handlers, sideEffectContext, session);
+
+  await reportApplicationStatusChange(
+    {
+      application,
+      grant,
+      previousPosition,
+      reload: handlers.length > 0,
+      userId: transitionUserId(sideEffectContext),
+    },
+    session,
+  );
 };

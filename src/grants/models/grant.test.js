@@ -203,6 +203,33 @@ describe("Grant", () => {
       return published;
     };
 
+    it("rejects a reportable status with no common status mapping", () => {
+      const published = withStatus(definition(), {
+        code: "WITHDRAWN",
+        reporting: {},
+      });
+
+      expect(() => fromDefinition(published)).toThrow(
+        /reporting.status.*required/,
+      );
+    });
+
+    it("requires an initial mapping when any other status is reportable", () => {
+      const published = withStatus(definition(), {
+        code: "WITHDRAWN",
+        reporting: { status: "WITHDRAWN" },
+      });
+
+      expect(() => fromDefinition(published)).toThrow(
+        /initial reporting status/,
+      );
+
+      published.phases[0].stages[0].statuses[0].reporting = {
+        status: "RECEIVED",
+      };
+      expect(() => fromDefinition(published)).not.toThrow();
+    });
+
     const withMapping = (published, mappedTo) => {
       published.externalStatusMap.phases[0].stages[0].statuses.push({
         code: "EXTERNAL",
