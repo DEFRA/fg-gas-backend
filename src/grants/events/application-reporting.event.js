@@ -4,6 +4,7 @@ import {
 } from "@defra/grants-reporting-publisher";
 import { randomUUID } from "node:crypto";
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { applicationRefsOf } from "../../events/case-refs.js";
 import { OUTBOX, defineEventType } from "../../events/event-types.js";
 
@@ -15,67 +16,40 @@ export const reportingApplicationCreated = defineEventType({
     applicationRefsOf(eventData?.applicationType, eventData?.applicationId),
 });
 
-const waterReportingAnswers = (answers) => {
-  const {
-    applicant,
-    projectLocated__easting: easting,
-    projectLocated__northing: northing,
-    itemsPlanningToInstall,
-    reservoirs,
-    waterStorageCapacity,
-    waterDistributionLength,
-    totalScore,
-    scarcityScore,
-    sectorScore,
-    collaborationScore,
-    planningAbstractionScore,
-    estimatedMaxGrant,
-  } = answers;
-
-  return {
-    applicant: { business: { name: applicant?.business?.name } },
-    projectLocated__easting: easting,
-    projectLocated__northing: northing,
-    itemsPlanningToInstall,
-    reservoirs: reservoirs?.map(({ name, type, size }) => ({
-      name,
-      type,
-      size,
-    })),
-    waterStorageCapacity,
-    waterDistributionLength,
-    totalScore,
-    scarcityScore,
-    sectorScore,
-    collaborationScore,
-    planningAbstractionScore,
-    estimatedMaxGrant,
-  };
+const reportingAnswers = ({ applicant, ...answers }) => {
+  const businessName = applicant?.business?.name;
+  return businessName === undefined
+    ? answers
+    : { ...answers, applicant: { business: { name: businessName } } };
 };
 
-const reportingAnswersByGrant = new Map([
-  ["water-management", waterReportingAnswers],
-]);
-
-const formatApplicantName = (answers) => {
-  const applicant = answers.applicant ?? {};
-  const customer = applicant.customer ?? {};
-  const { first, middle, last } = customer.name ?? {};
+const formatApplicantName = (name) => {
+  if (typeof name === "string") {
+    return name.trim();
+  }
+  const { first, middle, last } = name ?? {};
   return [first, middle, last]
     .filter((part) => typeof part === "string" && part.trim())
     .map((part) => part.trim())
     .join(" ");
 };
 
+const getApplicantName = ({ applicant }) =>
+  formatApplicantName(applicant?.customer?.name);
+
 export const createApplicationReportingPublications = (application) => {
   const { code, clientRef, createdAt, identifiers, originalConfigVersion } =
     application;
-  const mapAnswers = reportingAnswersByGrant.get(code);
-  if (!mapAnswers) {
+  const answers = application.getAnswers();
+  const applicantName = getApplicantName(answers);
+  if (!applicantName) {
+    // The publisher currently requires a name, but some grants do not capture it.
+    logger.warn(
+      { code, clientRef },
+      "Application report skipped: no applicant name",
+    );
     return [];
   }
-
-  const answers = application.getAnswers();
 
   const event = {
     correlationId: randomUUID(),
@@ -90,9 +64,9 @@ export const createApplicationReportingPublications = (application) => {
       applicationId: clientRef,
       applicationType: code,
       applicationReceiptDate: createdAt,
-      applicantName: formatApplicantName(answers),
+      applicantName,
       grantConfigVersion: originalConfigVersion,
-      applicationPayload: mapAnswers(answers),
+      applicationPayload: reportingAnswers(answers),
     },
   };
   const { valid, errors } = validateReportingEvent(event);
