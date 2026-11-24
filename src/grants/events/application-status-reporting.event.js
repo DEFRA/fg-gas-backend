@@ -19,6 +19,7 @@ export const reportingApplicationStatusChanged = defineEventType({
 export const createApplicationStatusReportingPublication = ({
   application,
   userId,
+  sequence,
 }) => {
   const { code, clientRef, updatedAt, identifiers } = application;
   const event = {
@@ -48,5 +49,6 @@ export const createApplicationStatusReportingPublication = ({
     event,
     target: config.sns.reportingEventsTopicArn,
     segregationRef: `${clientRef}-${code}`,
+    applicationReportingSequence: sequence,
   };
 };

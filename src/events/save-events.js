@@ -2,13 +2,20 @@ import { Outbox } from "./models/outbox.js";
 import { insertMany } from "./repositories/outbox.repository.js";
 import { outboxStamps } from "./stamps.js";
 
-const toOutbox = ({ event, target, segregationRef, refs }) => {
+const toOutbox = ({
+  event,
+  target,
+  segregationRef,
+  refs,
+  applicationReportingSequence,
+}) => {
   const orderingKey = segregationRef ?? Outbox.getSegregationRef(event);
 
   return new Outbox({
     event,
     target,
     segregationRef: orderingKey,
+    applicationReportingSequence,
     ...outboxStamps(event, { segregationRef: orderingKey, refs }),
   });
 };

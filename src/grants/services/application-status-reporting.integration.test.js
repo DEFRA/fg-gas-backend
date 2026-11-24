@@ -12,7 +12,8 @@ let client;
 let db;
 let save;
 let saveGrant;
-let claimEvents;
+let findNextMessage;
+let OutboxSubscriber;
 let submitApplicationUseCase;
 let seedConfigVersion;
 let findByClientRefAndCode;
@@ -40,8 +41,10 @@ beforeAll(async () => {
   grantResolution =
     await import("../use-cases/resolve-current-grant.use-case.js");
   ({ save: saveGrant } = await import("../repositories/grant.repository.js"));
-  ({ claimEvents } =
+  ({ findNextMessage } =
     await import("../../events/repositories/outbox.repository.js"));
+  ({ OutboxSubscriber } =
+    await import("../../events/subscribers/outbox.subscriber.js"));
   ({ submitApplicationUseCase } =
     await import("../use-cases/submit-application.use-case.js"));
   ({ createTestApplication, seedConfigVersion } =
@@ -141,7 +144,7 @@ const scenario = async (
 };
 
 describe("Application status reporting", () => {
-  it("queues the receipt before the initial status, then reports a later withdrawal", async () => {
+  it("publishes the receipt, initial status and withdrawal in order across retries", async () => {
     const code = "reporting-initial";
     const application = await scenario(
       code,
@@ -151,21 +154,62 @@ describe("Application status reporting", () => {
     const stored = await application.stored();
     const segregationRef = `${stored.clientRef}-${code}`;
 
-    // The two publications can be inserted in the same millisecond.
-    await db.collection("outbox").updateMany(
-      { segregationRef },
-      {
-        $set: { publicationDate: new Date(stored.createdAt) },
-      },
-    );
-    const queued = [
-      ...(await claimEvents("reporting-test", segregationRef)),
-      ...(await claimEvents("reporting-test", segregationRef)),
-    ];
-    const reportingEvents = queued
-      .map(({ event }) => event.eventData)
-      .filter(Boolean);
+    // A receipt written by an older GAS instance has no sequence. A later
+    // writer's clock can put the withdrawal before both submission reports.
+    await application.move("APPLICATION_WITHDRAWN");
+    await db
+      .collection("outbox")
+      .updateOne(
+        { segregationRef, applicationReportingSequence: -1 },
+        { $unset: { applicationReportingSequence: "" } },
+      );
+    await db
+      .collection("outbox")
+      .updateOne(
+        { segregationRef, applicationReportingSequence: 1 },
+        { $set: { publicationDate: new Date(0) } },
+      );
 
+    const subscriber = new OutboxSubscriber();
+    const deliver = vi
+      .spyOn(subscriber, "deliver")
+      .mockRejectedValueOnce(new Error("temporary publishing failure"))
+      .mockResolvedValue(undefined);
+    const process = () =>
+      subscriber.processWithLock("reporting-test", segregationRef);
+    const otherGroups = await db
+      .collection("outbox")
+      .distinct("segregationRef", {
+        segregationRef: { $ne: segregationRef },
+      });
+    const next = () => findNextMessage(otherGroups);
+
+    expect((await next()).event.eventData.eventType).toBe(
+      "APPLICATION_CREATED",
+    );
+    await process();
+    expect(deliver).toHaveBeenCalledTimes(1);
+    await process();
+    const deliveredReports = () =>
+      deliver.mock.calls.flatMap(([, { eventData }]) =>
+        eventData ? [eventData] : [],
+      );
+    expect(deliveredReports()).toHaveLength(1);
+    expect((await next())?.event.eventData).toBeUndefined();
+    await subscriber.processFailedEvents();
+    await process();
+    expect(deliveredReports()).toHaveLength(1);
+    await subscriber.processResubmittedEvents();
+
+    await process();
+    await process();
+    await process();
+    expect((await next())?.event.eventData).toBeUndefined();
+
+    const [failedReceipt, ...published] = deliveredReports();
+    expect(failedReceipt).toEqual(published[0]);
+    const [receipt, initial, withdrawal] = published;
+    const reportingEvents = [receipt, initial];
     expect(reportingEvents.map(({ eventType }) => eventType)).toEqual([
       "APPLICATION_CREATED",
       "APPLICATION_STATUS_CHANGED",
@@ -178,11 +222,8 @@ describe("Application status reporting", () => {
     });
     expect(reportingEvents[1]).not.toHaveProperty("previousApplicationStatus");
 
-    await application.move("APPLICATION_WITHDRAWN");
-
-    const events = await application.events();
-    expect(events).toHaveLength(2);
-    const withdrawal = events[1].event.eventData;
+    expect(await application.events()).toHaveLength(2);
+    expect(published).toHaveLength(3);
     expect(withdrawal.applicationStatus).toBe("APPLICATION_WITHDRAWN");
     expect(withdrawal).not.toHaveProperty("previousApplicationStatus");
   });

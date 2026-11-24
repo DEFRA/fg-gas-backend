@@ -27,7 +27,10 @@ const applicationPublications = (application, reportReceipt) => [
   ...(reportReceipt
     ? [
         ...createApplicationReportingPublications(application),
-        createApplicationStatusReportingPublication({ application }),
+        createApplicationStatusReportingPublication({
+          application,
+          sequence: 0,
+        }),
       ]
     : []),
 ];

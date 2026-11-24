@@ -128,6 +128,11 @@ On a new submission GAS queues `APPLICATION_CREATED` followed by
 `APPLICATION_STATUS_CHANGED` with the initial GAS status code. Later changes
 queue one status event with the resulting GAS status code.
 The event is saved in the same transaction as the application change.
+The outbox publishes each application's reports in sequence and holds later
+reports until the earlier one succeeds or an operator purges it.
+
+Reporting for a replacement application starts at its first subsequent status
+change, under the replacement application reference.
 
 ### Configure claim-approval transitions
 

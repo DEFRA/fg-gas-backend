@@ -77,6 +77,9 @@ export class Outbox {
     this.claimedAt = null;
     this.claimExpiresAt = null;
     this.segregationRef = props.segregationRef;
+    if (props.applicationReportingSequence !== undefined) {
+      this.applicationReportingSequence = props.applicationReportingSequence;
+    }
     Object.assign(this, stampsOf(props));
   }
 
@@ -132,6 +135,9 @@ export class Outbox {
       claimedBy: this.claimedBy,
       claimExpiresAt: this.claimExpiresAt,
       segregationRef: this.segregationRef,
+      ...(this.applicationReportingSequence !== undefined && {
+        applicationReportingSequence: this.applicationReportingSequence,
+      }),
       eventType: this.eventType,
       refs: this.refs,
     };
@@ -160,6 +166,7 @@ export class Outbox {
       claimedBy: doc.claimedBy,
       claimExpiresAt: doc.claimExpiresAt,
       segregationRef: doc.segregationRef,
+      applicationReportingSequence: doc.applicationReportingSequence,
       eventType: doc.eventType,
       refs: doc.refs,
     });

@@ -3,7 +3,10 @@ import { createTestApplication } from "../../../test/helpers/applications.js";
 import { createTestGrant } from "../../../test/helpers/grants.js";
 import { config } from "../../common/config.js";
 import { saveEvents } from "../../events/index.js";
-import { update } from "../repositories/application.repository.js";
+import {
+  nextApplicationReportingSequence,
+  update,
+} from "../repositories/application.repository.js";
 import { createStatusTransitionUpdateUseCase } from "./create-status-transition-update.use-case.js";
 import { transitionApplicationUseCase } from "./transition-application.use-case.js";
 
@@ -62,6 +65,7 @@ describe("transitionApplicationUseCase", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    nextApplicationReportingSequence.mockResolvedValue(1);
     publishStatusTransition = vi.fn();
     createStatusTransitionUpdateUseCase.mockReturnValue(
       publishStatusTransition,
@@ -86,6 +90,7 @@ describe("transitionApplicationUseCase", () => {
       [
         {
           target: config.sns.reportingEventsTopicArn,
+          applicationReportingSequence: 1,
           segregationRef: "application-1-test-grant",
           event: expect.objectContaining({
             eventData: expect.objectContaining({

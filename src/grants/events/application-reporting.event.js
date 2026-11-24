@@ -64,6 +64,7 @@ export const createApplicationReportingPublications = (application) => {
     {
       target: config.sns.reportingEventsTopicArn,
       segregationRef: `${clientRef}-${code}`,
+      applicationReportingSequence: -1,
       event,
     },
   ];

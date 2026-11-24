@@ -46,20 +46,100 @@ export const deadLetterEvent = async (event) => {
   return results;
 };
 
-export const findNextMessage = async (lockIds) => {
-  const doc = await db.collection(collection).findOne(
+const reportEventType = "event.eventData.eventType";
+const applicationReportTypes = [
+  "APPLICATION_CREATED",
+  "APPLICATION_STATUS_CHANGED",
+];
+const isApplicationReport = (doc) =>
+  applicationReportTypes.includes(doc.event?.eventData?.eventType);
+const readyToClaim = {
+  status: OutboxStatus.PUBLISHED,
+  claimedBy: null,
+  completionAttempts: { $lt: MAX_RETRIES },
+};
+const applicationReportOrder = {
+  applicationReportingSequence: 1,
+  publicationDate: 1,
+  _id: 1,
+};
+
+const firstUnsentApplicationReport = (segregationRef) =>
+  db.collection(collection).findOne(
     {
-      status: OutboxStatus.PUBLISHED,
-      claimedBy: null,
-      completionAttempts: { $lt: MAX_RETRIES },
+      segregationRef,
+      [reportEventType]: { $in: applicationReportTypes },
+      status: { $nin: [OutboxStatus.COMPLETED, OutboxStatus.PURGED] },
+    },
+    { sort: applicationReportOrder, readPreference: "primary" },
+  );
+
+const canClaim = (doc) =>
+  doc?.status === OutboxStatus.PUBLISHED &&
+  !doc.claimedBy &&
+  doc.completionAttempts < MAX_RETRIES;
+
+const nextPublished = (lockIds, blockedReports) =>
+  db.collection(collection).findOne(
+    {
+      ...readyToClaim,
       segregationRef: { $nin: lockIds },
+      ...(blockedReports.length > 0 && {
+        $nor: [
+          {
+            segregationRef: { $in: blockedReports },
+            [reportEventType]: { $in: applicationReportTypes },
+          },
+        ],
+      }),
     },
     { sort: { publicationDate: 1 } },
   );
-  return doc;
+
+const needsApplicationOrder = (doc) =>
+  Boolean(doc?.segregationRef) && isApplicationReport(doc);
+
+export const findNextMessage = async (lockIds) => {
+  const blockedReports = [];
+  while (true) {
+    const doc = await nextPublished(lockIds, blockedReports);
+    if (!needsApplicationOrder(doc)) {
+      return doc;
+    }
+
+    const first = await firstUnsentApplicationReport(doc.segregationRef);
+    if (canClaim(first)) {
+      return first;
+    }
+    blockedReports.push(doc.segregationRef);
+  }
 };
 
+const claim = (claimedBy, filter) =>
+  db.collection(collection).findOneAndUpdate(
+    { ...readyToClaim, ...filter },
+    {
+      $set: {
+        status: OutboxStatus.PROCESSING,
+        claimedBy,
+        claimedAt: new Date(),
+        claimExpiresAt: new Date(Date.now() + EXPIRES_IN_MS),
+      },
+    },
+    { sort: { publicationDate: 1, _id: 1 }, returnDocument: "after" },
+  );
+
 export const claimEvents = async (claimedBy, segregationRef) => {
+  const first =
+    segregationRef && (await firstUnsentApplicationReport(segregationRef));
+  if (canClaim(first)) {
+    const doc = await claim(claimedBy, { _id: first._id });
+    return doc ? [Outbox.fromDocument(doc)] : [];
+  }
+  return claimUnorderedEvents(claimedBy, segregationRef);
+};
+
+const claimUnorderedEvents = async (claimedBy, segregationRef) => {
   const docs = [];
 
   logger.info(
@@ -67,29 +147,10 @@ export const claimEvents = async (claimedBy, segregationRef) => {
   );
 
   for (let i = 0; i < NUMBER_OF_RECORDS; i++) {
-    const doc = await db.collection(collection).findOneAndUpdate(
-      {
-        status: {
-          $eq: OutboxStatus.PUBLISHED,
-        },
-        claimedBy: {
-          $eq: null,
-        },
-        completionAttempts: {
-          $lt: MAX_RETRIES,
-        },
-        segregationRef,
-      },
-      {
-        $set: {
-          status: OutboxStatus.PROCESSING,
-          claimedBy,
-          claimedAt: new Date(),
-          claimExpiresAt: new Date(Date.now() + EXPIRES_IN_MS),
-        },
-      },
-      { sort: { publicationDate: 1, _id: 1 }, returnDocument: "after" },
-    );
+    const doc = await claim(claimedBy, {
+      segregationRef,
+      [reportEventType]: { $nin: applicationReportTypes },
+    });
     docs.push(doc);
   }
   const documents = docs.filter((d) => d !== null);

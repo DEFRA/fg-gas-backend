@@ -120,7 +120,10 @@ const applyUpdate = (doc, update) =>
 
 const capture = async (method, run, answer = null) => {
   const spy = vi.fn().mockResolvedValue(answer);
-  db.collection.mockReturnValue({ [method]: spy });
+  db.collection.mockReturnValue({
+    findOne: vi.fn().mockResolvedValue(null),
+    [method]: spy,
+  });
 
   await run();
 

@@ -6,6 +6,7 @@ import { createApplicationStatusReportingPublication } from "../events/applicati
 import { ApplicationStatus } from "../models/application.js";
 import {
   findByClientRefAndCode,
+  nextApplicationReportingSequence,
   update,
 } from "../repositories/application.repository.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
@@ -139,9 +140,11 @@ const reportApplicationStatusChange = async (
     return;
   }
 
+  const sequence = await nextApplicationReportingSequence(saved, session);
   const publication = createApplicationStatusReportingPublication({
     application: saved,
     userId,
+    sequence,
   });
   await saveEvents([publication], session);
 };
