@@ -1,9 +1,7 @@
 import { COUNT_CAP, readTimeoutMs } from "../buckets/engine.js";
-import { rootsOf } from "./describe.js";
-import { pathProblem } from "./paths.js";
 import { EXACT_READ, WINDOWED_READ, planBox } from "./plan.js";
-import { mergeGroups } from "./merge.js";
-import { meterFor } from "./meter.js";
+import { compareRows, mergeGroups } from "./merge.js";
+import { eachStep, meterFor } from "./meter.js";
 import { refusedPathsOf } from "./query-rules.js";
 import { refuseQuery } from "./refusal.js";
 import { grouper } from "./rows.js";
@@ -18,12 +16,16 @@ import {
   emptyBox,
   engineRead,
   findDocs,
+  idDocs,
   isDefaultOrder,
   isUnwinding,
   positionOfBox,
   readBox,
   readEdge,
   readWindow,
+  shapeCost,
+  shaped,
+  unwoundRows,
 } from "./run-box.js";
 import { runFull } from "./run-full.js";
 
@@ -45,26 +47,34 @@ const countForGroups = async (boxes) => {
   return counts;
 };
 
-const groupBox = async ({ read, context }, query, meter) => {
+// One box's groups of the records `each` hands to `add`, unwound as the
+// query asks.
+const groupDocs = async (context, query, meter, each) => {
   const groups = grouper({ query, readerOf: context.readers.readerOf });
-  const addUnwound = eachUnwound(context.unwound, query, meter, (one) => {
-    groups.add(one, context.box);
-    checkGroups(groups);
-  });
 
-  await eachDoc(
-    findDocs(read, context, { limit: GROUP_CAP + 1 }),
-    async (doc) => {
-      await addUnwound(doc);
-
-      return true;
-    },
-    meter,
-    1,
+  await each(
+    eachUnwound(context.unwound, query, meter, (one) => {
+      groups.add(one, context.box);
+      checkGroups(groups);
+    }),
   );
 
   return groups.groups();
 };
+
+const groupBox = ({ read, context }, query, meter) =>
+  groupDocs(context, query, meter, (add) =>
+    eachDoc(
+      findDocs(read, context, { limit: GROUP_CAP + 1 }),
+      async (doc) => {
+        await add(doc);
+
+        return true;
+      },
+      meter,
+      1,
+    ),
+  );
 
 // Counted first, so a group read never streams more than the cap.
 const readGroups = async (boxes, query, meter) => {
@@ -96,10 +106,10 @@ const settled = async (planned, meter) => {
   return edge ? planned : { ...planned, read: EXACT_READ, why: null };
 };
 
-const planBoxes = (source, query, meter, lens) =>
+const planBoxes = (source, query, meter, charge) =>
   Promise.all(
     source.boxes.map(async (box) => {
-      const context = boxContext(source, box, query, lens);
+      const context = boxContext(source, box, query, charge);
       const planned = planBox(source, box, query, context.readers.readerOf);
 
       return {
@@ -210,56 +220,125 @@ const runExact = async (boxes, query, meter) => {
   };
 };
 
-const runBig = async (source, query, meter, lens) => {
-  const boxes = await planBoxes(source, query, meter, lens);
+// ── By id ──
+
+// One box's rows of an id read, in the Query's order: newest first by
+// default, a record with no time last.
+const idRows = async (context, docs, query, meter) => {
+  if (!isUnwinding(query)) {
+    const rows = await shaped(
+      docs,
+      context.make,
+      context.box,
+      meter,
+      shapeCost(query),
+    );
+
+    return {
+      rows: rows.toSorted(compareRows(query.orderBy)).slice(0, query.limit),
+      count: { n: docs.length, capped: false },
+    };
+  }
+
+  const found = unwoundRows(query, context.make, false);
+
+  await eachStep(
+    docs,
+    meter,
+    shapeCost(query),
+    eachUnwound(context.unwound, query, meter, (one) =>
+      found.take(one, context.box),
+    ),
+  );
+
+  return found.answer();
+};
+
+const idGroups = (boxes, query, meter) =>
+  Promise.all(
+    boxes.map(({ context, docs }) =>
+      groupDocs(context, query, meter, (add) =>
+        eachStep(docs, meter, shapeCost(query), add),
+      ),
+    ),
+  );
+
+const idBox = (context, docs) => ({
+  ...emptyBox(context.box),
+  count: { n: docs.length, capped: false },
+});
+
+// An id read is exact whatever was asked: a window or positions are no read
+// of its own, and it counts, groups and unwinds only what it read.
+const runIds = async (planned, query, meter) => {
+  const boxes = await Promise.all(
+    planned.map(async ({ context, planned: plan }) => ({
+      context,
+      docs: plan.none ? [] : await idDocs(context, plan, meter),
+    })),
+  );
+  const counted = boxes.map(({ context, docs }) => idBox(context, docs));
+
+  if (query.mode === "count") {
+    return { read: EXACT_READ, groups: null, boxes: counted };
+  }
+
+  if (query.groupBy) {
+    return {
+      read: EXACT_READ,
+      boxes: counted,
+      groups: mergeGroups(await idGroups(boxes, query, meter)),
+    };
+  }
+
+  return {
+    read: EXACT_READ,
+    groups: null,
+    boxes: await Promise.all(
+      boxes.map(async ({ context, docs }) => ({
+        id: context.box.id,
+        to: null,
+        end: true,
+        ...(await idRows(context, docs, query, meter)),
+      })),
+    ),
+  };
+};
+
+const chargeOf = (query, meter) =>
+  isUnwinding(query) ? chargeTo(meter) : undefined;
+
+const readsByIds = (boxes) => boxes.every(({ planned }) => planned.ids);
+
+const runBig = async (source, query, meter, charge) => {
+  const boxes = await planBoxes(source, query, meter, charge);
+
+  if (readsByIds(boxes)) {
+    return runIds(boxes, query, meter);
+  }
 
   return readKindOf(boxes, query) === EXACT_READ
     ? runExact(boxes, query, meter)
     : runWindowed(boxes, query, meter);
 };
 
-// What a source may read: its roots, less the deny list.
-const checkedLists = (source, query) => {
-  const lists = { roots: rootsOf(source) };
-
-  if (refusedPathsOf(query, lists) > 0) {
-    throw refuseQuery("PATH_NOT_ALLOWED");
-  }
-
-  return lists;
-};
-
-// What a read may see below a path it reads, so objects are compared and
-// keyed only by that. An unwinding read also charges every list element it
-// walks.
-const lensOf = (query, meter, lists) => {
-  const seen = new Map();
-  const readable = (path) => {
-    if (!seen.has(path)) {
-      seen.set(path, pathProblem(path, lists) === null);
-    }
-
-    return seen.get(path);
-  };
-
-  return {
-    readable,
-    charge: isUnwinding(query) ? chargeTo(meter) : undefined,
-  };
-};
-
 // One service's part of a Query on one of its sources: rows per box, or the
 // groups it counted. `source` carries its buckets, resolved; `meter` the
-// request's deadline and work budget. A Query that reads any path the source
-// may not is refused here, before any read, whoever checked it first.
+// request's deadline and work budget. A Query that reads a malformed path is
+// refused here, before any read, whoever checked it first. An unwinding
+// read charges every list element it walks.
 export const runPart = async (
   source,
   query,
   meter = meterFor(Date.now() + readTimeoutMs()),
 ) => {
-  const lens = lensOf(query, meter, checkedLists(source, query));
+  if (refusedPathsOf(query) > 0) {
+    throw refuseQuery("PATH_NOT_ALLOWED");
+  }
+
+  const charge = chargeOf(query, meter);
 
   return source.size === "small"
-    ? runFull(source, query, meter, lens)
-    : runBig(source, query, meter, lens);
+    ? runFull(source, query, meter, charge)
+    : runBig(source, query, meter, charge);
 };

@@ -4,7 +4,6 @@ import { exploreVocabulary } from "../../../../test/helpers/explore-vocabulary.j
 import { PATTERN_MESSAGES } from "../../../common/explore/pattern.js";
 import { keepsRules } from "../../../common/explore/query-rules.js";
 import {
-  QUERY_VERSIONS,
   isWithinLimits,
   querySchema,
 } from "../../../common/explore/query-schema.js";
@@ -25,23 +24,17 @@ const many = (n, item) =>
   Array.from({ length: n }, (_, i) => item(i)).join(", ");
 
 // Shape problems GAS names and the editor, on purpose, doesn't: it says
-// nothing about an empty query (there is nothing to warn about while typing),
-// and its method table is a plain object, so it takes constructor for one.
+// nothing about an empty query (there is nothing to warn about while typing).
 const EDITOR_DIFFERS = new Map([
   ["", "the editor is quiet on empty text"],
   ["// only a comment", "the editor is quiet on empty text"],
-  [
-    "db.cases.constructor()",
-    "the editor's method table is a plain object, so it takes constructor",
-  ],
-  [
-    "'db'.applications.find()",
-    "the editor reads the head's text, not its kind",
-  ],
 ]);
 
 const N = "'phases.answers.applicant.business.name'";
 const A = "'phases.answers.parcels.areaHa'";
+const HEX = "6741a0c2e4b0f1a2b3c4d5e6";
+const ID = `ObjectId('${HEX}')`;
+const S = "'phases.questions.$schema'";
 
 const TOKEN_FORMS = [
   "db.applications.find()",
@@ -88,6 +81,17 @@ const TOKEN_FORMS = [
   `db.applications.find({ ${N}: { $regex: 'hill', $options: 'i' } })`,
   `db.applications.find({ ${N}: '$hill' })`,
   `db.applications.find({ ${N}: // a note\n/hill/ })`,
+  `db.applications.find({ _id: ${ID} })`,
+  `db.applications.find({ _id: ObjectId("${HEX.toUpperCase()}") })`,
+  `db.applications.find({ _id: { $in: [${ID}, ObjectId('${HEX.replace("e6", "e7")}')] } }, { clientRef: 1, _id: 1 }).sort({ _id: -1 })`,
+  `db.applications.find({ _id: { $eq: ${ID} }, refs: { $ne: ${ID} } })`,
+  `db.applications.find({ _id: { $gt: ${ID}, $lte: ${ID} } })`,
+  `db.applications.find({ _id: { $nin: [${ID}, null] } }, { _id: 0, clientRef: 1 })`,
+  `db.events.distinct('_id', { _id: ${ID} })`,
+  `db.events.aggregate([{ $match: { _id: ${ID} } }, { $group: { _id: '$_id', n: { $sum: 1 } } }])`,
+  `db.applications.find({}, { id: '$_id' })`,
+  `db.agreements.find({ ${S}: 'x' }).sort({ ${S}: 1 })`,
+  `db.agreements.distinct(${S})`,
 ];
 
 // Spec section 13's checks, on this corpus's vocabulary.
@@ -150,6 +154,12 @@ const LITERAL_REFUSALS = [
   `db.applications.find(${"[".repeat(8)}1${"]".repeat(8)})`,
   "db.applications.find().",
   "db.applications.find()..sort({ createdAt: -1 })",
+  `db.applications.find({ _id: ObjectId('${HEX.slice(1)}') })`,
+  `db.applications.find({ _id: ObjectId('${HEX.slice(1)}z') })`,
+  "db.applications.find({ _id: ObjectId(6741) })",
+  `db.applications.find({ _id: ObjectId('${HEX}', 1) })`,
+  "db.applications.find({ _id: ObjectId() })",
+  `db.applications.find({ _id: new ${ID} })`,
 ];
 
 const MEANING_REFUSALS = [
@@ -240,6 +250,21 @@ const MEANING_REFUSALS = [
   "db.applications.countDocuments({ clientRef: '' })",
   "db.applications.distinct('currentStatus', { $or: [{ code: 'a' }, { code: 'b' }] })",
   "db.applications.find({ currentConfigVersion: '1' }).sort({ clientRef: 1 })",
+  `db.applications.find({ _id: '${HEX}' })`,
+  `db.applications.find({ _id: { $in: [${ID}, '${HEX}'] } })`,
+  "db.applications.find({}, { _id: '$clientRef' })",
+  "db.applications.find({}, { _id: { $size: '$phases' } })",
+  `db.agreements.find({}, { ${S}: 1 })`,
+  `db.agreements.find({}, { s: '$phases.questions.$schema' })`,
+  "db.agreements.aggregate([{ $unwind: '$phases.questions.$schema' }])",
+  "db.agreements.find({}, { '$schema': 1 })",
+  "db.agreements.find({ 'a.$': 1 })",
+  "db.agreements.find({}, { state: 1, 'state.x': 1 })",
+  "db.agreements.find({}, { 'items.code': 1, items: { $size: '$items' } })",
+  "db.agreements.find({}, { state: 1 }).limit(5001)",
+  "db.agreements.aggregate([{ $limit: 9000 }])",
+  `db.events.find({ errorKey: '${"x".repeat(121)}' })`,
+  `db.applications.find({ _id: { $in: [${many(30, (n) => `ObjectId('${n.toString(16).padStart(24, "0")}')`)}] }, $and: [{ _id: { $in: [${many(21, (n) => `ObjectId('${(n + 30).toString(16).padStart(24, "0")}')`)}] } }] }).sort({ clientRef: 1 })`,
 ];
 
 const vocabulary = exploreVocabulary();
@@ -316,11 +341,7 @@ if (process.env.UPDATE_EXPLORE_CORPUS === "1") {
 const MARK = "\u0001";
 
 // A message with marks where it varies; a list of names is one mark.
-const MARKED_ARGS = [
-  [MARK, MARK, MARK],
-  [MARK, { name: MARK, roots: [MARK] }],
-  [[MARK]],
-];
+const MARKED_ARGS = [[MARK, MARK, MARK], [[MARK]]];
 
 const marked = (message) => {
   for (const args of MARKED_ARGS) {
@@ -398,10 +419,6 @@ describe("the corpus", () => {
     const refused = corpus.entries
       .filter(({ outcome }) => outcome === "ok")
       .map(({ text }) => [text, readQuery(text, vocabulary).query])
-      .map(([text, query]) => [
-        text,
-        { ...query, v: Math.max(...QUERY_VERSIONS) },
-      ])
       .filter(
         ([, query]) =>
           querySchema.validate(query).error !== undefined ||

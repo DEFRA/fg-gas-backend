@@ -10,26 +10,6 @@ export const grantsSource = {
   time: "receivedAt",
   noun: { one: "grant version", many: "grant versions" },
   star: ["grantCode", "version", "status", "worstFetchStatus", "receivedAt"],
-  roots: [
-    "grantCode",
-    "version",
-    "major",
-    "minor",
-    "patch",
-    "status",
-    "worstFetchStatus",
-    "receivedAt",
-    "definitions.grant.fetchStatus",
-    "definitions.agreement.fetchStatus",
-    "definitions.payment.fetchStatus",
-    // The stored grant, less its actions, which are service addresses.
-    "definition.code",
-    "definition.version",
-    "definition.metadata",
-    "definition.phases",
-    "definition.externalStatusMap",
-    "definition.amendablePositions",
-  ],
   answersAt: null,
   attach: [
     {
@@ -44,6 +24,7 @@ export const grantsSource = {
   open: (doc) => ({ kind: "grant", code: doc.grantCode, version: doc.version }),
   openPaths: ["grantCode", "version"],
   paths: [
+    { path: "_id", type: "objectId" },
     { path: "grantCode", type: "text", index: { fact: "grantCode" } },
     { path: "version", type: "text" },
     { path: "major", type: "number" },

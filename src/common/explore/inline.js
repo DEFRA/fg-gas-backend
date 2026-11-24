@@ -1,5 +1,4 @@
 import { CUT, isBsonValue, isOpenObject, typeOf } from "./evaluate-read.js";
-import { isDeniedName } from "./paths.js";
 
 // The longest text an object's cell holds: past it, the text ends "…".
 export const MAX_INLINE_LENGTH = 2000;
@@ -12,46 +11,17 @@ const HEX = 16;
 const isNamePart = ([key, value]) =>
   NAME_PARTS.includes(key) && (value === null || typeof value === "string");
 
-const everyPath = () => true;
+// A person's name, stored as its parts, reads as one name.
+const hasNamed = (value) => ["first", "last"].some((part) => value[part]);
 
-// What of a value may be read, from its path: every path unless a reader's
-// `readable` says otherwise, each value visited charged to it.
-const lensOf = ({ path = "", readable = everyPath, charge } = {}) => ({
-  path,
-  readable,
-  charge,
-});
+const onlyNameParts = (value) =>
+  Object.keys(value).every((key) => isNamePart([key, value[key]]));
 
-const below = (lens, key) => ({
-  ...lens,
-  path: lens.path ? `${lens.path}.${key}` : key,
-});
+export const isNameObject = (value) =>
+  isOpenObject(value) && hasNamed(value) && onlyNameParts(value);
 
-const mayRead = (lens, key) =>
-  !isDeniedName(key) && lens.readable(below(lens, key).path);
-
-// A person's name, stored as its parts, reads as one name: judged on the
-// parts the lens may read, so a hidden field never changes how it reads.
-const hasNamed = (value, lens) =>
-  ["first", "last"].some((part) => value[part] && mayRead(lens, part));
-
-// Stops at the first readable field that is no part of a name.
-const onlyNameParts = (value, lens) => {
-  for (const key of Object.keys(value)) {
-    if (mayRead(lens, key) && !isNamePart([key, value[key]])) {
-      return false;
-    }
-  }
-
-  return true;
-};
-
-export const isNameObject = (value, lens = lensOf()) =>
-  isOpenObject(value) && hasNamed(value, lens) && onlyNameParts(value, lens);
-
-export const nameOf = (value, lens = lensOf()) =>
-  NAME_PARTS.filter((part) => mayRead(lens, part))
-    .map((part) => value[part])
+export const nameOf = (value) =>
+  NAME_PARTS.map((part) => value[part])
     .filter(Boolean)
     .join(" ");
 
@@ -134,9 +104,9 @@ const writeItems = (out, items, writeOne) => {
   return written;
 };
 
-const shownEntries = function* (value, lens) {
+const shownEntries = function* (value) {
   for (const key of Object.keys(value)) {
-    if (value[key] !== undefined && mayRead(lens, key)) {
+    if (value[key] !== undefined) {
       yield key;
     }
   }
@@ -161,19 +131,18 @@ const writeAll = (out, [open, close], items, writeOne) => {
   return closing(out, written, close);
 };
 
-const writeList = (out, list, lens) =>
-  writeAll(out, "[]", list, (into, item) => writeValue(into, item, lens));
+const writeList = (out, list, charge) =>
+  writeAll(out, "[]", list, (into, item) => writeValue(into, item, charge));
 
-const writeName = (out, value, lens) => write(out, quoted(nameOf(value, lens)));
+const writeName = (out, value) => write(out, quoted(nameOf(value)));
 
-const writeField = (value, lens) => (out, key) =>
+const writeField = (value, charge) => (out, key) =>
   key === MORE && value[key] === CUT
     ? writeCut(out)
-    : write(out, `${keyText(key)}: `) &&
-      writeValue(out, value[key], below(lens, key));
+    : write(out, `${keyText(key)}: `) && writeValue(out, value[key], charge);
 
-const writeObject = (out, value, lens) =>
-  writeAll(out, "{}", shownEntries(value, lens), writeField(value, lens));
+const writeObject = (out, value, charge) =>
+  writeAll(out, "{}", shownEntries(value), writeField(value, charge));
 
 const writeScalar = (out, value) => write(out, SCALARS[typeOf(value)](value));
 
@@ -187,31 +156,26 @@ const WRITERS = [
   [isOpenObject, writeObject],
 ];
 
-const writeValue = (out, value, lens) => {
-  lens.charge?.(1);
+const writeValue = (out, value, charge) => {
+  charge?.(1);
 
   const [, writer = writeScalar] =
-    WRITERS.find(([holds]) => holds(value, lens)) ?? [];
+    WRITERS.find(([holds]) => holds(value)) ?? [];
 
-  return writer(out, value, lens);
+  return writer(out, value, charge);
 };
 
 // A value on one line, much as mongosh prints it: keys unquoted unless they
-// need quotes, text always in single quotes, objects and lists inline. Only
-// what the reader may read is written, and denied names never.
+// need quotes, text always in single quotes, objects and lists inline. Each
+// value visited is charged to the reader's `charge`, when it has one.
 export const inlineOf = (value, reader = null) => {
   const out = { text: "" };
 
-  return writeValue(out, value, lensOf(reader ?? undefined))
+  return writeValue(out, value, reader?.charge)
     ? out.text
     : `${out.text.slice(0, MAX_INLINE_LENGTH - MORE.length)}${MORE}`;
 };
 
 // An object's cell: a name as one name, any other object as its text.
-export const objectCellOf = (value, reader = null) => {
-  const lens = lensOf(reader ?? undefined);
-
-  return isNameObject(value, lens)
-    ? nameOf(value, lens)
-    : { text: inlineOf(value, reader) };
-};
+export const objectCellOf = (value, reader = null) =>
+  isNameObject(value) ? nameOf(value) : { text: inlineOf(value, reader) };

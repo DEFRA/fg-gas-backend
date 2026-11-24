@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { registerGasExploreSources } from "../../../test/helpers/explore-sources.js";
-import { parsePath, pathProblem } from "../../common/explore/paths.js";
+import { pathProblem } from "../../common/explore/paths.js";
 import { findExploreSource } from "../../common/explore-sources/registry.js";
 import { inboxBucket } from "../../events/buckets/inbox.bucket.js";
 import { outboxBucket } from "../../events/buckets/outbox.bucket.js";
@@ -23,28 +23,12 @@ const bucketsOf = (source) =>
 const declaresRef = (bucket, kind) =>
   Object.hasOwn(bucket.refs, kind) || bucket.links.includes(kind);
 
-// Everything a query may read of GAS's records, by source: a new source, root
-// or path is a change here.
-const READABLE = {
+// The paths each of GAS's sources suggests, by source: a new source or path
+// is a change here. Every well-formed path is read.
+const KNOWN = {
   applications: {
-    roots: [
-      "clientRef",
-      "code",
-      "currentConfigVersion",
-      "originalConfigVersion",
-      "currentPhase",
-      "currentStage",
-      "currentStatus",
-      "createdAt",
-      "updatedAt",
-      "submittedAt",
-      "identifiers",
-      "metadata",
-      "phases",
-      "agreements",
-      "refs",
-    ],
     paths: [
+      "_id",
       "clientRef",
       "code",
       "currentConfigVersion",
@@ -64,26 +48,8 @@ const READABLE = {
     ],
   },
   grants: {
-    roots: [
-      "grantCode",
-      "version",
-      "major",
-      "minor",
-      "patch",
-      "status",
-      "worstFetchStatus",
-      "receivedAt",
-      "definitions.grant.fetchStatus",
-      "definitions.agreement.fetchStatus",
-      "definitions.payment.fetchStatus",
-      "definition.code",
-      "definition.version",
-      "definition.metadata",
-      "definition.phases",
-      "definition.externalStatusMap",
-      "definition.amendablePositions",
-    ],
     paths: [
+      "_id",
       "grantCode",
       "version",
       "major",
@@ -96,30 +62,8 @@ const READABLE = {
     ],
   },
   events: {
-    roots: [
-      "eventType",
-      "status",
-      "publicationDate",
-      "eventTime",
-      "target",
-      "type",
-      "source",
-      "messageId",
-      "event.id",
-      "event.type",
-      "event.source",
-      "event.time",
-      "event.specversion",
-      "event.datacontenttype",
-      "event.data",
-      "completionAttempts",
-      "completionDate",
-      "lastResubmissionDate",
-      "lastError",
-      "errorKey",
-      "refs",
-    ],
     paths: [
+      "_id",
       "publicationDate",
       "service",
       "box",
@@ -146,33 +90,8 @@ const READABLE = {
     ],
   },
   agreements: {
-    roots: [
-      "agreementNumber",
-      "version",
-      "code",
-      "clientRef",
-      "configVersion",
-      "correlationId",
-      "identifiers",
-      "state",
-      "name",
-      "schemeCode",
-      "createdAt",
-      "updatedAt",
-      "acceptedAt",
-      "startDate",
-      "endDate",
-      "totalAmountPence",
-      "actions",
-      "items",
-      "parcels",
-      "application",
-      "applicant",
-      "paymentSchedule",
-      "payload",
-      "supplementaryData",
-    ],
     paths: [
+      "_id",
       "agreementNumber",
       "clientRef",
       "code",
@@ -187,46 +106,8 @@ const READABLE = {
     ],
   },
   payments: {
-    roots: [
-      "invoiceNumber",
-      "originalInvoiceNumber",
-      "paymentRequestNumber",
-      "source",
-      "sbi",
-      "frn",
-      "scheme",
-      "marketingYear",
-      "ledger",
-      "currency",
-      "totalAmountPence",
-      "payments",
-      "createdAt",
-      "agreement.agreementNumber",
-      "agreement.version",
-      "agreement.code",
-      "agreement.clientRef",
-      "agreement.configVersion",
-      "agreement.correlationId",
-      "agreement.identifiers",
-      "agreement.state",
-      "agreement.name",
-      "agreement.schemeCode",
-      "agreement.createdAt",
-      "agreement.updatedAt",
-      "agreement.acceptedAt",
-      "agreement.startDate",
-      "agreement.endDate",
-      "agreement.totalAmountPence",
-      "agreement.actions",
-      "agreement.items",
-      "agreement.parcels",
-      "agreement.application",
-      "agreement.applicant",
-      "agreement.paymentSchedule",
-      "agreement.payload",
-      "agreement.supplementaryData",
-    ],
     paths: [
+      "_id",
       "invoiceNumber",
       "source.agreementNumber",
       "source.clientRef",
@@ -245,25 +126,36 @@ const READABLE = {
   },
 };
 
-const rootsOf = (source) => [
-  ...source.roots,
-  ...Object.keys(source.added ?? {}),
-];
-
 describe("GAS's Explore sources", () => {
   beforeEach(() => {
     registerGasExploreSources();
   });
 
-  it("are those registered, each with the roots and paths it reads", () => {
+  it("are those registered, each with the paths it suggests", () => {
     expect(
       Object.fromEntries(
-        ownSources().map(({ name, roots, paths }) => [
+        ownSources().map(({ name, paths }) => [
           name,
-          { roots, paths: paths.map(({ path }) => path) },
+          { paths: paths.map(({ path }) => path) },
         ]),
       ),
-    ).toEqual(READABLE);
+    ).toEqual(KNOWN);
+    expect(ownSources().filter((source) => "roots" in source)).toEqual([]);
+  });
+
+  it("declare _id with its stored type, read through the _id index on a big source", () => {
+    const idOf = (name) =>
+      findOwnSource(name).paths.find(({ path }) => path === "_id");
+
+    expect(idOf("applications")).toEqual({
+      path: "_id",
+      type: "objectId",
+      index: { id: true },
+    });
+    expect(idOf("events")).toEqual(idOf("applications"));
+    expect(idOf("grants")).toEqual({ path: "_id", type: "objectId" });
+    expect(idOf("agreements")).toEqual({ path: "_id", type: "text" });
+    expect(idOf("payments")).toEqual({ path: "_id", type: "text" });
   });
 
   it("finds a registered source by name, or none", () => {
@@ -294,64 +186,30 @@ describe("GAS's Explore sources", () => {
     },
   );
 
-  it.each(Object.keys(READABLE))(
-    "%s knows each path once, every one and its columns readable, and opens a record",
+  it.each(Object.keys(KNOWN))(
+    "%s knows each path once, every one and its columns well formed, and opens a record",
     (name) => {
       const source = findOwnSource(name);
       const paths = source.paths.map(({ path }) => path);
-      const lists = { roots: rootsOf(source) };
 
       expect(new Set(paths).size).toBe(paths.length);
-      expect(paths.filter((path) => pathProblem(path, lists))).toEqual([]);
-      expect(source.star.filter((path) => pathProblem(path, lists))).toEqual(
-        [],
-      );
-      expect(pathProblem(source.time, lists)).toBeNull();
+      expect(paths.filter((path) => pathProblem(path))).toEqual([]);
+      expect(source.star.filter((path) => pathProblem(path))).toEqual([]);
+      expect(pathProblem(source.time)).toBeNull();
       expect(typeof source.open).toBe("function");
     },
   );
 
-  it.each(Object.keys(READABLE))(
-    "%s roots are well formed and none denied",
-    (name) => {
-      expect(
-        findOwnSource(name).roots.filter((root) => parsePath(root) === null),
-      ).toEqual([]);
-    },
-  );
-
-  it("reads an agreement through a payment only where agreements may be read", () => {
-    const lists = { roots: findOwnSource("payments").roots };
-
-    expect(pathProblem("agreement.clientRef", lists)).toBeNull();
-    expect(pathProblem("agreement.applicant.business.name", lists)).toBeNull();
-    expect(pathProblem("agreement.somethingNew", lists)).not.toBeNull();
-    expect(
-      findOwnSource("agreements").roots.every(
-        (root) => pathProblem(`agreement.${root}`, lists) === null,
-      ),
-    ).toBe(true);
-  });
-
-  it("reads a grant's stored definition, but never its actions", () => {
-    const lists = { roots: findOwnSource("grants").roots };
-
-    expect(pathProblem("definition.phases.questions.title", lists)).toBeNull();
-    expect(pathProblem("definition.actions.url", lists)).not.toBeNull();
-    expect(pathProblem("definition.actions.name", lists)).not.toBeNull();
-    expect(pathProblem("definitions.grant.s3Key", lists)).not.toBeNull();
-  });
-
-  it("reads an event's message, but never an audit's actor or address", () => {
-    const lists = { roots: rootsOf(findOwnSource("events")) };
-
-    expect(pathProblem("event.data.clientRef", lists)).toBeNull();
-    expect(pathProblem("service", lists)).toBeNull();
-    expect(
-      pathProblem("event.audit.details.security.actor.email", lists),
-    ).not.toBeNull();
-    expect(pathProblem("event.ip", lists)).not.toBeNull();
-    expect(pathProblem("claimedBy", lists)).not.toBeNull();
+  it.each([
+    "definition.actions.url",
+    "definitions.grant.s3Key",
+    "event.audit.details.security.actor.email",
+    "event.ip",
+    "claimedBy",
+    "agreement.somethingNew",
+    "comments.text",
+  ])("reads %s, as nothing stored is withheld", (path) => {
+    expect(pathProblem(path)).toBeNull();
   });
 
   it("opens an application from a payment through its agreement, or nothing", () => {

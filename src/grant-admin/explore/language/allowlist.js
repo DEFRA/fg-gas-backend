@@ -72,7 +72,7 @@ export const EXPRESSIONS = new Map([
   ["$max", "max"],
 ]);
 
-export const VALUE_CALLS = new Set(["ISODate", "Date"]);
+export const VALUE_CALLS = new Set(["ISODate", "Date", "ObjectId"]);
 export const LITERALS = new Map([
   ["true", true],
   ["false", false],

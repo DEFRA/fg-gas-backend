@@ -1,5 +1,5 @@
 import { pathsOfQuery } from "./fields.js";
-import { pathProblem } from "./paths.js";
+import { hasDollarSegment, pathProblem } from "./paths.js";
 import { MAX_CELLS } from "./query-schema.js";
 
 // The rules GAS's checker applies to a query, checked again on the Query a
@@ -41,10 +41,24 @@ const countsRecordsOnlyInGroups = (query) =>
   query.mode !== "rows" ||
   !(query.columns.some(isStar) || isStar(query.orderBy));
 
+const isGroupPath = (query, column) =>
+  Boolean(query.groupBy) && !column.fn && column.path === query.groupBy.path;
+
+// mongod can't project a key starting $, so no column but the group's, and
+// no unwind, names one: a filter, a sort and a group may.
+export const projectedPathsOf = (query) => [
+  ...query.columns.filter((column) => !isGroupPath(query, column)),
+  ...(query.unwind ?? []),
+];
+
+const projectsNoDollarKey = (query) =>
+  projectedPathsOf(query).every(({ path }) => !hasDollarSegment(path));
+
 const RULES = [
   (_source, query) => fitsCells(query),
   (_source, query) => groupedRight(query),
   (_source, query) => countsRecordsOnlyInGroups(query),
+  (_source, query) => projectsNoDollarKey(query),
   ownPositions,
 ];
 
@@ -52,9 +66,8 @@ const RULES = [
 export const keepsRules = (source, query) =>
   RULES.every((holds) => holds(source, query));
 
-// How many of the paths a Query reads the source may not, each once: off
-// its roots, or denied.
-export const refusedPathsOf = (query, lists) =>
-  [...new Set(pathsOfQuery(query))].filter(
-    (path) => pathProblem(path, lists) !== null,
-  ).length;
+// How many of the paths a Query reads are malformed, each once: GAS's
+// reader makes none, so only a forged Query has any.
+export const refusedPathsOf = (query) =>
+  [...new Set(pathsOfQuery(query))].filter((path) => pathProblem(path) !== null)
+    .length;

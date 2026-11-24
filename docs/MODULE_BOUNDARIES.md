@@ -410,15 +410,15 @@ it suggests come from the grants' question schemas, read through
 `config-version.service.js`.
 
 An answer's cell shows an object, other than a name, inline as text: every
-field of it that may be read, with denied names left out, up to 2,000
-characters. The `EXPLORE_QUERY` audit records that the operator queried a
-source, the outcome, the rows returned and whether it was a CSV, never what
-was asked.
+field of it, up to 2,000 characters. The `EXPLORE_QUERY` audit records that
+the operator queried a source, the outcome, the rows returned and whether it
+was a CSV, never what was asked.
 
-A source is what a query may read of one collection: its roots, its paths and
-how each is read through an index. Like a bucket, it is declared in the module
-that owns the collection and registered with `registerExploreSource` when that
-module's plugin starts:
+A source is one collection a query may read, every well-formed path of it:
+the paths it suggests, each with its stored type, and how each is read
+through an index (`_id` through the `_id` index, by ObjectId). Like a bucket,
+it is declared in the module that owns the collection and registered with
+`registerExploreSource` when that module's plugin starts:
 
 | Source         | Declared in                               | Registered by         |
 | -------------- | ----------------------------------------- | --------------------- |
@@ -431,11 +431,9 @@ module's plugin starts:
 A source names its collection by its own module's constant, so a renamed
 collection is renamed for Explore too. A payment's agreement is attached by
 naming the `agreements` source: `grant-admin/explore/sources.js` reads that
-source's collection and roots from the registry, so Payments imports nothing of
-Agreements and an agreement is read through a payment only where agreements may
-be read. `grant-admin/explore/sources.test.js` lists every registered source's
-roots and paths, so what may be read is reviewed in one place and a new source
-or path shows there.
+source's collection from the registry, so Payments imports nothing of
+Agreements. `grant-admin/explore/sources.test.js` lists every registered
+source's paths, so a new source or path shows there.
 
 ESLint lets a module's `explore/` folder import only that module and `common`,
 lets `grant-admin` reach the sources only through the registry, and keeps

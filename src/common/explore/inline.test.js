@@ -58,24 +58,18 @@ describe("inlineOf", () => {
     );
   });
 
-  it("writes only what the reader may read, below its path", () => {
-    const reader = {
-      path: "plan",
-      readable: (path) => !path.startsWith("plan.hidden"),
-    };
-
+  it("writes every key, whatever its name", () => {
     expect(
-      inlineOf(
-        { ref: "a", hidden: { x: 1 }, list: [{ hidden: 1, y: 2 }] },
-        reader,
-      ),
-    ).toBe("{ ref: 'a', list: [ { hidden: 1, y: 2 } ] }");
-    expect(
-      objectCellOf(
-        { first: "Sam", last: "Rowe" },
-        { path: "name", readable: (path) => path !== "name.last" },
-      ),
-    ).toBe("Sam");
+      inlineOf({
+        _id: 1,
+        $schema: "x",
+        sortCode: "1",
+        url: "u",
+        hidden: { _x: 1 },
+      }),
+    ).toBe(
+      "{ _id: 1, '$schema': 'x', sortCode: '1', url: 'u', hidden: { _x: 1 } }",
+    );
   });
 
   it("escapes no more of a long text than it shows", () => {
@@ -93,7 +87,6 @@ describe("inlineOf", () => {
     );
     const text = inlineOf(big, {
       path: "big",
-      readable: () => true,
       charge: (units) => {
         visited += units;
       },
@@ -121,9 +114,9 @@ describe("inlineOf", () => {
     ).toBe("{ applicant: 'Jo Bloggs' }");
   });
 
-  it("leaves out denied names and undefined values at any depth", () => {
+  it("leaves out undefined values at any depth", () => {
     expect(inlineOf({ a: { sortCode: "1", _id: 2, b: 3, c: undefined } })).toBe(
-      "{ a: { b: 3 } }",
+      "{ a: { sortCode: '1', _id: 2, b: 3 } }",
     );
   });
 
@@ -148,43 +141,30 @@ describe("name objects", () => {
     expect(isNameObject(value)).toBe(is);
   });
 
-  it("judges a name on the parts the reader may read", () => {
-    const reader = (hidden) => ({
-      path: "name",
-      readable: (path) => path !== `name.${hidden}`,
-    });
-
-    expect(
-      objectCellOf({ first: "Sam", last: "Rowe", x: 1 }, reader("x")),
-    ).toBe("Sam Rowe");
-    expect(objectCellOf({ first: "Sam", last: "Rowe", secret: "s" })).toBe(
-      "Sam Rowe",
-    );
-    expect(objectCellOf({ last: "Rowe" }, reader("last"))).toEqual({
-      text: "{}",
+  it("reads an object with any other field as an object", () => {
+    expect(objectCellOf({ first: "Sam", last: "Rowe" })).toBe("Sam Rowe");
+    expect(objectCellOf({ first: "Sam", last: "Rowe", secret: "s" })).toEqual({
+      text: "{ first: 'Sam', last: 'Rowe', secret: 's' }",
     });
   });
 
   it("stops judging a name at the first field that is no part of one", () => {
-    const seen = [];
-    const value = Object.fromEntries(
-      Array.from({ length: 1000 }, (_, n) => [`k${n}`, n]),
+    let read = 0;
+    const value = { first: "Sam" };
+
+    Array.from({ length: 1000 }, (_, n) =>
+      Object.defineProperty(value, `k${n}`, {
+        enumerable: true,
+        get: () => {
+          read += 1;
+
+          return n;
+        },
+      }),
     );
 
-    expect(
-      isNameObject(
-        { first: "Sam", ...value },
-        {
-          path: "x",
-          readable: (path) => {
-            seen.push(path);
-
-            return true;
-          },
-        },
-      ),
-    ).toBe(false);
-    expect(seen.length).toBeLessThan(5);
+    expect(isNameObject(value)).toBe(false);
+    expect(read).toBeLessThan(5);
   });
 
   it("reads the parts there are, in order", () => {

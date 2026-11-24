@@ -8,7 +8,7 @@ const source = {
 };
 
 const query = (overrides = {}) => ({
-  v: 2,
+  v: 3,
   source: "cases",
   mode: "rows",
   columns: [{ path: "caseRef" }],
@@ -38,6 +38,25 @@ describe("keepsRules", () => {
     ],
     ["its own box's position", query({ positions: { "cw.cases": null } })],
     ["20,000 cells", query({ columns: [{ path: "caseRef" }], limit: 5000 })],
+    [
+      "a filter, sort and group on a $ key",
+      query({
+        mode: "groups",
+        columns: [{ path: "a.$ref" }, { fn: "count", path: "*" }],
+        where: { path: "a.$ref", op: "filled", values: [] },
+        groupBy: { path: "a.$ref" },
+        orderBy: { path: "a.$ref", fn: null, desc: false },
+        unwind: [],
+      }),
+    ],
+    [
+      "distinct values of a $ key",
+      query({
+        mode: "distinct",
+        columns: [{ path: "a.$ref" }],
+        groupBy: { path: "a.$ref" },
+      }),
+    ],
   ])("keeps %s", (_, asked) => {
     expect(keepsRules(source, asked)).toBe(true);
   });
@@ -78,61 +97,61 @@ describe("keepsRules", () => {
       "another service's box",
       query({ positions: { "gas.outbox": null, "cw.cases": null } }),
     ],
+    ["a column of a $ key", query({ columns: [{ path: "a.$ref" }] })],
+    [
+      "a column worked out of a $ key",
+      query({ columns: [{ fn: "count", path: "a.$ref", as: "n" }] }),
+    ],
+    [
+      "an aggregate of a $ key",
+      query({
+        mode: "groups",
+        columns: [{ path: "status" }, { fn: "max", path: "a.$ref" }],
+        groupBy: { path: "status" },
+      }),
+    ],
+    [
+      "an unwind of a $ key",
+      query({ unwind: [{ path: "a.$defs", preserve: false }] }),
+    ],
   ])("refuses %s", (_, asked) => {
     expect(keepsRules(source, asked)).toBe(false);
   });
 });
 
 describe("refusedPathsOf", () => {
-  const lists = { roots: ["caseRef", "currentStatus", "payload"] };
-
-  it("counts no path a source may read", () => {
+  it("counts no path a source may read: every well-formed one", () => {
     expect(
       refusedPathsOf(
         query({
           where: {
-            path: "payload.answers.applicant.business.name",
-            op: "regex",
-            values: [{ pattern: "x", flags: "" }],
+            all: [
+              { path: "comments.text", op: "eq", values: ["x"] },
+              { path: "_id", op: "eq", values: [{ oid: "0".repeat(24) }] },
+            ],
           },
-          columns: [{ path: "caseRef" }, { fn: "count", path: "*" }],
-          orderBy: { path: "currentStatus", fn: null, desc: false },
+          columns: [{ path: "payload.bank" }, { fn: "count", path: "*" }],
+          orderBy: { path: "timeline", fn: null, desc: false },
         }),
-        lists,
       ),
     ).toBe(0);
   });
 
-  it("counts a path read in several places once", () => {
+  it("counts each malformed path once, wherever it is", () => {
     expect(
       refusedPathsOf(
         query({
           mode: "distinct",
-          columns: [{ path: "comments" }],
-          groupBy: { path: "comments" },
-          where: { path: "comments", op: "filled", values: [] },
-        }),
-        lists,
-      ),
-    ).toBe(1);
-  });
-
-  it("counts each path off its roots, or denied, wherever it is", () => {
-    expect(
-      refusedPathsOf(
-        query({
+          columns: [{ path: "$where" }],
+          groupBy: { path: "$where" },
           where: {
-            not: { path: "comments.text", op: "eq", values: ["x"] },
+            all: [
+              { path: "$where", op: "filled", values: [] },
+              { path: "a..b", op: "filled", values: [] },
+            ],
           },
-          columns: [
-            { path: "payload.bank" },
-            { path: "payload.answers.sortCode" },
-          ],
-          groupBy: null,
-          orderBy: { path: "timeline", fn: null, desc: true },
         }),
-        lists,
       ),
-    ).toBe(4);
+    ).toBe(2);
   });
 });

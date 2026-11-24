@@ -298,3 +298,55 @@ describe("planBox", () => {
     );
   });
 });
+
+describe("planBox by _id", () => {
+  const oid = (n) => ({ oid: n.toString(16).padStart(24, "0") });
+
+  it("reads ObjectIds as an id read, exact, every test the evaluator's", () => {
+    const where = {
+      all: [
+        test("status", "eq", "FAILED"),
+        test("ref", "eq", "R-1"),
+        test("_id", "in", oid(1), oid(2)),
+        test("publicationDate", "gte", date("2026-10-01")),
+      ],
+    };
+    const planned = plan(where);
+
+    expect(planned).toMatchObject({
+      none: false,
+      read: EXACT_READ,
+      why: null,
+      settles: false,
+      ids: [oid(1).oid, oid(2).oid],
+      residual: where,
+      recheck: null,
+      query: { where: {}, ref: null, from: "2026-10-01T00:00:00.000Z" },
+      plan: { line: [], residual: [] },
+    });
+  });
+
+  it("finds nothing in a box a box test leaves out", () => {
+    const where = {
+      all: [test("box", "eq", "inbox"), test("_id", "eq", oid(1))],
+    };
+
+    expect(plan(where, outboxBox).none).toBe(true);
+    expect(plan(where, inboxBox).none).toBe(false);
+  });
+
+  it("reads past 50 ObjectIds, or an _id range, by the bucket", () => {
+    const many = Array.from({ length: 51 }, (_, n) => oid(n));
+
+    expect(plan(test("_id", "in", ...many))).toMatchObject({
+      ids: null,
+      read: WINDOWED_READ,
+      why: { why: "TOO_MANY_IDS", path: "_id" },
+    });
+    expect(plan(test("_id", "gt", oid(1)))).toMatchObject({
+      ids: null,
+      read: WINDOWED_READ,
+      why: { why: "NOT_INDEX_OPERATOR", path: "_id" },
+    });
+  });
+});
