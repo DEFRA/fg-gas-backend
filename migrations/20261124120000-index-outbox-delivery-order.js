@@ -11,6 +11,7 @@ export const up = async (db) => {
       status: {
         $in: [
           "PUBLISHED",
+          "STAGED",
           "PROCESSING",
           "FAILED",
           "RESUBMITTED",
@@ -20,8 +21,4 @@ export const up = async (db) => {
       deliverySequence: { $exists: true },
     },
   });
-};
-
-export const down = async (db) => {
-  await db.collection("outbox").dropIndex(index);
 };

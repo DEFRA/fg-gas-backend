@@ -180,8 +180,8 @@ retry, dead-letter and redrive path as handler failures.
 - `segregationRef` identifies a delivery group. Producers that need strict
   order across retries supply a `deliverySequence` on each publication in
   that group. The outbox claims the lowest unfinished sequence first. Later
-  sequenced rows wait until that row completes or is purged. Other groups
-  and unsequenced rows can continue.
+  sequenced rows wait until that row completes or is purged. Purging a
+  sequenced row is final. Other groups and unsequenced rows can continue.
 - A failed delivery remains durable, moves through the existing retry,
   dead-letter and redrive states, and retains its failure history. Redrive
   reuses the original contract rather than rebuilding current state.

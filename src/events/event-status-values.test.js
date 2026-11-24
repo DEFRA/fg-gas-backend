@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { eventStatusValues } from "./event-status-values.js";
+import {
+  eventStatusValues,
+  outboxStatusValues,
+} from "./event-status-values.js";
 import { InboxStatus } from "./models/inbox.js";
 import { OutboxStatus } from "./models/outbox.js";
 
@@ -17,10 +20,10 @@ describe("eventStatusValues", () => {
   });
 
   it.each([
-    ["outbox", OutboxStatus],
-    ["inbox", InboxStatus],
-  ])("holds every status an %s row can take", (_, statuses) => {
-    expect(eventStatusValues.map(({ value }) => value).sort()).toEqual(
+    ["outbox", outboxStatusValues, OutboxStatus],
+    ["inbox", eventStatusValues, InboxStatus],
+  ])("holds every status an %s row can take", (_, values, statuses) => {
+    expect(values.map(({ value }) => value).sort()).toEqual(
       Object.values(statuses).sort(),
     );
   });

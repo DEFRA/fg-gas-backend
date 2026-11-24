@@ -13,6 +13,7 @@ import {
 
 export const OutboxStatus = {
   PUBLISHED: "PUBLISHED",
+  STAGED: "STAGED",
   PROCESSING: "PROCESSING",
   FAILED: "FAILED",
   COMPLETED: "COMPLETED",

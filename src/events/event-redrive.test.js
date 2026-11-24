@@ -60,10 +60,13 @@ const matchesCondition = (value, condition) =>
 
 // `_id` is an ObjectId and identity-compares; the filter already selected by id.
 const matchesFilter = (doc, filter) => {
-  const { _id, ...rest } = filter;
+  const { _id, $or, ...rest } = filter;
 
-  return Object.entries(rest).every(([key, condition]) =>
-    matchesCondition(doc[key], condition),
+  return (
+    (!$or || $or.some((clause) => matchesFilter(doc, clause))) &&
+    Object.entries(rest).every(([key, condition]) =>
+      matchesCondition(doc[key], condition),
+    )
   );
 };
 

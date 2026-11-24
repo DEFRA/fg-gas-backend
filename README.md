@@ -134,9 +134,13 @@ reports until the earlier one succeeds or an operator purges it.
 Reporting for a replacement application starts at its first subsequent status
 change, under the replacement application reference.
 
-When first deploying ordered reporting, stop GAS instances running the previous
-outbox worker before starting instances that write sequenced reports. An older
-worker can claim a later report while an earlier report is still pending.
+For the first CDP rollout, deploy with `OUTBOX_SEQUENCED_DELIVERY_ENABLED=false`
+(the default). GAS stages sequenced events while the previous workers are rolling
+off. Once CDP shows only upgraded instances, set the flag to `true` and redeploy.
+Upgraded workers release staged events in sequence, including any staged by
+peers still running with the flag off. Purging a sequenced event permanently
+skips it and releases its successors. Redrive a dead letter before purging
+when the original event should still be delivered.
 
 ### Configure claim-approval transitions
 

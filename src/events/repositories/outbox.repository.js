@@ -53,6 +53,7 @@ const unsentOrderedEvents = {
   status: {
     $in: [
       OutboxStatus.PUBLISHED,
+      OutboxStatus.STAGED,
       OutboxStatus.PROCESSING,
       OutboxStatus.FAILED,
       OutboxStatus.RESUBMITTED,
@@ -181,19 +182,19 @@ const claimUnorderedEvents = async (claimedBy, segregationRef) => {
     `Outbox repository claim events with segregationRef: ${segregationRef}`,
   );
 
+  const filter = { segregationRef, deliverySequence: { $exists: false } };
   for (let i = 0; i < NUMBER_OF_RECORDS; i++) {
-    const doc = await claim(claimedBy, {
-      segregationRef,
-      deliverySequence: { $exists: false },
-    });
+    const doc = await claim(claimedBy, filter); // NOSONAR: Keep atomic claims in delivery order.
+    if (!doc) {
+      break;
+    }
     docs.push(doc);
   }
-  const documents = docs.filter((d) => d !== null);
 
   logger.info(
-    `Outbox repository claim events (segregationRef ${segregationRef}) end with number of docs ${documents.length}`,
+    `Outbox repository claim events (segregationRef ${segregationRef}) end with number of docs ${docs.length}`,
   );
-  return documents.map((doc) => Outbox.fromDocument(doc));
+  return docs.map((doc) => Outbox.fromDocument(doc));
 };
 
 export const update = async (event, claimedBy) => {
@@ -259,10 +260,11 @@ export const updateFailedEvents = async () => {
 };
 
 export const updateResubmittedEvents = async () => {
+  const status = config.outbox.sequencedDeliveryEnabled
+    ? { $in: [OutboxStatus.RESUBMITTED, OutboxStatus.STAGED] }
+    : OutboxStatus.RESUBMITTED;
   const results = await db.collection(collection).updateMany(
-    {
-      status: OutboxStatus.RESUBMITTED,
-    },
+    { status },
     {
       $set: {
         status: OutboxStatus.PUBLISHED,
@@ -332,16 +334,17 @@ export const findStatusById = async (id, session) => {
   return doc ? doc.status : null;
 };
 
-// True when a redrivable row - a dead letter, or one an operator purged - was
-// redriven.
+// Purging a sequenced row releases its successors and makes that row terminal.
 export const redriveById = async (id, { by, session } = {}) => {
-  const { matchedCount } = await db
-    .collection(collection)
-    .updateOne(
-      { _id: toId(id), status: { $in: REDRIVABLE_STATUSES } },
-      redriveUpdate(OutboxStatus.RESUBMITTED, { by }),
-      { session },
-    );
+  const { matchedCount } = await db.collection(collection).updateOne(
+    {
+      _id: toId(id),
+      status: { $in: REDRIVABLE_STATUSES },
+      $or: [{ status: DEAD_LETTER }, { deliverySequence: { $exists: false } }],
+    },
+    redriveUpdate(OutboxStatus.RESUBMITTED, { by }),
+    { session },
+  );
 
   return matchedCount > 0;
 };

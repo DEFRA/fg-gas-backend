@@ -106,6 +106,22 @@ describe("transitionApplicationUseCase", () => {
     );
   });
 
+  it.each([123, { id: "operator" }, "  "])(
+    "reports the transition when the optional user ID is unusable (%j)",
+    async (userId) => {
+      await transitionApplicationUseCase(
+        {
+          ...transitionFixture(),
+          sideEffectContext: { eventData: { userId } },
+        },
+        session,
+      );
+
+      const [[publications]] = saveEvents.mock.calls;
+      expect(publications[0].event.eventData).not.toHaveProperty("userId");
+    },
+  );
+
   it("publishes the Claims-originated Case Working status command", async () => {
     await transitionApplicationUseCase(
       { ...transitionFixture(), publishCaseWorkingStatusUpdate: true },

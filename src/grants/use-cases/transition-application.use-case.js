@@ -124,7 +124,10 @@ const runTransitionProcesses = async (handlers, context, session) => {
   }
 };
 
-const transitionUserId = (context) => context?.eventData?.userId;
+const transitionUserId = (context) => {
+  const userId = context?.eventData?.userId;
+  return typeof userId === "string" ? userId.trim() : undefined;
+};
 
 const reportApplicationStatusChange = async (
   { application, previousStatus, reload, userId },

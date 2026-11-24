@@ -191,6 +191,11 @@ export const nextApplicationReportingSequence = async (
       projection: { applicationReportingSequence: 1 },
     },
   );
+  if (!doc) {
+    throw Boom.notFound(
+      `Application "${clientRef}" for grant "${code}" not found`,
+    );
+  }
   return doc.applicationReportingSequence;
 };
 

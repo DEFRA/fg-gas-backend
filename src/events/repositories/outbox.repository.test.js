@@ -176,6 +176,17 @@ describe("outbox.repository", () => {
       expect(results[0]).toBeInstanceOf(Outbox);
       expect(results).toHaveLength(1);
     });
+
+    it("stops claiming unordered events when none are ready", async () => {
+      const findOneAndUpdate = vi.fn().mockResolvedValue(null);
+      db.collection.mockReturnValue({
+        findOne: vi.fn().mockResolvedValue(null),
+        findOneAndUpdate,
+      });
+
+      expect(await claimEvents("worker", "test-group")).toEqual([]);
+      expect(findOneAndUpdate).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("update", () => {
@@ -335,7 +346,7 @@ describe("outbox.repository", () => {
 
       expect(updateMany).toHaveBeenCalledWith(
         {
-          status: OutboxStatus.RESUBMITTED,
+          status: { $in: [OutboxStatus.RESUBMITTED, OutboxStatus.STAGED] },
         },
         {
           $set: {
@@ -447,6 +458,10 @@ describe("outbox.repository detail and redrive", () => {
       {
         _id: new ObjectId(ID),
         status: { $in: [OutboxStatus.DEAD_LETTER, OutboxStatus.PURGED] },
+        $or: [
+          { status: OutboxStatus.DEAD_LETTER },
+          { deliverySequence: { $exists: false } },
+        ],
       },
       [
         {

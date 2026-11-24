@@ -21,7 +21,7 @@ export const createApplicationStatusReportingPublication = ({
   userId,
   sequence,
 }) => {
-  const { code, clientRef, updatedAt, identifiers } = application;
+  const { code, clientRef, updatedAt, identifiers = {} } = application;
   const event = {
     correlationId: randomUUID(),
     datetime: updatedAt,

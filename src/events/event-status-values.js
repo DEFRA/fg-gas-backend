@@ -7,3 +7,8 @@ export const eventStatusValues = Object.freeze([
   { value: "DEAD_LETTER", label: "Dead letter", tone: "error" },
   { value: "PURGED", label: "Purged", tone: "neutral" },
 ]);
+
+export const outboxStatusValues = Object.freeze([
+  { value: "STAGED", label: "Staged", tone: "neutral" },
+  ...eventStatusValues,
+]);

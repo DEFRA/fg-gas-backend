@@ -42,9 +42,10 @@ export const redriveUpdate = (resubmittedStatus, { by, at } = {}) => [
 ];
 
 // The status labels are passed in: this module is shared with the pollers.
-export const redriveConflict = (box, id, status, statusLabel) => {
+export const redriveConflict = (box, id, status, statusLabel, message) => {
   const error = Boom.conflict(
-    `${box} event "${id}" is ${status}, not ${REDRIVABLE_DESCRIPTION}`,
+    message ??
+      `${box} event "${id}" is ${status}, not ${REDRIVABLE_DESCRIPTION}`,
   );
 
   error.output.payload.status = status;

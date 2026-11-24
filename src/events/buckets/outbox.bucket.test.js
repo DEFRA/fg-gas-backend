@@ -40,7 +40,7 @@ describe("gas.outbox", () => {
       "lastError.name",
       "errorKey",
     ]);
-    expect(bucket.facts.status.values).toHaveLength(7);
+    expect(bucket.facts.status.values).toHaveLength(8);
     expect(bucket.facts.eventType).toMatchObject({
       label: "Event",
       values: [
@@ -136,8 +136,8 @@ describe("gas.outbox", () => {
   });
 
   it.each([
-    ["an error name", ["lastError.name"], ["status", "lastError.name"], 8],
-    ["an error key", ["errorKey"], ["status", "errorKey"], 8],
+    ["an error name", ["lastError.name"], ["status", "lastError.name"], 9],
+    ["an error key", ["errorKey"], ["status", "errorKey"], 9],
     [
       "a status and an error name",
       ["status", "lastError.name"],
