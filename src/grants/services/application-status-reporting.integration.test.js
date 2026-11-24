@@ -211,7 +211,14 @@ describe("Application status reporting", () => {
     await process();
     await process();
     await process();
-    expect((await next())?.event?.eventData).toBeUndefined();
+    const unfinished = await db.collection("outbox").countDocuments({
+      segregationRef,
+      "event.eventData.eventType": {
+        $in: ["APPLICATION_CREATED", "APPLICATION_STATUS_CHANGED"],
+      },
+      status: { $ne: "COMPLETED" },
+    });
+    expect(unfinished).toBe(0);
 
     const [failedReceipt, ...published] = deliveredReports();
     expect(failedReceipt).toEqual(published[0]);
