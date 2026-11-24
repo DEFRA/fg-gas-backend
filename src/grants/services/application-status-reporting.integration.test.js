@@ -16,7 +16,6 @@ let findNextMessage;
 let purgeById;
 let OutboxSubscriber;
 let saveEvents;
-let sequenceExistingReceipts;
 let submitApplicationUseCase;
 let seedConfigVersion;
 let findByClientRefAndCode;
@@ -45,8 +44,6 @@ beforeAll(async () => {
     await import("../use-cases/resolve-current-grant.use-case.js");
   ({ save: saveGrant } = await import("../repositories/grant.repository.js"));
   ({ saveEvents } = await import("../../events/save-events.js"));
-  ({ up: sequenceExistingReceipts } =
-    await import("../../../migrations/20261124121000-sequence-existing-application-receipts.js"));
   ({ findNextMessage, purgeById } =
     await import("../../events/repositories/outbox.repository.js"));
   ({ OutboxSubscriber } =
@@ -160,24 +157,21 @@ describe("Application status reporting", () => {
     const stored = await application.stored();
     const segregationRef = `${stored.clientRef}-${code}`;
 
-    // A receipt written by an older GAS instance has no sequence. A later
-    // writer's clock can put the withdrawal before both submission reports.
+    // A later writer's clock can put the withdrawal before both submission
+    // reports. Delivery still follows the sequence assigned by the producer.
     await application.move("APPLICATION_WITHDRAWN");
-    await db.collection("outbox").updateOne(
-      { segregationRef, deliverySequence: -1 },
-      {
-        $unset: { deliverySequence: "" },
-        $set: { publicationDate: new Date(1) },
-      },
-    );
+    await db
+      .collection("outbox")
+      .updateOne(
+        { segregationRef, deliverySequence: -1 },
+        { $set: { publicationDate: new Date(1) } },
+      );
     await db
       .collection("outbox")
       .updateOne(
         { segregationRef, deliverySequence: 1 },
         { $set: { publicationDate: new Date(0) } },
       );
-
-    await sequenceExistingReceipts(db);
 
     const subscriber = new OutboxSubscriber();
     const deliver = vi

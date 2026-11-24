@@ -137,8 +137,6 @@ change, under the replacement application reference.
 When first deploying ordered reporting, stop GAS instances running the previous
 outbox worker before starting instances that write sequenced reports. An older
 worker can claim a later report while an earlier report is still pending.
-Receipts already queued by the previous release are processed before sequenced
-reports for the same application.
 
 ### Configure claim-approval transitions
 
