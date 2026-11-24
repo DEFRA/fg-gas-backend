@@ -18,7 +18,6 @@ export const reportingApplicationStatusChanged = defineEventType({
 
 export const createApplicationStatusReportingPublication = ({
   application,
-  previousApplicationStatus,
   userId,
 }) => {
   const { code, clientRef, updatedAt, identifiers } = application;
@@ -34,7 +33,6 @@ export const createApplicationStatusReportingPublication = ({
       applicationType: code,
       sbi: identifiers.sbi,
       applicationStatus: application.currentStatus,
-      ...(previousApplicationStatus && { previousApplicationStatus }),
       statusDate: updatedAt,
       ...(userId && { userId }),
     },

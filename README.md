@@ -126,7 +126,7 @@ Content-Type: application/json
 
 On a new submission GAS queues `APPLICATION_CREATED` followed by
 `APPLICATION_STATUS_CHANGED` with the initial GAS status code. Later changes
-queue one status event with the previous and resulting GAS status codes.
+queue one status event with the resulting GAS status code.
 The event is saved in the same transaction as the application change.
 
 ### Configure claim-approval transitions

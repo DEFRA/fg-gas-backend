@@ -182,10 +182,9 @@ describe("Application status reporting", () => {
 
     const events = await application.events();
     expect(events).toHaveLength(2);
-    expect(events[1].event.eventData).toMatchObject({
-      previousApplicationStatus: initialStatus,
-      applicationStatus: "APPLICATION_WITHDRAWN",
-    });
+    const withdrawal = events[1].event.eventData;
+    expect(withdrawal.applicationStatus).toBe("APPLICATION_WITHDRAWN");
+    expect(withdrawal).not.toHaveProperty("previousApplicationStatus");
   });
 
   it("reports each committed status, including reversals, once", async () => {
@@ -204,15 +203,8 @@ describe("Application status reporting", () => {
 
     const events = await application.events();
     expect(
-      events.map(({ event }) => [
-        event.eventData.previousApplicationStatus,
-        event.eventData.applicationStatus,
-      ]),
-    ).toEqual([
-      [initialStatus, "INTERNAL_REVIEW"],
-      ["INTERNAL_REVIEW", "DECISION_MADE"],
-      ["DECISION_MADE", "INTERNAL_REVIEW"],
-    ]);
+      events.map(({ event }) => event.eventData.applicationStatus),
+    ).toEqual(["INTERNAL_REVIEW", "DECISION_MADE", "INTERNAL_REVIEW"]);
     const saved = await application.stored();
     expect(events.at(-1).event.eventData).toMatchObject({
       eventType: "APPLICATION_STATUS_CHANGED",
@@ -294,7 +286,6 @@ describe("Application status reporting", () => {
     const events = await application.events();
     expect(events).toHaveLength(1);
     expect(events[0].event.eventData).toMatchObject({
-      previousApplicationStatus: initialStatus,
       applicationStatus: "APPLICATION_WITHDRAWN",
     });
     expect(await application.stored()).toMatchObject({

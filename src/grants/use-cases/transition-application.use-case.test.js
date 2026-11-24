@@ -88,7 +88,6 @@ describe("transitionApplicationUseCase", () => {
               eventType: "APPLICATION_STATUS_CHANGED",
               applicationType: "test-grant",
               applicationId: "application-1",
-              previousApplicationStatus: currentPosition.status,
               applicationStatus: targetPosition.status,
             }),
           }),

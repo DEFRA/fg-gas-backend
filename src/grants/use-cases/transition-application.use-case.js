@@ -126,7 +126,7 @@ const runTransitionProcesses = async (handlers, context, session) => {
 const transitionUserId = (context) => context?.eventData?.userId;
 
 const reportApplicationStatusChange = async (
-  { application, previousApplicationStatus, reload, userId },
+  { application, previousStatus, reload, userId },
   session,
 ) => {
   const { code, clientRef } = application;
@@ -135,13 +135,12 @@ const reportApplicationStatusChange = async (
     ? await findByClientRefAndCode({ code, clientRef }, session)
     : application;
 
-  if (saved.currentStatus === previousApplicationStatus) {
+  if (saved.currentStatus === previousStatus) {
     return;
   }
 
   const publication = createApplicationStatusReportingPublication({
     application: saved,
-    previousApplicationStatus,
     userId,
   });
   await saveEvents([publication], session);
@@ -188,7 +187,7 @@ export const transitionApplicationUseCase = async (
   await reportApplicationStatusChange(
     {
       application,
-      previousApplicationStatus: previousPosition.status,
+      previousStatus: previousPosition.status,
       reload: handlers.length > 0,
       userId: transitionUserId(sideEffectContext),
     },
