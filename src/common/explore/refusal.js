@@ -11,6 +11,9 @@ export const REFUSALS = [
   "BUSY",
   "FULL",
   "PATH_NOT_ALLOWED",
+  "MONGOD_ERROR",
+  "CELLS_TOO_LARGE",
+  "ANSWER_TOO_LARGE",
 ];
 
 // Why a query was not answered, as a code each service turns into its own

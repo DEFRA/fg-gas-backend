@@ -1,13 +1,21 @@
 import Boom from "@hapi/boom";
 import { BSON, ObjectId } from "mongodb";
 import { config } from "../../common/config.js";
+import { readStoredDocuments } from "../../common/explore/stored-document.js";
 import { db } from "../../common/mongo-client.js";
 import { AccessToken, refusal } from "../models/access-token.js";
-import { HASH_EDGE, HASH_LENGTH, HASH_MASK } from "../models/masked-hash.js";
+import {
+  HASH_EDGE,
+  HASH_LENGTH,
+  HASH_MASK,
+  MAX_ROW_BYTES,
+} from "../models/masked-hash.js";
 
 const DUPLICATE_KEY = 11000;
 
-const accessTokens = () => db.collection("access_tokens");
+const ACCESS_TOKENS = "access_tokens";
+
+const accessTokens = () => db.collection(ACCESS_TOKENS);
 
 // The hash is never loaded on a read path. The primary, so a page read after
 // a write shows it.
@@ -27,23 +35,23 @@ const maskedHash = {
   ],
 };
 
-// Each token with its row as stored, in relaxed Extended JSON as mongosh
-// prints it: an ObjectId is `{ $oid }` and a date `{ $date }`. The token never
-// holds the masked hash.
+// Each token with its row as stored, as base64 of its own BSON, so every type
+// is kept. The token never holds the masked hash.
 export const findAllTokens = async () => {
-  const documents = await accessTokens()
-    .aggregate([{ $set: { id: maskedHash } }], {
-      readPreference: "primary",
-      maxTimeMS: config.adminReadTimeoutMs,
-    })
-    .toArray();
+  const rows = await readStoredDocuments(ACCESS_TOKENS, {
+    match: {},
+    set: { id: maskedHash },
+    maxBytes: MAX_ROW_BYTES,
+    readPreference: "primary",
+    maxTimeMS: config.adminReadTimeoutMs,
+  });
 
-  return documents.map((document) => {
-    const { id, ...fields } = document;
+  return rows.map(({ document }) => {
+    const { id, ...fields } = BSON.deserialize(document);
 
     return {
       token: AccessToken.fromDocument(fields),
-      stored: BSON.EJSON.serialize(document, { relaxed: true }),
+      document: document.toString("base64"),
     };
   });
 };

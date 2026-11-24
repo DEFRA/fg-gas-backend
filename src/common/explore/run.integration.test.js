@@ -1,8 +1,8 @@
-import { Collection } from "mongodb";
+import { BSON, Collection, ObjectId } from "mongodb";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { testBucket } from "../buckets/test-bucket.js";
-import { partialValue } from "./evaluate.js";
+import { partialValue, shapeValue } from "./evaluate.js";
 import { checkPart } from "./large-answers.js";
 import {
   expectReadsOnly,
@@ -58,7 +58,7 @@ let encodeCursor;
 let meterFor;
 
 const query = (overrides = {}) => ({
-  v: 3,
+  v: 4,
   source: "events",
   mode: overrides.groupBy ? "groups" : "rows",
   columns: [{ path: "status" }],
@@ -847,16 +847,16 @@ describe("runPart on MongoDB", () => {
       for (const edge of edges) {
         const stats = await explained(edge);
 
-        expect(stats.totalDocsExamined).toBe(0);
-        expect(stats.totalKeysExamined).toBeLessThanOrEqual(5001);
+        expect(Number(stats.totalDocsExamined)).toBe(0);
+        expect(Number(stats.totalKeysExamined)).toBeLessThanOrEqual(5001);
       }
 
       for (const window of windows) {
         const stats = await explained(window);
 
         // A window is 5,000 records, and a tie at either end at most one more.
-        expect(stats.totalKeysExamined).toBeLessThanOrEqual(5003);
-        expect(stats.totalDocsExamined).toBeLessThanOrEqual(5002);
+        expect(Number(stats.totalKeysExamined)).toBeLessThanOrEqual(5003);
+        expect(Number(stats.totalDocsExamined)).toBeLessThanOrEqual(5002);
       }
     });
   });
@@ -971,7 +971,18 @@ describe("runPart on MongoDB", () => {
 
       const skipped = part.boxes.find(({ id }) => id === "test.outbox");
 
-      expect(skipped).toMatchObject({ partial: true, skipped: 1, rows: [] });
+      expect(skipped).toMatchObject({
+        partial: true,
+        skipped: [
+          {
+            open: { kind: "event", box: "outbox", id: skipped.to.i },
+            id: BSON.serialize({
+              _id: ObjectId.createFromHexString(skipped.to.i),
+            }).toString("base64"),
+          },
+        ],
+        rows: [],
+      });
       expect(skipped.to.t).toBe(
         new Date(START + 100 * 24 * 3600 * 1000).toISOString(),
       );
@@ -1611,9 +1622,123 @@ describe("runPart on MongoDB", () => {
       expect(projected.s).toBe(Infinity);
       expect(grouped.s).toBe(Infinity);
       expect(rows.boxes[0].rows[0].cells.c1).toBe(String(projected.s));
-      expect(partialValue("sum", groups.groups[0].aggs["sum(x)"])).toBe(
+      expect(Number(partialValue("sum", groups.groups[0].aggs["sum(x)"]))).toBe(
         grouped.s,
       );
+    });
+
+    it("adds Decimal128s that aren't finite, and a Long's or double's lost part beside a Decimal128, as mongod's $sum does", async () => {
+      const { Decimal128, Int32, Long } = BSON;
+      const decimal = (text) => Decimal128.fromString(text);
+      const cases = {
+        nan: [decimal("NaN"), decimal("1")],
+        infinity: [decimal("Infinity"), 2.5],
+        minusInfinity: [new Int32(3), decimal("-Infinity")],
+        both: [decimal("Infinity"), decimal("-Infinity")],
+        nanAndInfinity: [decimal("Infinity"), decimal("NaN"), decimal("2")],
+        doubleInfinity: [decimal("1.5"), Infinity],
+        long: [Long.fromString("9007199254740993"), decimal("0")],
+        lostPart: [1e16, 1, decimal("0")],
+        cancelled: [decimal("1E30"), decimal("1E-10"), decimal("-1E30")],
+        roundedEach: [
+          decimal("9999999999999999999999999999999999"),
+          decimal("0.5"),
+          decimal("0.5"),
+        ],
+        doubleDigits: [0.1, decimal("0")],
+        doubleCancelled: [decimal("1E30"), 0.1, decimal("-1E30")],
+        doubleParts: [0.1, 0.2, decimal("0")],
+        doubleWhole: [1e20, 2.5, decimal("0E+6000")],
+        halfEven: [
+          decimal("9999999999999999999999999999999998"),
+          decimal("0.5"),
+        ],
+        trailingZeros: [decimal("-5"), decimal("5.0")],
+        overflow: [
+          decimal("9.999999999999999999999999999999999E+6144"),
+          decimal("1E+6144"),
+        ],
+      };
+      await db.collection("specials").insertMany(
+        Object.entries(cases).flatMap(([name, xs]) => [
+          { ref: name, createdAt: "2026-10-01T00:00:00.000Z", xs },
+          ...xs.map((x) => ({
+            ref: `${name}-x`,
+            group: name,
+            createdAt: "2026-10-01T00:00:00.000Z",
+            x,
+          })),
+        ]),
+      );
+      const specials = {
+        name: "specials",
+        service: "Test",
+        size: "small",
+        collection: "specials",
+        time: "createdAt",
+        answersAt: null,
+        open: (doc) => ({ kind: "special", ref: doc.ref }),
+        openPaths: ["ref"],
+        paths: [{ path: "ref", type: "text" }],
+      };
+      const rows = await run.runPart(
+        specials,
+        query({
+          source: "specials",
+          columns: [{ path: "ref" }, { fn: "sum", path: "xs" }],
+          limit: 200,
+        }),
+      );
+      const groups = await run.runPart(
+        specials,
+        query({
+          source: "specials",
+          mode: "groups",
+          columns: [{ path: "group" }, { fn: "sum", path: "x" }],
+          groupBy: { path: "group" },
+        }),
+      );
+      const projected = await db
+        .collection("specials")
+        .aggregate([{ $project: { ref: 1, s: { $sum: "$xs" } } }], {
+          promoteValues: false,
+        })
+        .toArray();
+      const grouped = await db
+        .collection("specials")
+        .aggregate([{ $group: { _id: "$group", s: { $sum: "$x" } } }], {
+          promoteValues: false,
+        })
+        .toArray();
+      const typed = (value) => [value._bsontype, String(value)];
+
+      expect(
+        Object.fromEntries(
+          rows.boxes[0].rows.map(({ cells }) => [cells.c0, cells.c1]),
+        ),
+      ).toEqual(
+        Object.fromEntries(
+          projected.map(({ ref, s }) => [String(ref), shapeValue(s)]),
+        ),
+      );
+      expect(
+        Object.fromEntries(
+          groups.groups.map(({ value, aggs }) => [
+            value,
+            typed(partialValue("sum", aggs["sum(x)"])),
+          ]),
+        ),
+      ).toEqual(
+        Object.fromEntries(
+          grouped.map(({ _id, s }) => [
+            _id === null ? null : String(_id),
+            typed(s),
+          ]),
+        ),
+      );
+      expect(
+        typed(grouped.find(({ _id }) => String(_id) === "long").s),
+      ).toEqual(["Decimal128", "9007199254740993"]);
     });
 
     it("adds a group's sums across boxes as mongod does, an overflow in either box, sent through JSON", async () => {
@@ -1658,12 +1783,55 @@ describe("runPart on MongoDB", () => {
           Object.fromEntries(
             received.groups.map(({ value, aggs }) => [
               value,
-              partialValue("sum", aggs["sum(attempts)"]),
+              Number(partialValue("sum", aggs["sum(attempts)"])),
             ]),
           ),
         ).toEqual(Object.fromEntries(truth.map(({ _id, s }) => [_id, s])));
       }
       expect(truth.map(({ s }) => s)).toEqual([Infinity, Infinity]);
+    });
+
+    it("adds a group's Decimal128 sums across boxes as mongod does, each add rounded to 34 digits", async () => {
+      const { Decimal128 } = BSON;
+      const boxes = ["decsums.first", "decsums.second"].map((id) =>
+        testBucket({ id, path: id.replace(".", "/"), collection: id }),
+      );
+      const { ensureIndexes } = await import("../buckets/indexes.js");
+      const rowOf = (n, attempts) => ({
+        status: "FAILED",
+        attempts: Decimal128.fromString(attempts),
+        publicationDate: new Date(START + n),
+      });
+
+      await db
+        .collection("decsums.first")
+        .insertMany([rowOf(0, "1E30"), rowOf(1, "1E-10")]);
+      await db.collection("decsums.second").insertOne(rowOf(2, "-1E30"));
+      await Promise.all(boxes.map((bucket) => ensureIndexes(db, bucket)));
+
+      const [truth] = await db
+        .collection("decsums.first")
+        .aggregate(
+          [
+            { $unionWith: "decsums.second" },
+            { $group: { _id: "$status", s: { $sum: "$attempts" } } },
+          ],
+          { promoteValues: false },
+        )
+        .toArray();
+      const part = await run.runPart(
+        testSource(boxes),
+        query({
+          columns: [{ path: "status" }, { fn: "sum", path: "attempts" }],
+          groupBy: { path: "status" },
+        }),
+      );
+      const [group] = JSON.parse(JSON.stringify(part)).groups;
+
+      expect(String(partialValue("sum", group.aggs["sum(attempts)"]))).toBe(
+        String(truth.s),
+      );
+      expect(Number(String(truth.s))).toBe(0);
     });
 
     it("works out $size and $sum per record as $project does", async () => {
@@ -1719,9 +1887,7 @@ describe("runPart on MongoDB", () => {
       ]);
 
       expect(part.boxes.map(({ count }) => count.n)).toEqual([3000, 2500]);
-      expect(part.boxes.every(({ rows: kept }) => kept.length === 7)).toBe(
-        true,
-      );
+      expect(part.boxes.flatMap(({ rows: kept }) => kept)).toHaveLength(7);
       expect(
         part.boxes
           .flatMap((box) => box.rows)

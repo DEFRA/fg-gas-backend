@@ -1,5 +1,7 @@
+import { BSON } from "mongodb";
 import hapi from "@hapi/hapi";
 import http from "node:http";
+import { PassThrough } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
 import { exploreQueryUseCase } from "../use-cases/explore-query.use-case.js";
@@ -16,7 +18,15 @@ const ANSWER = {
   source: { name: "applications", noun: "application" },
   mode: "rows",
   read: "exact",
-  columns: [{ key: "c0", label: "clientRef", kind: "text", aggregate: false }],
+  columns: [
+    {
+      key: "c0",
+      label: "clientRef",
+      kind: "text",
+      aggregate: false,
+      path: "clientRef",
+    },
+  ],
   rows: [
     { open: { kind: "application", code: "g", ref: "r" }, cells: { c0: "r" } },
   ],
@@ -110,7 +120,7 @@ describe("exploreQueryRoute", () => {
     const joined = {
       ...ANSWER,
       read: "windowed",
-      window: { to: null, end: true, positions: null, skipped: 0 },
+      window: { to: null, end: true, positions: null, skipped: [] },
       windowRows: [1, 0],
       stopped: { statusCode: 408, code: "QUERY_TOO_SLOW" },
       vocabulary,
@@ -163,6 +173,106 @@ describe("exploreQueryRoute", () => {
     expect(response.statusCode).toBe(400);
     expect(exploreQueryUseCase).not.toHaveBeenCalled();
     expect(JSON.stringify(logger.warn.mock.calls)).not.toContain("Sentinel");
+  });
+  it("streams a download as NDJSON when asked, no answer schema between", async () => {
+    const lines = ['{"header":{}}\n', '{"row":{}}\n', '{"end":{}}\n'];
+
+    const stream = new PassThrough();
+
+    stream.end(lines.join(""));
+    exploreQueryUseCase.mockResolvedValue({ stream, vocabulary: null });
+
+    const response = await post({
+      query: "db.applications.find()",
+      csv: true,
+      documents: true,
+      stream: true,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("application/x-ndjson");
+    expect(response.payload).toBe(lines.join(""));
+  });
+
+  it.each([
+    ["without csv", { documents: true, stream: true }],
+    ["without documents", { csv: true, stream: true }],
+  ])("refuses a stream %s", async (_, asked) => {
+    const response = await post({ query: "db.applications.find()", ...asked });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  const ID = BSON.serialize({ _id: 1 }).toString("base64");
+  const SHOW = { id: ID, at: [], service: null, box: null };
+
+  it("takes a Show it of a row", async () => {
+    exploreQueryUseCase.mockResolvedValue({ ok: true, source: "applications" });
+
+    const response = await post({
+      query: "db.applications.find()",
+      show: { ...SHOW, at: [2, null], service: "CW", box: "inbox" },
+    });
+
+    expect(response.statusCode).toBe(200);
+  });
+
+  it.each([
+    ["an id that is no BSON", { ...SHOW, id: "AAAA" }],
+    [
+      "an id of more than _id",
+      { ...SHOW, id: BSON.serialize({ _id: 1, a: 2 }).toString("base64") },
+    ],
+    ["no positions", { id: ID, service: null, box: null }],
+    ["a negative position", { ...SHOW, at: [-1] }],
+    ["more positions than unwinds", { ...SHOW, at: [0, 0, 0, 0, 0] }],
+    ["a service that isn't one", { ...SHOW, service: "XX", box: "inbox" }],
+    ["a box that isn't one", { ...SHOW, service: "GAS", box: "sent" }],
+    ["a key it doesn't know", { ...SHOW, extra: 1 }],
+  ])("refuses a Show it of %s", async (_, show) => {
+    const response = await post({ query: "db.applications.find()", show });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it.each([
+    ["a page", { starts: true }],
+    ["windows", { starts: true, windows: 3 }],
+    ["Show it", { show: SHOW, documents: true }],
+    ["Download JSON", { csv: true, documents: true, stream: true }],
+  ])("takes starts or documents on %s", async (_, asked) => {
+    exploreQueryUseCase.mockResolvedValue({ ok: true, source: "applications" });
+
+    const response = await post({ query: "db.applications.find()", ...asked });
+
+    expect(response.statusCode).toBe(200);
+  });
+
+  it.each([
+    ["starts with documents", { starts: true, documents: true }],
+    ["starts with csv", { starts: true, csv: true }],
+    [
+      "starts with a stream",
+      { starts: true, csv: true, documents: true, stream: true },
+    ],
+    ["starts with Show it", { starts: true, show: SHOW }],
+    ["documents on a page", { documents: true }],
+    ["documents on windows", { documents: true, windows: 2 }],
+    ["documents on a CSV", { documents: true, csv: true }],
+  ])("refuses %s", async (_, asked) => {
+    const response = await post({ query: "db.applications.find()", ...asked });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("refuses a Show it beside a position to go on from", async () => {
+    const response = await post({
+      query: "db.applications.find()",
+      show: SHOW,
+      positions: "x",
+    });
+
+    expect(response.statusCode).toBe(400);
   });
 });
 

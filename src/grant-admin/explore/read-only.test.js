@@ -23,6 +23,7 @@ const EXPLORE_FILES = [
   "grant-admin/routes/explore-query.route.js",
   "grant-admin/routes/explore-vocabulary.route.js",
   "grant-admin/schemas/explore.schema.js",
+  "grant-admin/services/ndjson.js",
   "grant-admin/use-cases/explore-query.use-case.js",
   "grant-admin/use-cases/explore-vocabulary.use-case.js",
   "grant-admin/use-cases/load-explore-vocabulary.js",

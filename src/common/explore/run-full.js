@@ -1,9 +1,11 @@
 import { SECONDARY } from "../buckets/engine.js";
 import { compileWhere } from "./evaluate.js";
+import { promotedOf } from "./evaluate-read.js";
 import {
   projectionOf,
   readPathsOf,
   readersFor,
+  sizedProjectionOf,
   usedReaders,
 } from "./fields.js";
 import { FULL_READ } from "./plan.js";
@@ -15,6 +17,7 @@ import { refuseQuery } from "./refusal.js";
 import { grouper, rowMaker, unwinder } from "./rows.js";
 import {
   FULL_CAP,
+  UNPROMOTED,
   chargeTo,
   checkGroups,
   costOf,
@@ -58,14 +61,17 @@ const attachProjection = ({ as, on }, paths) =>
           .filter(Boolean),
       ]);
 
-const valueAt = (doc, path) =>
+export const valueAt = (doc, path) =>
   path.split(".").reduce((value, name) => value?.[name], doc);
 
-const joinKey = (doc, keys) =>
-  JSON.stringify(keys.map((key) => valueAt(doc, key) ?? null));
+// Records are joined on their values as numbers, whatever their BSON type.
+export const joinKey = (doc, keys) =>
+  JSON.stringify(keys.map((key) => promotedOf(valueAt(doc, key) ?? null)));
 
 const isKey = (value) =>
   value === null || typeof value === "string" || typeof value === "number";
+
+const keyValueAt = (doc, path) => promotedOf(valueAt(doc, path) ?? null);
 
 // Joined on one path holding text or numbers, only the records the local
 // ones name are read; otherwise every one.
@@ -75,7 +81,7 @@ const attachedFilter = (attach, docs) => {
   }
 
   const [[local, foreign]] = attach.on;
-  const keys = [...new Set(docs.map((doc) => valueAt(doc, local) ?? null))];
+  const keys = [...new Set(docs.map((doc) => keyValueAt(doc, local)))];
 
   return keys.every(isKey) ? { [foreign]: { $in: keys } } : {};
 };
@@ -89,6 +95,7 @@ const readAttached = async (attach, paths, meter, only) => {
       maxTimeMS: Math.max(1, timeLeftOf(meter)),
       readPreference: SECONDARY,
       limit: FULL_CAP + 1,
+      ...UNPROMOTED,
     })
     .toArray()
     .catch(readFailed);
@@ -131,7 +138,7 @@ const withAttached = async (source, docs, paths, meter, only = null) => {
   );
 };
 
-const readLocal = async (source, box, paths, meter) => {
+const readLocal = async (source, box, paths, meter, sized) => {
   const collection = readCollection(box.collection);
   const maxTimeMS = Math.max(1, timeLeftOf(meter));
   const size = await collection
@@ -146,11 +153,12 @@ const readLocal = async (source, box, paths, meter) => {
     .find(
       {},
       {
-        projection: projectionOf(localPaths(source, paths)),
+        projection: sizedProjectionOf(localPaths(source, paths), sized),
         maxTimeMS,
         readPreference: SECONDARY,
         allowDiskUse: false,
         limit: FULL_CAP + 1,
+        ...UNPROMOTED,
       },
     )
     .toArray()
@@ -169,7 +177,7 @@ const storeOf = ({ bucket, collection, time }) =>
     ? { collection: bucket.collection, time: bucket.time.field }
     : { collection, time };
 
-const fullBox = (source) => {
+export const fullBox = (source) => {
   const { collection, time } = storeOf(source);
 
   return {
@@ -210,7 +218,13 @@ const readFull = async (source, box, query, meter, readers) => {
     box.timeNames.join("."),
   ];
   const test = compileWhere(query.where, readers.readerOf, chargeTo(meter));
-  const local = await readLocal(source, box, paths, meter);
+  const local = await readLocal(
+    source,
+    box,
+    paths,
+    meter,
+    Boolean(query.documents),
+  );
   const filter = (found) =>
     matching(found, test, box, meter, costOf(query.where));
 
@@ -274,7 +288,7 @@ export const runFull = async (source, query, meter, charge) => {
       docs,
       meter,
       1,
-      eachUnwound(unwound, query, meter, (one) => found.take(one, box)),
+      eachUnwound(unwound, query, meter, (one, at) => found.take(one, box, at)),
     );
 
     return {

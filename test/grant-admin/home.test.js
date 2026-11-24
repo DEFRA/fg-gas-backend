@@ -1,0 +1,88 @@
+import { MongoClient } from "mongodb";
+import { env } from "node:process";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { holdCwRoles, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
+import { seedAdministeredGrant } from "../helpers/grants.js";
+import { wreck } from "../helpers/wreck.js";
+
+const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+const OPERATOR = { "x-actor": "Jo Operator", "x-actor-id": OID };
+
+let client;
+let db;
+
+beforeAll(async () => {
+  client = await MongoClient.connect(env.MONGO_URI);
+  db = client.db();
+});
+
+afterAll(async () => {
+  await client?.close();
+});
+
+beforeEach(async () => {
+  await resetCwStub();
+});
+
+const seedGrant = (code, options) => seedAdministeredGrant(db, code, options);
+
+const holdRoles = (roles) => holdCwRoles(OID, roles);
+
+const viewHome = async () => {
+  const { payload } = await wreck.get("/grant-admin/home", {
+    headers: OPERATOR,
+    json: true,
+  });
+
+  return payload;
+};
+
+describe("GET /grant-admin/home", () => {
+  it("counts only the current grants whose admin role the operator holds", async () => {
+    await seedGrant("woodland-it", {
+      role: "ROLE_WOODLAND_ADMIN",
+      description: "Woodland Management Plan",
+    });
+    await seedGrant("woodland-it", {
+      role: "ROLE_WOODLAND_ADMIN",
+      description: "Woodland Management Plan",
+      version: "1.1.0",
+    });
+    await seedGrant("fptt-it", {
+      role: "ROLE_FPTT_ADMIN",
+      description: "Farming Payments",
+    });
+    await seedGrant("other-it", {
+      role: "ROLE_OTHER_ADMIN",
+      description: "Not administered",
+    });
+    await seedGrant("unconfigured-it", { description: "No admin role" });
+    await holdRoles(["ROLE_WOODLAND_ADMIN", "ROLE_FPTT_ADMIN"]);
+
+    expect(await viewHome()).toEqual({ grantTypeCount: 2 });
+  });
+
+  it("counts none for an operator holding no grant's admin role", async () => {
+    await seedGrant("woodland-it", {
+      role: "ROLE_WOODLAND_ADMIN",
+      description: "Woodland Management Plan",
+    });
+
+    expect(await viewHome()).toEqual({ grantTypeCount: 0 });
+  });
+
+  it("answers 503 naming the roles lookup when Caseworking cannot say", async () => {
+    await seedGrant("woodland-it", {
+      role: "ROLE_WOODLAND_ADMIN",
+      description: "Woodland Management Plan",
+    });
+    await setCwStub({ users: { mode: "error" } });
+
+    const error = await viewHome().catch((e) => e);
+
+    expect(error.output.statusCode).toBe(503);
+    expect(error.data.payload).toMatchObject({
+      errorCode: "CASEWORKING_ROLES_UNAVAILABLE",
+    });
+  });
+});

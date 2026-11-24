@@ -1,7 +1,7 @@
 import Joi from "joi";
 import {
   HASH_RUN,
-  MASKED_HASH,
+  isMaskedTokenRow,
 } from "../../auth/services/api-client.service.js";
 import { OBJECT_ID_HEX } from "../../common/object-id-hex.js";
 import { decodeActor } from "../services/actor-header.js";
@@ -114,39 +114,26 @@ export const apiTokenSchema = Joi.object({
   inUse: Joi.boolean().required(),
 }).label("ApiToken");
 
-const objectId = Joi.object({ $oid: tokenId.required() });
+const isMaskedRowText = (text) => {
+  const buf = Buffer.from(text, "base64");
 
-// No key or value but `id` holds a hash, and `id` holds only a masked one, so
-// a response that would carry a whole hash fails instead.
-const storedValue = Joi.alternatives().try(
-  Joi.string().allow("").pattern(HASH_RUN, { invert: true }),
-  Joi.number(),
-  Joi.boolean(),
-  Joi.valid(null),
-  objectId,
-  Joi.object({ $date: Joi.string().isoDate().required() }),
-);
+  return buf.toString("base64") === text && isMaskedTokenRow(buf);
+};
 
-const isStoredField = ([key, value]) =>
-  !HASH_RUN.test(key) && !storedValue.validate(value).error;
-
-// The row as stored, in relaxed Extended JSON, every field it has, kept as
-// sent. Its other fields are checked as a whole, so a refusal's path never
-// names one: a key could be the hash.
-const storedApiTokenSchema = Joi.object({
-  _id: objectId.required(),
-  id: Joi.string().pattern(MASKED_HASH).required(),
-})
-  .unknown(true)
-  .custom((row, helpers) =>
-    Object.entries(row).every(isStoredField)
-      ? row
-      : helpers.error("any.invalid"),
+// The row as stored, as base64 of its own BSON, passed only as
+// isMaskedTokenRow allows: a response that would carry a whole hash fails
+// instead, and its refusal never names a field, as a key could be the hash.
+const storedApiTokenSchema = Joi.string()
+  .custom((text, helpers) =>
+    isMaskedRowText(text) ? text : helpers.error("any.invalid"),
+  )
+  .description(
+    "The row as stored, base64 BSON: flat, `id` the hash's first and last 3 characters",
   )
   .label("StoredApiToken");
 
 const listedApiTokenSchema = apiTokenSchema
-  .keys({ stored: storedApiTokenSchema.required() })
+  .keys({ document: storedApiTokenSchema.required() })
   .label("ListedApiToken");
 
 export const apiTokensSchema = Joi.object({

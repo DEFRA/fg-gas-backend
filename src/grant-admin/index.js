@@ -49,6 +49,7 @@ import { viewWorkflowVersionEventsRoute } from "./routes/view-workflow-version-e
 import { viewWorkflowVersionOverviewRoute } from "./routes/view-workflow-version-overview.route.js";
 import { viewWorkflowVersionPhasesRoute } from "./routes/view-workflow-version-phases.route.js";
 import { viewWorkflowVersionRawRoute } from "./routes/view-workflow-version-raw.route.js";
+import { viewHomeRoute } from "./routes/view-home.route.js";
 import { viewOverviewRoute } from "./routes/view-overview.route.js";
 import { viewShellRoute } from "./routes/view-shell.route.js";
 import { viewWorkflowVersionsRoute } from "./routes/view-workflow-versions.route.js";
@@ -93,6 +94,7 @@ export const grantAdmin = {
       viewCaseOverviewRoute,
       viewCaseEventsRoute,
       viewCaseRawRoute,
+      viewHomeRoute,
       listGrantTypesRoute,
       listGrantVersionsRoute,
       viewGrantVersionOverviewRoute,

@@ -4,13 +4,14 @@
 // API clients.
 //
 // A separate provider name from the message pact (consumer.cw-backend.test.js),
-// so each pair is verified on its own. Case payloads and documents are config
-// shaped, so they are only ever matched as "an object"; so is a stored workflow.
+// so each pair is verified on its own. Case payloads are config shaped, so they
+// are only ever matched as "an object", as is a stored workflow; a stored case
+// and a token's row are matched as base64 text, the BSON they hold unmatched.
 import { MatchersV3, PactV3 } from "@pact-foundation/pact";
+import { BSON, ObjectId } from "mongodb";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { withRequestContext } from "../../src/common/get-request-context.js";
-import { MASKED_HASH } from "../../src/auth/models/masked-hash.js";
 import {
   PAGE_SIZE,
   queryRequestSchema,
@@ -531,7 +532,7 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
 
   describe("the Explore actuators", () => {
     const QUERY = {
-      v: 3,
+      v: 4,
       source: "cases",
       mode: "rows",
       columns: [
@@ -944,7 +945,9 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
             body: {
               case: summary,
               storedBytes: integer(4096),
-              document: like({}),
+              document: like(
+                BSON.serialize({ caseRef: "ref-1" }).toString("base64"),
+              ),
             },
           },
         },
@@ -956,7 +959,11 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
             ),
           );
 
-          expect(answer.document).toBeTypeOf("object");
+          expect(
+            BSON.deserialize(Buffer.from(answer.document, "base64")),
+          ).toEqual({
+            caseRef: "ref-1",
+          });
         },
       ));
 
@@ -1336,6 +1343,12 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
     const HASH = "0123456789abcdef".repeat(4);
     const HINT = "x9Q_";
     const OBJECT_ID = "^[0-9a-f]{24}$";
+    const storedRow = BSON.serialize({
+      _id: new ObjectId(TOKEN_ID),
+      id: "012••••••def",
+      client: CLIENT,
+      expiresAt: null,
+    }).toString("base64");
     const tokenHash = regex("^[0-9a-f]{64}$", HASH);
     const tokenHint = regex("^[A-Za-z0-9_-]{4}$", HINT);
 
@@ -1381,12 +1394,7 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
                 revokedAt: null,
                 revokedBy: null,
                 inUse: boolean(true),
-                stored: {
-                  _id: { $oid: regex(OBJECT_ID, TOKEN_ID) },
-                  id: regex(MASKED_HASH.source, "012••••••def"),
-                  client: like(CLIENT),
-                  expiresAt: null,
-                },
+                document: like(storedRow),
               }),
             },
           },
@@ -1399,7 +1407,7 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           expect(tokens[0]).toMatchObject({
             clientId: CLIENT,
             inUse: true,
-            stored: { client: CLIENT, id: "012••••••def" },
+            document: storedRow,
           });
         },
       ));

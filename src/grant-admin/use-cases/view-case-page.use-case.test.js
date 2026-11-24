@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { BSON } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
 import { applicationExists } from "../../grants/services/application-read.service.js";
@@ -50,7 +51,11 @@ const SUMMARY = {
   },
 };
 
-const DOCUMENT = { caseRef: "ref-1", payload: { anything: [1] } };
+const DOCUMENT = BSON.serialize({
+  caseRef: "ref-1",
+  payload: { anything: [1] },
+  comments: [{ text: "Checked the map", createdBy: "Jo" }],
+}).toString("base64");
 
 const view = (tab) =>
   viewCasePageUseCase({ ...KEY, tab, caller: "admin-ui", actor: "Jo" });
@@ -109,31 +114,61 @@ describe("viewCasePageUseCase", () => {
     });
   });
 
-  it("raw: Caseworking's document with its size, logged without a ref", async () => {
+  it("raw: Caseworking's document whole, comments too, as base64 with its size, logged without a ref", async () => {
     const page = await view("raw");
 
-    expect(page.raw).toEqual(DOCUMENT);
+    expect(page.document).toBe(DOCUMENT);
     expect(page.storedBytes).toBe(4096);
+    expect(page.sectionErrors).toEqual([]);
     expect(logger.info).toHaveBeenCalledWith("Read case document: 4096 bytes");
   });
 
-  it("raw: a document over the read limit is too large to show, the header still drawn", async () => {
-    findCwCase.mockResolvedValue({
-      summary: SUMMARY,
-      storedBytes: 5_000_000,
-      document: null,
-      tooLarge: true,
-    });
+  it.each([
+    ["over the read limit", { storedBytes: 4096, tooLarge: true }],
+    ["past the cap, sent as its size alone", { storedBytes: 1024 * 1024 + 1 }],
+  ])(
+    "raw: a document %s is too large to show, the header still drawn",
+    async (_, read) => {
+      findCwCase.mockResolvedValue({
+        summary: SUMMARY,
+        document: null,
+        ...read,
+      });
 
-    const page = await view("raw");
+      const page = await view("raw");
 
-    expect(page.header.caseRef).toBe("ref-1");
-    expect(page.raw).toBeNull();
-    expect(page.storedBytes).toBe(5_000_000);
-    expect(page.sectionErrors).toEqual([
-      { section: "raw", message: "too large to show" },
-    ]);
-  });
+      expect(page.header.caseRef).toBe("ref-1");
+      expect(page.document).toBeNull();
+      expect(page.storedBytes).toBe(read.storedBytes);
+      expect(page.sectionErrors).toEqual([
+        { section: "raw", message: "too large to show" },
+      ]);
+    },
+  );
+
+  it.each([
+    ["the old shape, an object", { caseRef: "ref-1" }],
+    ["bytes that aren't BSON", Buffer.from("not bson").toString("base64")],
+    ["no document within the cap", null],
+  ])(
+    "raw: Caseworking's answer of %s fails the tab alone, the header still drawn",
+    async (_, document) => {
+      findCwCase.mockResolvedValue({
+        summary: SUMMARY,
+        storedBytes: 4096,
+        document,
+      });
+
+      const page = await view("raw");
+
+      expect(page.header.caseRef).toBe("ref-1");
+      expect(page.document).toBeNull();
+      expect(page.storedBytes).toBeNull();
+      expect(page.sectionErrors).toEqual([
+        { section: "raw", message: "The stored document can't be read" },
+      ]);
+    },
+  );
 
   it.each([
     [404, Boom.notFound("case not found")],

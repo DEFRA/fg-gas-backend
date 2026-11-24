@@ -1,18 +1,29 @@
-import { Decimal128, ObjectId } from "mongodb";
+import { BSON, Int32, Long } from "mongodb";
 import { createHash } from "node:crypto";
+import { ORDERED, orderedOf, orderedValue } from "./evaluate-ordered.js";
+import {
+  NO_SUM,
+  added,
+  isInt32,
+  mergedSum,
+  sumOf,
+  typedSum,
+} from "./evaluate-sum.js";
 import { objectCellOf } from "./inline.js";
 import { compilePattern } from "./pattern.js";
+import { refuseQuery } from "./refusal.js";
 import {
   TYPE_ORDER,
   asTime,
   compared,
   dateOf,
   isDate,
-  CUT,
   isBsonValue,
+  isNumericBson,
   isOpenObject,
   isPlainObject,
   plainBson,
+  promotedOf,
   compareDecimals,
   doubleDecimalOf,
   exactOf,
@@ -26,6 +37,8 @@ import {
   valueAt,
   valuesOf,
 } from "./evaluate-read.js";
+
+export { bsonValueOf, orderedOf, orderedValue } from "./evaluate-ordered.js";
 
 export {
   dateOf,
@@ -53,10 +66,19 @@ const keyOf = (value) => {
   return Object.hasOwn(KEYS, type) ? KEYS[type](value) : `${type}:${value}`;
 };
 
+// A stored Decimal128 or Long is keyed as the double it equals, if any.
+const storedKeyOf = (value) => {
+  if (!isNumericBson(value)) {
+    return keyOf(value);
+  }
+
+  return exactOf(value) ? null : keyOf(plainBson(value));
+};
+
 const keysOfStored = (value, dates) => {
   const date = dates && isText(value) ? dateOf(value) : null;
 
-  return [keyOf(value), date && keyOf(date)].filter(Boolean);
+  return [storedKeyOf(value), date && keyOf(date)].filter(Boolean);
 };
 
 // Equality to any of the typed values: the same type and value, a date also
@@ -81,11 +103,27 @@ const COMPARE = {
   gte: (n) => n >= 0,
 };
 
+// A stored Decimal128 or Long is compared with a number exactly; a NaN of
+// any type is in no range.
+const isNaNStored = (stored) =>
+  (typeof stored === "number" || isNumericBson(stored)) &&
+  Number.isNaN(plainBson(stored));
+
+const comparedOf = (stored, wanted) => {
+  if (isNaNStored(stored)) {
+    return null;
+  }
+
+  return isNumericBson(stored) && typeof wanted === "number"
+    ? compareBson(stored, wanted)
+    : compared(stored, wanted);
+};
+
 const comparison =
   (op, [wanted]) =>
   ({ values }) =>
     values.some((value) => {
-      const n = compared(value, wanted);
+      const n = comparedOf(value, wanted);
 
       return n !== null && COMPARE[op](n);
     });
@@ -122,11 +160,16 @@ const compiled = ({ pattern, flags }) => ({
 const typedValuesOf = ({ op, values = [] }) =>
   op === "regex" ? values.map(compiled) : values.map(typedOf);
 
+const promotedAt = (found) => ({
+  ...found,
+  values: found.values.map(promotedOf),
+});
+
 const leafTest = (test, readerOf, charge) => {
   const reader = readerOf(test);
   const positive = Object.hasOwn(NEGATED, test.op) ? NEGATED[test.op] : test.op;
   const holds = MATCHERS[positive](typedValuesOf(test), charge);
-  const tested = (doc, ctx) => holds(readAt(doc, reader, ctx));
+  const tested = (doc, ctx) => holds(promotedAt(readAt(doc, reader, ctx)));
 
   return positive === test.op ? tested : (doc, ctx) => !tested(doc, ctx);
 };
@@ -166,25 +209,22 @@ export const compileWhere = (where, readerOf, charge = () => {}) => {
 
 // ── Shaping ──
 
-const OBJECT_CELL = "{…}";
-const LIST_CELL = "[…]";
-const MORE_CELL = "…";
-// The lists inside lists a cell keeps; one deeper shows as […].
-export const MAX_CELL_DEPTH = 8;
-
-// The values one cell shows at most, so a long list can't make a long
-// answer: the rest is shown as "…".
-const MAX_CELL_VALUES = 100;
-
 const dateText = (date) => validDate(date)?.toISOString() ?? null;
 
-// A BSON value shows as its text, and where a value was cut short as "…".
-const closedShape = (value) => {
-  if (value === CUT) {
-    return MORE_CELL;
-  }
+// A regex shows as mongosh writes it; any other value as its own text.
+const textOfBson = (value) =>
+  value?._bsontype === "BSONRegExp"
+    ? `/${value.pattern}/${value.options}`
+    : String(value);
 
-  return isBsonValue(value) ? String(value) : OBJECT_CELL;
+// A number of a BSON type shows as a number where one holds it exactly, as
+// the driver promotes it; a Decimal128 or any other BSON value as its text.
+const bsonShape = (value) => {
+  const promoted = promotedOf(value);
+
+  return typeof promoted === "number"
+    ? SHAPES.number(promoted)
+    : textOfBson(promoted);
 };
 
 const SHAPES = {
@@ -194,54 +234,30 @@ const SHAPES = {
   boolean: String,
   date: dateText,
   objectId: String,
-  object: (value) => closedShape(value),
+  object: bsonShape,
 };
 
-const shapeList = (list, depth, room) => {
-  const shown = [];
-
-  for (const element of list) {
-    if (room.left <= 0) {
-      shown.push(MORE_CELL);
-
-      break;
-    }
-
-    shown.push(shapeAt(element, depth + 1, room));
+const shapeAt = (value, reader) => {
+  if (value === undefined) {
+    return null;
   }
-
-  return shown;
-};
-
-const shapeAt = (value, depth, room) => {
-  room.left -= 1;
 
   if (isOpenObject(value)) {
-    return objectCellOf(value, room.reader);
+    return objectCellOf(value, reader);
   }
 
-  if (!Array.isArray(value)) {
-    return SHAPES[typeOf(value)](value);
-  }
-
-  return depth <= MAX_CELL_DEPTH ? shapeList(value, depth, room) : LIST_CELL;
+  return Array.isArray(value)
+    ? value.map((element) => shapeAt(element, reader))
+    : SHAPES[typeOf(value)](value);
 };
 
-// A list of exactly one object reads as that object.
-const soleObject = (value) =>
-  Array.isArray(value) && value.length === 1 && isOpenObject(value[0])
-    ? value[0]
-    : value;
-
-// A value as a cell shows it: as stored, a date as an ISO instant, a list as
-// a list of at most MAX_CELL_VALUES, and an object inline.
+// A value as a cell shows it, whole: as stored, a date as an ISO instant, a
+// list as a list of every element, and an object inline with every key.
 export const shapeValue = (value, reader = null) =>
-  value === undefined
-    ? null
-    : shapeAt(value, 1, { left: MAX_CELL_VALUES, reader });
+  value === undefined ? null : shapeAt(value, reader);
 
 export const cellOf = (doc, reader, ctx = {}) =>
-  shapeValue(soleObject(valueAt(doc, reader, ctx)), reader);
+  shapeValue(valueAt(doc, reader, ctx), reader);
 
 // ── Mongo's order ──
 
@@ -333,13 +349,13 @@ export const compareBson = (a, b) => {
   return byType || type === "null" ? byType : compareSameType(a, b, x, y);
 };
 
-const scalarKeyOf = (value) => keyOf(asTime(value));
+const scalarKeyOf = (value) => keyOf(value);
 
 // What makes two values one group: the same type and value, as Mongo's
-// $group has it, a time one however it is stored. Objects and lists are
-// keyed by a digest of all they hold, keys in their stored order, numbers
-// by value, a time however stored; the group's value travels apart from its
-// key (orderedOf).
+// $group has it, numbers by value whatever their BSON type, a Date apart
+// from ISO text. Objects and lists are keyed by a digest of all they hold,
+// keys in their stored order; the group's value travels apart from its key
+// (orderedOf).
 const canonicalOf = (value) => {
   const type = bsonType(value);
 
@@ -354,8 +370,24 @@ const canonicalOf = (value) => {
   return [type, scalarKeyOf(value)];
 };
 
+// A value of another BSON type, Binary, Timestamp, Code, a regex, MinKey
+// and the rest: its type and its bytes are the value, as mongod keys it. A
+// Symbol is its text, as mongod's $group takes it.
+const isOtherBson = (value) =>
+  value instanceof RegExp ||
+  (isBsonValue(value) &&
+    !isNumericBson(value) &&
+    value._bsontype !== "BSONSymbol");
+
+const bsonHexOf = (value) => BSON.serialize({ v: value }).toString("hex");
+
+const canonicalOfPresent = (value) =>
+  isOtherBson(value)
+    ? ["bson", bsonHexOf(value)]
+    : canonicalOf(plainBson(value));
+
 const canonical = (value) =>
-  exactOf(value) ? ["decimal", exactOf(value)] : canonicalOf(plainBson(value));
+  exactOf(value) ? ["decimal", exactOf(value)] : canonicalOfPresent(value);
 
 const digestOf = (value) =>
   createHash("sha256")
@@ -370,162 +402,67 @@ const keyOfPlain = (value) => {
   return DIGESTED.has(type) ? `${type}:${digestOf(value)}` : scalarKeyOf(value);
 };
 
-const keyOfPresent = (present) =>
-  exactOf(present)
-    ? `decimal:${exactOf(present)}`
+const keyOfTyped = (present) =>
+  isOtherBson(present)
+    ? `bson:${bsonHexOf(present)}`
     : keyOfPlain(plainBson(present));
+
+const keyOfPresent = (present) =>
+  exactOf(present) ? `decimal:${exactOf(present)}` : keyOfTyped(present);
 
 export const groupKeyOf = (value) =>
   value === undefined || value === null ? null : keyOfPresent(value);
 
 // ── Values as they travel ──
 
-// A value kept with its type through JSON, so a sort and a merge across
-// boxes and services compare it as Mongo does: text and numbers as they are,
-// a list as a list, and a boolean, time, ObjectId or object tagged. At most
-// MAX_CELL_VALUES values travel:
-// a value cut short ends in a tag that says so, shown as …, and a longer one compares
-// by what is kept. It is only ever shown as the value's cell.
-const NON_FINITE = { NaN, Infinity, "-Infinity": -Infinity };
-
-const ORDERED = {
-  null: () => null,
-  number: (value) => (Number.isFinite(value) ? value : { n: String(value) }),
-  string: (value) => value,
-  boolean: (value) => ({ b: value }),
-  date: (value) => (validDate(value) ? { d: value.toISOString() } : null),
-  objectId: (value) => ({ o: String(value) }),
-};
-
-const orderedEntries = (entries, depth, room) => {
-  const kept = [];
-
-  for (const [key, value] of entries) {
-    if (room.left <= 0) {
-      break;
-    }
-
-    kept.push([key, orderedAt(value, depth + 1, room)]);
-  }
-
-  return kept;
-};
-
-// Lists and objects as deep as a cell keeps lists; deeper is cut.
-const orderedPlain = (value, depth, room) => {
-  if (Array.isArray(value) || typeOf(value) === "object") {
-    return depth > MAX_CELL_DEPTH ? CUT_TAG : orderedNested(value, depth, room);
-  }
-
-  return ORDERED[typeOf(value)](value);
-};
-
-const orderedAt = (stored, depth, room) => {
-  room.left -= 1;
-
-  return exactOf(stored)
-    ? { x: String(Decimal128.fromString(String(stored))) }
-    : orderedPlain(plainBson(stored), depth, room);
-};
-
-const orderedList = (list, depth, room) => {
-  const kept = orderedEntries(
-    list.map((element) => ["", element]),
-    depth,
-    room,
-  ).map(([, element]) => element);
-
-  return kept.length < list.length ? [...kept, CUT_TAG] : kept;
-};
-
-// An object cut short ends in an entry that says so, shown as … in its text.
-const CUT_TAG = { c: true };
-
-const orderedObject = (value, depth, room) => {
-  const entries = Object.entries(value);
-  const kept = orderedEntries(entries, depth, room);
-
-  return {
-    k: kept.length < entries.length ? [...kept, [MORE_CELL, CUT_TAG]] : kept,
-  };
-};
-
-const orderedNested = (value, depth, room) =>
-  Array.isArray(value)
-    ? orderedList(value, depth, room)
-    : orderedObject(value, depth, room);
-
-export const orderedOf = (value) =>
-  value === undefined ? null : orderedAt(value, 1, { left: MAX_CELL_VALUES });
-
-const TAGS = {
-  c: () => CUT,
-  x: (decimal) => Decimal128.fromString(decimal),
-  n: (text) => NON_FINITE[text],
-  b: (value) => value,
-  d: (text) => new Date(text),
-  o: (hex) => ObjectId.createFromHexString(hex),
-  k: (entries) =>
-    Object.fromEntries(
-      entries.map(([key, value]) => [key, orderedValue(value)]),
-    ),
-};
-
-export const orderedValue = (ordered) => {
-  if (Array.isArray(ordered)) {
-    return ordered.map(orderedValue);
-  }
-
-  if (ordered === null || typeof ordered !== "object") {
-    return ordered;
-  }
-
-  const [tag] = Object.keys(ordered);
-
-  return TAGS[tag](ordered[tag]);
-};
-
 export const compareOrdered = (a, b) =>
   compareBson(orderedValue(a), orderedValue(b));
 
+// ── BSON type names, as mongod's messages give them ──
+
+const BSON_NAMES = {
+  Int32: "int",
+  Double: "double",
+  Long: "long",
+  Decimal128: "decimal",
+  Binary: "binData",
+  Timestamp: "timestamp",
+  BSONRegExp: "regex",
+  MinKey: "minKey",
+  MaxKey: "maxKey",
+  Code: "javascript",
+  BSONSymbol: "symbol",
+  DBRef: "object",
+};
+
+const TYPE_NAMES = {
+  null: "null",
+  date: "date",
+  objectId: "objectId",
+  number: "double",
+  string: "string",
+  boolean: "bool",
+};
+
+const bsonNameOf = (value) => BSON_NAMES[value._bsontype] ?? "object";
+
+const NAMERS = [
+  [(value) => value === undefined, () => "missing"],
+  [Array.isArray, () => "array"],
+  [(value) => value instanceof RegExp, () => "regex"],
+  [isBsonValue, bsonNameOf],
+];
+
+const plainNameOf = (value) => TYPE_NAMES[typeOf(value)] ?? "object";
+
+// The type mongod names a value by: "missing" for no value at all.
+export const bsonTypeName = (value) => {
+  const [, nameOf = plainNameOf] = NAMERS.find(([holds]) => holds(value)) ?? [];
+
+  return nameOf(value);
+};
+
 // ── Expressions and accumulators ──
-
-const isNumber = (value) => typeof value === "number" && Number.isFinite(value);
-
-// Numbers added as Mongo's $sum adds them (its DoubleDoubleSummation): a sum
-// and what it lost, the sum shown, so totals have mongosh's digits. A plain
-// sum is kept beside them and shown when the compensated one overflows to
-// NaN, as Mongo's is, so [1e308, 1e308, 1] adds to Infinity.
-const fast2Sum = (a, b) => {
-  const s = a + b;
-
-  return [s, b - (s - a)];
-};
-
-const twoSum = (a, b) => {
-  const s = a + b;
-  const aPrime = s - b;
-  const bPrime = s - aPrime;
-
-  return [s, a - aPrime + (b - bPrime)];
-};
-
-const added = ([sum, addend, plain], value) => {
-  if (!isNumber(value)) {
-    return [sum, addend, plain];
-  }
-
-  const [x, lower] = fast2Sum(value, addend);
-  const [total, lost] = twoSum(sum, x);
-
-  return [total, lower + lost, plain + value];
-};
-
-const NO_SUM = [0, 0, 0];
-
-const shownSum = ([sum, , plain]) => (Number.isNaN(sum) ? plain : sum);
-
-const sumOf = (values) => shownSum(values.reduce(added, NO_SUM));
 
 const EXTREMES = { min: (n) => n < 0, max: (n) => n > 0 };
 
@@ -545,10 +482,34 @@ const extremeOf = (fn, values) =>
 
 const elementsOf = (value) => (Array.isArray(value) ? value : [value]);
 
+export const SIZE_ERROR = "MONGOD_ERROR";
+
+// mongod's own words for $size of anything but a list, and how they are
+// read back from its failure: only the type they name.
+export const sizeMessage = (type) =>
+  `The argument to $size must be an array, but was of type: ${type}`;
+
+export const SIZE_PATTERN =
+  /The argument to \$size must be an array, but was of type: ([A-Za-z]+)$/;
+
+// $size of anything but a list fails the query, as mongod's does, naming
+// the type it was given.
+const sizeOf = (value) => {
+  if (!Array.isArray(value)) {
+    throw refuseQuery(SIZE_ERROR, {
+      fn: "count",
+      type: bsonTypeName(value),
+      column: null,
+    });
+  }
+
+  return value.length;
+};
+
 // $size, $sum, $min and $max in a projection, on one record's value: a list's
 // elements one level deep, else the value itself.
 const EXPRESSIONS = {
-  count: (value) => (Array.isArray(value) ? value.length : null),
+  count: sizeOf,
   sum: (value) => sumOf(elementsOf(value)),
   min: (value) => extremeOf("min", elementsOf(value)),
   max: (value) => extremeOf("max", elementsOf(value)),
@@ -559,14 +520,15 @@ const workedOut = (fn, doc, reader, ctx) =>
 
 // An expression's cell, and the value it sorts by.
 export const expressionOf = (fn, doc, reader, ctx = {}) =>
-  shapeValue(soleObject(workedOut(fn, doc, reader, ctx)), reader);
+  shapeValue(workedOut(fn, doc, reader, ctx), reader);
 
 export const orderedExpressionOf = (fn, doc, reader, ctx = {}) =>
   orderedOf(workedOut(fn, doc, reader, ctx));
 
 // $sum, $min and $max in $group, over each record's whole value, as raw
 // values until the group is sent; count(*) counts records. A sum is sent as
-// its sum and what it lost, so the parts add as Mongo's would.
+// its sum, what it lost, its plain sum, its type and its Decimal128s' sum,
+// so the parts add as Mongo's would.
 const ACCUMULATE = {
   count: (sofar = 0) => sofar + 1,
   sum: (sofar, value) => added(sofar ?? NO_SUM, value),
@@ -579,7 +541,11 @@ export const accumulate = (fn, sofar, value) => ACCUMULATE[fn](sofar, value);
 // A sum's parts that aren't finite are tagged, as JSON has no NaN.
 const SENT_PARTIAL = {
   count: (raw = 0) => raw,
-  sum: (raw = NO_SUM) => raw.map(ORDERED.number),
+  sum: ([sum, addend, plain, type, decimal] = NO_SUM) => [
+    ...[sum, addend, plain].map(ORDERED.number),
+    type,
+    decimal,
+  ],
   min: (raw) => orderedOf(raw),
   max: (raw) => orderedOf(raw),
 };
@@ -597,24 +563,14 @@ const extremeOfSent = (fn, a, b) =>
       null,
     );
 
-// A sum sent as one number, or as a pair with no plain sum, as a service
-// before these sends it.
-const sentParts = (partial) =>
-  Array.isArray(partial) ? partial.map(orderedValue) : [partial ?? 0];
+// A sum as sent: its three numbers typed, then its type and Decimal128s'
+// sum as they are.
+const SUM_NUMBERS = 3;
 
-const sumParts = (partial) => {
-  const [sum, addend = 0, plain = sum] = sentParts(partial);
-
-  return [sum, addend, plain];
-};
-
-// A part that overflowed, to NaN or to an infinity that `added` leaves out,
-// leaves the merged sum NaN, so its plain sum shows.
-const mergedSum = ([sumA, addendA, plainA], [sumB, addendB, plainB]) => {
-  const [total, lost] = added(added([sumA, addendA, 0], sumB), addendB);
-
-  return [Number.isFinite(sumB) ? total : Number.NaN, lost, plainA + plainB];
-};
+const sumParts = (partial) => [
+  ...partial.slice(0, SUM_NUMBERS).map(orderedValue),
+  ...partial.slice(SUM_NUMBERS),
+];
 
 // Two parts of one group's aggregate as one, typed as they were sent.
 const PARTIALS = {
@@ -626,10 +582,15 @@ const PARTIALS = {
 
 export const mergePartial = (fn, a, b) => PARTIALS[fn](a, b);
 
-// A merged aggregate as its cell shows it, and as a group sorts by it.
+// A count as mongod's: an Int32, an Int64 past it.
+const countValue = (n) =>
+  isInt32(n) ? new Int32(n) : Long.fromBigInt(BigInt(n));
+
+// A merged aggregate as its value, typed as mongod's $group gives it: its
+// cell shows it, a group sorts by it, and its document holds it.
 const PARTIAL_VALUES = {
-  count: (partial) => partial,
-  sum: (partial) => shownSum(sumParts(partial)),
+  count: countValue,
+  sum: (partial) => typedSum(sumParts(partial)),
   min: orderedValue,
   max: orderedValue,
 };
@@ -688,15 +649,16 @@ const withAt = (value, [name, ...rest], element) => {
 };
 
 // One record as the rows $unwind makes of it: one per element of the list
-// at the path, the path set to it; none for an empty list, null or a
-// missing path, unless kept, when the record stays (an empty list's key
-// removed); any other value, the record once.
+// at the path, the path set to it, with the element's index; none for an
+// empty list, null or a missing path, unless kept, when the record stays
+// (an empty list's key removed) with no index; any other value, the record
+// once with no index.
 const preserved = (doc, names, value) =>
   Array.isArray(value) ? withAt(doc, names) : doc;
 
 const eachElement = function* (doc, names, list) {
-  for (const element of list) {
-    yield withAt(doc, names, element);
+  for (const [index, element] of list.entries()) {
+    yield [withAt(doc, names, element), index];
   }
 };
 
@@ -704,13 +666,15 @@ const unwoundAt = function* (doc, names, preserve) {
   const value = throughObjects(doc, names);
 
   if (isUnwound(value)) {
-    yield* Array.isArray(value) ? eachElement(doc, names, value) : [doc];
+    yield* Array.isArray(value)
+      ? eachElement(doc, names, value)
+      : [[doc, null]];
   } else {
-    yield* preserve ? [preserved(doc, names, value)] : [];
+    yield* preserve ? [[preserved(doc, names, value), null]] : [];
   }
 };
 
 // Made one at a time, so each row is charged before the next is made.
 export const unwindDoc = function* (doc, { names, preserve }) {
-  yield* names ? unwoundAt(doc, names, preserve) : [doc];
+  yield* names ? unwoundAt(doc, names, preserve) : [[doc, null]];
 };

@@ -10,6 +10,6 @@ describe("unwinder", () => {
       readerOf,
     });
 
-    expect([...unwound(doc)]).toEqual([doc]);
+    expect([...unwound(doc)]).toEqual([{ doc, at: [null] }]);
   });
 });

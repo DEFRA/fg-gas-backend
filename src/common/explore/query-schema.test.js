@@ -3,11 +3,13 @@ import {
   isWithinLimits,
   partSchema,
   querySchema,
+  MAX_QUERY_BYTES,
+  rowCapOf,
   sourcesSchema,
 } from "./query-schema.js";
 
 const query = (overrides = {}) => ({
-  v: 3,
+  v: 4,
   source: "cases",
   mode: "rows",
   columns: [
@@ -74,6 +76,7 @@ describe("querySchema", () => {
   it.each([
     ["version 1, which names fields", { v: 1 }],
     ["version 2", { v: 2 }],
+    ["version 3", { v: 3 }],
     ["a path named as an operator", { columns: [{ path: "$where" }] }],
     ["a malformed path", { columns: [{ path: "a..b" }] }],
     ["a path starting $", { columns: [{ path: "$schema.x" }] }],
@@ -183,7 +186,43 @@ describe("querySchema", () => {
       { where: test({ values: [{ date: "2026-10-01T25:00:00Z" }] }) },
     ],
     ["a position that is no box", { positions: { $where: "x" } }],
-    ["version 4", { v: 4 }],
+    ["version 5", { v: 5 }],
+    [
+      "a documents fetch with no rows",
+      {
+        mode: "documents",
+        documents: { whole: true, id: true, bytes: 1 },
+      },
+    ],
+    [
+      "a documents fetch with no allowance",
+      {
+        mode: "documents",
+        documents: { whole: true, id: true },
+        rows: [],
+      },
+    ],
+    ["rows outside a documents fetch", { rows: [] }],
+    [
+      "a documents fetch of more rows than its limit",
+      {
+        mode: "documents",
+        documents: { whole: true, id: true, bytes: 1 },
+        limit: 1,
+        rows: [
+          { box: "cw.inbox", id: "AAAA", at: [] },
+          { box: "cw.inbox", id: "AAAA", at: [] },
+        ],
+      },
+    ],
+    [
+      "a documents fetch of a box name too long",
+      {
+        mode: "documents",
+        documents: { whole: true, id: true, bytes: 1 },
+        rows: [{ box: `cw.${"a".repeat(62)}`, id: "AAAA", at: [] }],
+      },
+    ],
     [
       "an ObjectId of 23 hex",
       { where: test({ values: [{ oid: "a".repeat(23) }] }) },
@@ -208,13 +247,44 @@ describe("querySchema", () => {
     expect(isValid(query(overrides))).toBe(false);
   });
 
-  it("reads _id, $ keys after the first and ObjectIds in v3", () => {
+  it("reads documents, sizes and a cells allowance", () => {
+    const shape = { whole: false, id: true };
+    const id = "FgAAAAdfaWQAawBxbH0D4hmgu1sSAA==";
+
+    expect(isValid(query({ documents: shape, cellBytes: 1024 }))).toBe(true);
+    expect(
+      isValid(
+        query({
+          mode: "documents",
+          documents: { ...shape, bytes: 8 * 1024 * 1024 },
+          rows: [{ box: "cw.inbox", id, at: [] }],
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("reads the starts mode, a fetch of starts holding no bytes", () => {
+    const starts = { whole: true, id: true, mode: "starts" };
+    const id = "FgAAAAdfaWQAawBxbH0D4hmgu1sSAA==";
+    const fetch = (documents) =>
+      query({
+        mode: "documents",
+        documents,
+        rows: [{ box: "cw.inbox", id, at: [] }],
+      });
+
+    expect(isValid(query({ documents: starts }))).toBe(true);
+    expect(isValid(fetch(starts))).toBe(true);
+    expect(isValid(fetch({ ...starts, bytes: 1 }))).toBe(false);
+    expect(isValid(query({ documents: { ...starts, mode: "x" } }))).toBe(false);
+  });
+
+  it("reads _id, $ keys after the first and ObjectIds", () => {
     const oid = { oid: "6741a0c2e4b0f1a2b3c4d5e6" };
 
     expect(
       isValid(
         query({
-          v: 3,
           columns: [{ path: "_id" }, { path: "a._x" }],
           where: {
             all: [
@@ -234,7 +304,6 @@ describe("querySchema", () => {
     expect(
       isValid(
         query({
-          v: 3,
           mode: "groups",
           columns: [{ path: "_id" }],
           groupBy: { path: "_id" },
@@ -363,7 +432,7 @@ describe("partSchema", () => {
     [{ x: "0" }, true],
     [{ x: "abc" }, false],
     [{ x: "1e9999" }, false],
-    [{ c: true }, true],
+    [{ c: true }, false],
   ])("reads a group's value %j: %s", (value, valid) => {
     const { error } = partSchema.validate({
       read: "exact",
@@ -462,5 +531,26 @@ describe("sourcesSchema", () => {
     ["a type it doesn't know", { paths: [{ path: "a", type: "blob" }] }],
   ])("refuses %s", (_, source) => {
     expect(sourcesSchema.validate(sources(source)).error).toBeDefined();
+  });
+});
+
+describe("rowCapOf", () => {
+  it("holds an answer to 5,000 rows and 20,000 cells", () => {
+    expect(rowCapOf([{}])).toBe(5000);
+    expect(rowCapOf(Array(10).fill({}))).toBe(2000);
+  });
+});
+
+describe("MAX_QUERY_BYTES", () => {
+  it("holds a Query and 5,000 fetch rows of the longest id, box and positions", () => {
+    const row = {
+      box: `cw.${"a".repeat(61)}`,
+      id: "A".repeat(1400),
+      at: Array(4).fill(Number.MAX_SAFE_INTEGER),
+    };
+
+    expect(5000 * Buffer.byteLength(JSON.stringify(row))).toBeLessThan(
+      MAX_QUERY_BYTES - 1024 * 1024,
+    );
   });
 });

@@ -10,6 +10,7 @@ import {
   recordPageSchema,
   seriesSchema,
   storedBytesSchema as storedBytes,
+  storedDocumentSchema,
 } from "./admin-record.schema.js";
 
 import { code } from "./code.js";
@@ -62,8 +63,7 @@ const overviewSchema = Joi.object({
 
 const eventsSchema = recordEventsSchema("ApplicationEvents");
 
-// The stored document as stored: answers and metadata are never validated.
-const rawSchema = Joi.object().unknown(true).allow(null).required();
+const documentSchema = storedDocumentSchema("ApplicationDocument");
 
 const pageSchema = (tab, keys, label) =>
   recordPageSchema(applicationHeaderSchema, tab, keys, label);
@@ -79,5 +79,9 @@ export const applicationPageSchemas = {
     { events: eventsSchema },
     "ApplicationEventsPage",
   ),
-  raw: pageSchema("raw", { raw: rawSchema, storedBytes }, "ApplicationRawPage"),
+  raw: pageSchema(
+    "raw",
+    { document: documentSchema, storedBytes },
+    "ApplicationRawPage",
+  ),
 };

@@ -65,3 +65,14 @@ export const projectionOf = (paths) => {
 };
 
 export const readPathsOf = (readers) => readers.flatMap(pathsOfReader);
+
+// Where a scanned record carries its stored BSON size: a name no typed path
+// can be, so no query reads it as a field.
+export const SIZE_KEY = "explore size";
+
+// A scan's projection, with each record's size when its document may be
+// fetched: one number, worked out by mongod.
+export const sizedProjectionOf = (paths, sized) => ({
+  ...projectionOf(paths),
+  ...(sized && { [SIZE_KEY]: { $bsonSize: "$$ROOT" } }),
+});

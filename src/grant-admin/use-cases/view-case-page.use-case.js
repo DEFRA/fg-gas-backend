@@ -7,6 +7,7 @@ import {
 import { auditedRead } from "../../events/audited-read.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
 import { composeRecordPage } from "../services/compose-record-page.js";
+import { rawSectionOf } from "../services/raw-section.js";
 import { readCaseHeader, startCaseRead } from "./case-page.helpers.js";
 import { readCaseEventsUseCase } from "./read-record-events.use-case.js";
 
@@ -32,13 +33,13 @@ const readOverview = async ({ caseRead }) => {
 const readEvents = ({ workflowCode, caseRef, actor }) =>
   readCaseEventsUseCase({ workflowCode, caseRef, actor });
 
-// Caseworking leaves its notes out of the document; nothing here adds them.
+// A document over the read limit comes back as its size alone, too large.
 const readRaw = async ({ caseRead }) => {
   const { document, storedBytes, tooLarge } = await caseRead;
 
   logger.info(`Read case document: ${storedBytes} bytes`);
 
-  return { content: { raw: document, storedBytes }, tooLarge };
+  return rawSectionOf({ document, storedBytes, tooLarge });
 };
 
 const CASE_TABS = {
@@ -46,8 +47,9 @@ const CASE_TABS = {
   events: { readTab: readEvents, empty: { events: null } },
   raw: {
     readTab: readRaw,
-    empty: { raw: null, storedBytes: null },
-    capped: "raw",
+    empty: { document: null, storedBytes: null },
+    capped: "document",
+    sized: true,
     include: "document",
   },
 };

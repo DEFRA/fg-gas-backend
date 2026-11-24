@@ -1,7 +1,11 @@
 import Joi from "joi";
 import { describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
-import { safeFailAction, safeResponseFailAction } from "./safe-fail-action.js";
+import {
+  checkedResponse,
+  safeFailAction,
+  safeResponseFailAction,
+} from "./safe-fail-action.js";
 
 vi.mock("../../common/logger.js");
 
@@ -55,5 +59,22 @@ describe("safeResponseFailAction", () => {
     expect(error.output.statusCode).toBe(500);
     expect(error.message).toBe("View application response failed validation");
     expect(logged()).not.toContain(SECRET);
+  });
+});
+
+describe("checkedResponse", () => {
+  it("answers what the check gives", async () => {
+    expect(await checkedResponse(async (value) => value, "Label")(1)).toBe(1);
+  });
+
+  it("fails an answer the check refuses as a response schema would, naming no value", async () => {
+    const check = checkedResponse(async () => {
+      throw anError();
+    }, "Label");
+
+    await expect(check({})).rejects.toMatchObject({
+      output: { statusCode: 500 },
+    });
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain(SECRET);
   });
 });
