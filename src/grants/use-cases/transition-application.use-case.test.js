@@ -35,6 +35,10 @@ const phases = [
           },
         ],
       },
+      {
+        code: "FURTHER_ASSESSMENT",
+        statuses: [{ code: currentPosition.status }],
+      },
     ],
   },
 ];
@@ -124,6 +128,21 @@ describe("transitionApplicationUseCase", () => {
       session,
     );
     expect(saveEvents.mock.calls[0][0][0].segregationRef).toBeUndefined();
+  });
+
+  it("persists a stage change without reporting an unchanged status code", async () => {
+    const transition = transitionFixture();
+    const targetPosition = { ...currentPosition, stage: "FURTHER_ASSESSMENT" };
+
+    await transitionApplicationUseCase(
+      { ...transition, targetPosition },
+      session,
+    );
+
+    expect(transition.application.currentPosition()).toEqual(targetPosition);
+    expect(update).toHaveBeenCalledWith(transition.application, session);
+    expect(publishStatusTransition).toHaveBeenCalledWith(session);
+    expect(saveEvents).not.toHaveBeenCalled();
   });
 
   it("keeps a move to the current position as a true no-op", async () => {
