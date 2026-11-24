@@ -1,5 +1,6 @@
-import { ObjectId } from "mongodb";
+import { BSON, Int32, ObjectId } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readStoredDocuments } from "../../common/explore/stored-document.js";
 import { db } from "../../common/mongo-client.js";
 import { AccessToken } from "../models/access-token.js";
 import {
@@ -18,6 +19,10 @@ vi.mock("../../common/mongo-client.js", () => ({
   db: { collection: vi.fn() },
 }));
 
+vi.mock("../../common/explore/stored-document.js", () => ({
+  readStoredDocuments: vi.fn(),
+}));
+
 vi.mock("../../common/config.js", () => ({
   config: { adminReadTimeoutMs: 1500 },
 }));
@@ -32,6 +37,7 @@ let accessTokens;
 let cursor;
 
 beforeEach(() => {
+  readStoredDocuments.mockResolvedValue([]);
   cursor = { toArray: vi.fn().mockResolvedValue([]) };
   accessTokens = {
     find: vi.fn().mockReturnValue(cursor),
@@ -52,51 +58,49 @@ const withoutHash = expect.objectContaining({
 });
 
 describe("access token reads", () => {
-  it("lists every row from the primary, its hash masked by Mongo", async () => {
+  it("lists every row from the primary as stored, its hash masked by Mongo", async () => {
     await findAllTokens();
 
-    expect(accessTokens.aggregate).toHaveBeenCalledWith(
-      [
-        {
-          $set: {
-            id: {
-              $concat: [
-                { $substrCP: ["$id", 0, 3] },
-                "••••••",
-                { $substrCP: ["$id", 61, 3] },
-              ],
-            },
-          },
+    expect(readStoredDocuments).toHaveBeenCalledWith("access_tokens", {
+      match: {},
+      set: {
+        id: {
+          $concat: [
+            { $substrCP: ["$id", 0, 3] },
+            "••••••",
+            { $substrCP: ["$id", 61, 3] },
+          ],
         },
-      ],
-      { readPreference: "primary", maxTimeMS: 1500 },
-    );
+      },
+      maxBytes: 16 * 1024 * 1024,
+      readPreference: "primary",
+      maxTimeMS: 1500,
+    });
     expect(accessTokens.find).not.toHaveBeenCalled();
+    expect(accessTokens.aggregate).not.toHaveBeenCalled();
   });
 
-  it("lists each token with its row as stored, in relaxed Extended JSON", async () => {
-    cursor.toArray.mockResolvedValue([
-      {
-        _id: new ObjectId(TOKEN_ID),
-        id: "fff••••••fff",
-        client: "grants-ui",
-        expiresAt: NOW,
-        revokedAt: null,
-      },
-    ]);
-
-    const [{ token, stored }] = await findAllTokens();
-
-    expect(token).toBeInstanceOf(AccessToken);
-    expect(token.tokenId).toBe(TOKEN_ID);
-    expect(token.id).toBeUndefined();
-    expect(stored).toEqual({
-      _id: { $oid: TOKEN_ID },
+  it("lists each token with its row's own bytes, as base64", async () => {
+    const document = BSON.serialize({
+      _id: new ObjectId(TOKEN_ID),
       id: "fff••••••fff",
-      client: "grants-ui",
-      expiresAt: { $date: "2026-11-04T10:00:00Z" },
+      clientId: "grants-ui",
+      expiresAt: NOW,
+      count: new Int32(1),
       revokedAt: null,
     });
+
+    readStoredDocuments.mockResolvedValue([
+      { storedBytes: document.length + 52, document },
+    ]);
+
+    const [listed] = await findAllTokens();
+
+    expect(listed.token).toBeInstanceOf(AccessToken);
+    expect(listed.token.tokenId).toBe(TOKEN_ID);
+    expect(listed.token.clientId).toBe("grants-ui");
+    expect(listed.token.id).toBeUndefined();
+    expect(Buffer.from(listed.document, "base64").equals(document)).toBe(true);
   });
 
   it("reads one client's rows by clientId, without hashes", async () => {

@@ -409,6 +409,19 @@ Caseworking's part, the rooms, the audit and the HTTP answer. The answer paths
 it suggests come from the grants' question schemas, read through
 `config-version.service.js`.
 
+Three parts of the engine are read outside Explore.
+`common/explore/stored-document.js` reads a record as stored, its own bytes
+and its stored size, through the same read-only view;
+`common/explore/bson-bytes.js` checks a token's row and a Raw tab's bytes;
+and `common/explore/query-schema.js`'s one-document allowance bounds a Raw
+tab's values. `grants`' application repository reads an application's Raw tab
+with the stored-document reader, and `auth`'s access-token repository each
+token's row, its hash masked by Mongo. `auth/models/masked-hash.js` checks a
+row's bytes with `common/explore/bson-bytes.js`, so no whole hash leaves GAS;
+the mask and that check stay `auth`'s. `grant-admin/services/raw-section.js`
+decides when a Raw tab's document, an application's or a case's, is too
+large to show.
+
 An answer's cell holds its whole value: an object inline as text, every
 field of it. With `starts`, each record row of a page also carries its
 record's start, the first of its stored bytes cut by

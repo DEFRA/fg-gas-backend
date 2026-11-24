@@ -1,4 +1,5 @@
 import hapi from "@hapi/hapi";
+import { BSON } from "mongodb";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { viewCasePageUseCase } from "../use-cases/view-case-page.use-case.js";
 import { viewCaseRawRoute } from "./view-case-raw.route.js";
@@ -23,7 +24,9 @@ const CASE_HEADER = {
 
 const PAGE = {
   header: CASE_HEADER,
-  raw: { caseRef: "ref-1", payload: { anything: true } },
+  document: BSON.serialize({ caseRef: "ref-1", payload: {} }).toString(
+    "base64",
+  ),
   storedBytes: 10,
   sourceErrors: [],
   sectionErrors: [],
@@ -69,11 +72,32 @@ describe("viewCaseRawRoute", () => {
     });
   });
 
-  it("refuses to answer a case document carrying its notes", async () => {
-    viewCasePageUseCase.mockResolvedValue({
+  it("answers the stored case as base64 BSON and no `raw`, which a GPA reading it finds gone", async () => {
+    viewCasePageUseCase.mockResolvedValue(PAGE);
+
+    const { result } = await get();
+
+    expect(result.document).toBe(PAGE.document);
+    expect(result).not.toHaveProperty("raw");
+  });
+
+  it("answers a case too large to show by its size alone", async () => {
+    const page = {
       ...PAGE,
-      raw: { ...PAGE.raw, comments: [{ text: "note" }] },
-    });
+      document: null,
+      storedBytes: 2 * 1024 * 1024,
+      sectionErrors: [{ section: "raw", message: "too large to show" }],
+    };
+    viewCasePageUseCase.mockResolvedValue(page);
+
+    expect((await get()).result).toEqual(page);
+  });
+
+  it.each([
+    ["the old `raw` object", { raw: { caseRef: "ref-1" } }],
+    ["a document that isn't base64", { document: "{not base64}" }],
+  ])("refuses a page carrying %s", async (_, extra) => {
+    viewCasePageUseCase.mockResolvedValue({ ...PAGE, ...extra });
 
     expect((await get()).statusCode).toBe(500);
   });

@@ -59,7 +59,7 @@ describe("listApiTokens", () => {
         row(C, { clientId: undefined, client: "fg-grants-platform-admin" }),
       ].map((document) => ({
         token: AccessToken.fromDocument(document),
-        stored: { _id: { $oid: document._id.toHexString() } },
+        document: `row ${document._id.toHexString()}`,
       })),
     );
     findCallerTokenId.mockResolvedValue(new ObjectId(A.toHexString()));
@@ -79,7 +79,7 @@ describe("listApiTokens", () => {
         revokedAt: null,
         revokedBy: null,
         inUse: true,
-        stored: { _id: { $oid: A.toHexString() } },
+        document: `row ${A.toHexString()}`,
       },
       expect.objectContaining({ tokenId: B.toHexString(), clientId: null }),
       expect.objectContaining({ tokenId: C.toHexString(), clientId: null }),

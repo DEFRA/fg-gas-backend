@@ -1,4 +1,5 @@
 import hapi from "@hapi/hapi";
+import { BSON } from "mongodb";
 import {
   afterAll,
   beforeAll,
@@ -29,7 +30,7 @@ const HEADER = {
 
 const PAGE = {
   header: HEADER,
-  raw: { anything: { at: ["all"] } },
+  document: BSON.serialize({ anything: { at: ["all"] } }).toString("base64"),
   storedBytes: 10,
   sourceErrors: [],
   sectionErrors: [],
@@ -75,6 +76,19 @@ describe("viewApplicationRawRoute", () => {
       tab: "raw",
       caller: "fg-grants-platform-admin",
     });
+  });
+
+  it("answers no `raw`, which a GPA reading it finds gone", async () => {
+    expect((await get()).result).not.toHaveProperty("raw");
+  });
+
+  it.each([
+    ["the old `raw` object", { raw: { anything: true } }],
+    ["a document that isn't base64", { document: "{not base64}" }],
+  ])("refuses a page carrying %s", async (_, extra) => {
+    viewApplicationPageUseCase.mockResolvedValue({ ...PAGE, ...extra });
+
+    expect((await get()).statusCode).toBe(500);
   });
 
   it("refuses a page that names another tab's key", async () => {

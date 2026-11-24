@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { fitsOverviewPart } from "../schemas/overview.schema.js";
 import { buildOverviewView, shapePart } from "./build-overview-view.js";
 
 const CAP = 10;
@@ -329,7 +330,7 @@ describe("toConfigFailed", () => {
 
 describe("toTokensExpiring", () => {
   it("answers the tokens read without their stored rows", () => {
-    const token = { tokenId: "a", status: "EXPIRED", stored: { id: "x" } };
+    const token = { tokenId: "a", status: "EXPIRED", document: "BQAAAAA=" };
 
     expect(
       shape("tokensExpiring", { withinDays: 30, tokens: [token] }),
@@ -337,6 +338,29 @@ describe("toTokensExpiring", () => {
       withinDays: 30,
       tokens: [{ tokenId: "a", status: "EXPIRED" }],
     });
+  });
+
+  it("answers a listed token as the Overview's token schema has it", () => {
+    const token = {
+      tokenId: "6650c1f2a9e4b1d07c20bd91",
+      clientId: "grants-ui",
+      status: "EXPIRED",
+      tokenHint: "ab12",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      createdBy: "Ada Lovelace",
+      expiresAt: new Date("2026-02-01T00:00:00.000Z"),
+      revokedAt: null,
+      revokedBy: null,
+      inUse: false,
+      document: "BQAAAAA=",
+    };
+
+    expect(
+      fitsOverviewPart(
+        "tokensExpiring",
+        shape("tokensExpiring", { withinDays: 30, tokens: [token] }),
+      ),
+    ).toBe(true);
   });
 });
 

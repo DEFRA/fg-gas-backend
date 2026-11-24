@@ -108,11 +108,11 @@ const toConfigFailed = ({ pages }) => {
   };
 };
 
-const withoutStored = ({ stored: _stored, ...token }) => token;
+const withoutDocument = ({ document: _document, ...token }) => token;
 
 const toTokensExpiring = ({ withinDays, tokens }) => ({
   withinDays,
-  tokens: tokens.map(withoutStored),
+  tokens: tokens.map(withoutDocument),
 });
 
 const shapers = {

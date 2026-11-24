@@ -158,7 +158,7 @@ const aToken = (tokenId, status, expiresAt) => ({
   revokedAt: null,
   revokedBy: null,
   inUse: false,
-  stored: {},
+  document: "BQAAAAA=",
 });
 
 const cwDeadLetters = (from = FROM) => ({

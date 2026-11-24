@@ -14,7 +14,11 @@ import {
 } from "../repositories/access-token.repository.js";
 
 export { assertExpiryChange } from "../models/access-token.js";
-export { HASH_RUN, MASKED_HASH } from "../models/masked-hash.js";
+export {
+  HASH_RUN,
+  MASKED_HASH,
+  isMaskedTokenRow,
+} from "../models/masked-hash.js";
 
 const tokenNotFound = () =>
   refusal(Boom.notFound("No such token"), "API_TOKEN_NOT_FOUND");
@@ -30,9 +34,9 @@ export const listApiTokens = async ({ callerHash }) => {
   ]);
 
   return {
-    tokens: listed.map(({ token, stored }) => ({
+    tokens: listed.map(({ token, document }) => ({
       ...token.toView({ inUse: isSameRow(callerTokenId, token) }),
-      stored,
+      document,
     })),
   };
 };
