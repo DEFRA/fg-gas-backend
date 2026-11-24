@@ -443,11 +443,11 @@ describe("Application status reporting", () => {
       events.map(({ event }) => event.eventData.applicationStatus),
     ).toEqual(["INTERNAL_REVIEW", "DECISION_MADE", "INTERNAL_REVIEW"]);
     const saved = await application.stored();
-    expect(events.at(-1).event.eventData).toMatchObject({
+    expect(events.at(-1).event.eventData).toEqual({
       eventType: "APPLICATION_STATUS_CHANGED",
       applicationId: saved.clientRef,
       applicationType: code,
-      sbi: saved.identifiers.sbi,
+      applicationStatus: saved.currentStatus,
       statusDate: saved.updatedAt,
       userId: "operator-1",
     });

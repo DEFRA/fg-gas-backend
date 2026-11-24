@@ -21,7 +21,7 @@ export const createApplicationStatusReportingPublication = ({
   userId,
   sequence,
 }) => {
-  const { code, clientRef, updatedAt, identifiers = {} } = application;
+  const { code, clientRef, updatedAt } = application;
   const event = {
     correlationId: randomUUID(),
     datetime: updatedAt,
@@ -32,7 +32,6 @@ export const createApplicationStatusReportingPublication = ({
       eventType: APPLICATION_STATUS_CHANGED,
       applicationId: clientRef,
       applicationType: code,
-      sbi: identifiers.sbi,
       applicationStatus: application.currentStatus,
       statusDate: updatedAt,
       ...(userId && { userId }),
