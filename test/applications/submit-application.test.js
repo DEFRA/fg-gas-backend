@@ -2,7 +2,7 @@ import { MongoClient } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { grant3 } from "../fixtures/grants.js";
+import { grant1, grant3 } from "../fixtures/grants.js";
 import {
   seedConfigVersion,
   submitApplication,
@@ -185,6 +185,63 @@ describe("POST /grants/{code}/applications", () => {
           },
           answers: {
             question1: "test answer",
+          },
+        },
+      },
+    });
+  });
+
+  it("queues a Water application report once when a submission is retried", async () => {
+    const code = "water-management";
+    const clientRef = `wmg-${randomUUID()}`;
+    await insertGrant({ ...grant1, code });
+    await seedConfigVersion(db, code);
+    const payload = {
+      metadata: {
+        clientRef,
+        submittedAt: "2000-01-01T12:00:00.000Z",
+        sbi: "800000001",
+        frn: "1000000001",
+        crn: "9000000001",
+        configVersion: "1.0.0",
+      },
+      answers: {
+        applicant: {
+          business: { name: "Example Farm" },
+          customer: { name: { first: "Jane", last: "Doe" } },
+        },
+        itemsPlanningToInstall: ["WATER_STORAGE_TANKS"],
+        waterStorageCapacity: 1000,
+        totalScore: 80,
+        estimatedMaxGrant: 28400,
+      },
+    };
+
+    const path = `/grants/${code}/applications`;
+    const response = await wreck.post(path, { payload });
+    expect(response.res.statusCode).toBe(204);
+    await expect(wreck.post(path, { payload })).rejects.toMatchObject({
+      data: { payload: { statusCode: 409 } },
+    });
+
+    const application = await applications.findOne({ code, clientRef });
+    const reports = await outbox
+      .find({
+        target: env.GAS__SNS__REPORTING_EVENTS_TOPIC_ARN,
+        "event.eventData.applicationId": clientRef,
+      })
+      .toArray();
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({
+      eventType: "ApplicationCreatedReport",
+      event: {
+        eventData: {
+          eventType: "APPLICATION_CREATED",
+          applicationType: code,
+          applicationReceiptDate: application.createdAt,
+          applicationPayload: {
+            totalScore: 80,
+            estimatedMaxGrant: 28400,
           },
         },
       },

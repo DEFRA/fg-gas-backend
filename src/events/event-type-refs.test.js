@@ -2,6 +2,7 @@ import { caseUpdateSupplementaryData } from "../grants/commands/update-case-supp
 import {
   AGREEMENT_CREATED,
   AGREEMENT_STATUS_CHANGED,
+  APPLICATION_CREATED,
   CLAIM_SUBMITTED,
 } from "@defra/grants-reporting-publisher";
 import { describe, expect, it, vi } from "vitest";
@@ -21,6 +22,7 @@ import { agreementStatusUpdated } from "../agreements/events/agreement-status-up
 import { caseCreate } from "../grants/commands/create-new-case.command.js";
 import { caseUpdateStatus } from "../grants/commands/update-case-status.command.js";
 import { applicationCreated } from "../grants/events/application-created.event.js";
+import { reportingApplicationCreated } from "../grants/events/application-reporting.event.js";
 import { applicationStatusUpdated } from "../grants/events/application-status-updated.event.js";
 import { claimPaymentRequested } from "../grants/events/claim-payment-requested.event.js";
 import { reportingClaimSubmitted } from "../grants/events/claim-reporting.event.js";
@@ -224,6 +226,22 @@ const declared = [
       },
     },
     refs: [],
+  },
+  {
+    eventType: reportingApplicationCreated,
+    sentAs: undefined,
+    boxes: [OUTBOX],
+    event: {
+      eventData: {
+        eventType: APPLICATION_CREATED,
+        applicationType: "water-management",
+        applicationId: "wmg-test-ref",
+      },
+    },
+    refs: [
+      ["ref", "wmg-test-ref"],
+      ["application", "water-management:wmg-test-ref"],
+    ],
   },
   {
     eventType: reportingClaimSubmitted,

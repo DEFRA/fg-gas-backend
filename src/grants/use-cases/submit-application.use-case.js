@@ -30,6 +30,7 @@ const submitApplication = async ({ code, submission }, session) => {
     code,
     submission,
     session,
+    { reportReceipt: true },
   );
   const series = ApplicationSeries.new({
     latestClientRef: submission.metadata.clientRef,
