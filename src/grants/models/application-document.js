@@ -27,9 +27,6 @@ export class ApplicationDocument {
     this.createdAt = application.createdAt;
     this.updatedAt = application.updatedAt;
     this.submittedAt = application.submittedAt;
-    if (application.lastReportedStatus !== undefined) {
-      this.lastReportedStatus = application.lastReportedStatus;
-    }
     this.identifiers = application.identifiers;
     this.metadata = application.metadata;
     this.phases = application.phases;

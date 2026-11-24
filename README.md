@@ -122,24 +122,12 @@ Content-Type: application/json
 }
 ```
 
-### Configure application status reporting
+### Application status reporting
 
-In the grant definition, set `reporting.status` on a lifecycle status to map
-it to a status agreed with the data warehouse. For example, a grant might use:
-
-```json
-[
-  { "code": "APPLICATION_RECEIVED", "reporting": { "status": "RECEIVED" } },
-  { "code": "INTERNAL_REVIEW" },
-  { "code": "APPLICATION_WITHDRAWN", "reporting": { "status": "WITHDRAWN" } }
-]
-```
-
-Once a grant opts in, its initial status must have a mapping. On a new
-submission GAS queues `APPLICATION_CREATED` followed by
-`APPLICATION_STATUS_CHANGED` with the initial mapped status. The initial event
-omits the previous status. Later transitions report only changes to the mapped
-status. Unmapped positions do not replace the last reported status.
+On a new submission GAS queues `APPLICATION_CREATED` followed by
+`APPLICATION_STATUS_CHANGED` with the initial GAS status code. Later changes
+queue one status event with the previous and resulting GAS status codes.
+The event is saved in the same transaction as the application change.
 
 ### Configure claim-approval transitions
 

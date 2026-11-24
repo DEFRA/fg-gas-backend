@@ -54,7 +54,7 @@ afterAll(async () => {
   vi.unstubAllEnvs();
 }, 120_000);
 
-const reported = (code, status) => ({ code, reporting: { status } });
+const initialStatus = "STATUS_APPLICATION_RECEIVED";
 
 const scenario = async (code, statuses, { submit = false } = {}) => {
   const clientRef = "application-1";
@@ -70,16 +70,17 @@ const scenario = async (code, statuses, { submit = false } = {}) => {
         stages: [
           {
             code: "ASSESSMENT",
-            statuses: [
-              reported("APPLICATION_RECEIVED", "RECEIVED"),
-              ...statuses,
-            ],
+            statuses: [{ code: initialStatus }, ...statuses],
           },
         ],
       },
     ],
   });
-  const application = createTestApplication({ code, clientRef });
+  const application = createTestApplication({
+    code,
+    clientRef,
+    currentStatus: initialStatus,
+  });
   if (submit) {
     await saveGrant(grant);
     await seedConfigVersion(db, code, grant.version, {
@@ -131,7 +132,7 @@ describe("Application status reporting", () => {
     const code = "reporting-initial";
     const application = await scenario(
       code,
-      [reported("APPLICATION_WITHDRAWN", "WITHDRAWN")],
+      [{ code: "APPLICATION_WITHDRAWN" }],
       { submit: true },
     );
     const stored = await application.stored();
@@ -159,74 +160,64 @@ describe("Application status reporting", () => {
     expect(reportingEvents[1]).toMatchObject({
       applicationId: reportingEvents[0].applicationId,
       applicationType: code,
-      applicationStatus: "RECEIVED",
+      applicationStatus: initialStatus,
       statusDate: stored.createdAt,
     });
     expect(reportingEvents[1]).not.toHaveProperty("previousApplicationStatus");
-    expect(stored.lastReportedStatus).toBe("RECEIVED");
 
     await application.move("APPLICATION_WITHDRAWN");
 
     const events = await application.events();
     expect(events).toHaveLength(2);
     expect(events[1].event.eventData).toMatchObject({
-      previousApplicationStatus: "RECEIVED",
-      applicationStatus: "WITHDRAWN",
+      previousApplicationStatus: initialStatus,
+      applicationStatus: "APPLICATION_WITHDRAWN",
     });
   });
 
-  it("records mapped changes, skipping retries and unreportable moves", async () => {
-    const first = await scenario("reporting-first", [
-      reported("DECISION_MADE", "APPROVED"),
-      reported("DECISION_RECORDED", "APPROVED"),
+  it("reports each committed status, including reversals, once", async () => {
+    const code = "reporting-all";
+    const application = await scenario(code, [
       { code: "INTERNAL_REVIEW" },
-      reported("APPLICATION_WITHDRAWN", "WITHDRAWN"),
-    ]);
-    const second = await scenario("reporting-second", [
       { code: "DECISION_MADE" },
     ]);
 
     await Promise.all([
-      first.move("DECISION_MADE"),
-      first.move("DECISION_MADE"),
+      application.move("INTERNAL_REVIEW"),
+      application.move("INTERNAL_REVIEW"),
     ]);
-    await second.move("DECISION_MADE");
-    await first.move("DECISION_RECORDED");
-    await first.move("INTERNAL_REVIEW");
-    await first.move("APPLICATION_WITHDRAWN");
-    await first.move("DECISION_MADE");
+    await application.move("DECISION_MADE");
+    await application.move("INTERNAL_REVIEW");
 
-    const events = await first.events();
+    const events = await application.events();
     expect(
       events.map(({ event }) => [
         event.eventData.previousApplicationStatus,
         event.eventData.applicationStatus,
       ]),
     ).toEqual([
-      ["RECEIVED", "APPROVED"],
-      ["APPROVED", "WITHDRAWN"],
-      ["WITHDRAWN", "APPROVED"],
+      [initialStatus, "INTERNAL_REVIEW"],
+      ["INTERNAL_REVIEW", "DECISION_MADE"],
+      ["DECISION_MADE", "INTERNAL_REVIEW"],
     ]);
-    const saved = await first.stored();
+    const saved = await application.stored();
     expect(events.at(-1).event.eventData).toMatchObject({
       eventType: "APPLICATION_STATUS_CHANGED",
       applicationId: saved.clientRef,
-      applicationType: saved.code,
+      applicationType: code,
       sbi: saved.identifiers.sbi,
       statusDate: saved.updatedAt,
       userId: "operator-1",
     });
-    expect(saved.lastReportedStatus).toBe("APPROVED");
-    expect(await second.events()).toEqual([]);
   });
 
   it("reports the final withdrawal rather than the intermediate request", async () => {
     const application = await scenario("reporting-withdrawal", [
       {
-        ...reported("WITHDRAWAL_REQUESTED", "PENDING_WITHDRAWAL"),
+        code: "WITHDRAWAL_REQUESTED",
         processes: ["REQUEST_APPLICATION_WITHDRAWAL"],
       },
-      reported("APPLICATION_WITHDRAWN", "WITHDRAWN"),
+      { code: "APPLICATION_WITHDRAWN" },
     ]);
 
     await application.move("WITHDRAWAL_REQUESTED");
@@ -234,18 +225,17 @@ describe("Application status reporting", () => {
     const events = await application.events();
     expect(events).toHaveLength(1);
     expect(events[0].event.eventData).toMatchObject({
-      previousApplicationStatus: "RECEIVED",
-      applicationStatus: "WITHDRAWN",
+      previousApplicationStatus: initialStatus,
+      applicationStatus: "APPLICATION_WITHDRAWN",
     });
     expect(await application.stored()).toMatchObject({
       currentStatus: "APPLICATION_WITHDRAWN",
-      lastReportedStatus: "WITHDRAWN",
     });
   });
 
   it("rolls the status and reporting event back together", async () => {
     const application = await scenario("reporting-rollback", [
-      reported("DECISION_MADE", "APPROVED"),
+      { code: "DECISION_MADE" },
     ]);
 
     await expect(
@@ -255,7 +245,7 @@ describe("Application status reporting", () => {
     ).rejects.toThrow("abort status change");
 
     expect(await application.stored()).toMatchObject({
-      currentStatus: "APPLICATION_RECEIVED",
+      currentStatus: initialStatus,
     });
     expect(await application.events()).toEqual([]);
   });

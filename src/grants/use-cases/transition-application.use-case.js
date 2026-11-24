@@ -163,8 +163,7 @@ export const transitionApplicationUseCase = async (
   await reportApplicationStatusChange(
     {
       application,
-      grant,
-      previousPosition,
+      previousApplicationStatus: previousPosition.status,
       reload: handlers.length > 0,
       userId: transitionUserId(sideEffectContext),
     },

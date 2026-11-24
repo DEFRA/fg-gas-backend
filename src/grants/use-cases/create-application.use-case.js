@@ -10,22 +10,6 @@ import { save } from "../repositories/application.repository.js";
 import { validateAnswersAgainstSchema } from "../services/schema-validation.service.js";
 import { resolveGrantForSubmission } from "./resolve-current-grant.use-case.js";
 
-const receiptPublications = (application) => {
-  const publications = createApplicationReportingPublications(application);
-  if (application.lastReportedStatus) {
-    publications.push(
-      createApplicationStatusReportingPublication({
-        application,
-        applicationStatus: application.lastReportedStatus,
-      }),
-    );
-  }
-  return publications;
-};
-
-const initialReportingStatus = (status, reportReceipt) =>
-  reportReceipt ? status.reporting?.status : undefined;
-
 const applicationPublications = (application, reportReceipt) => [
   {
     event: new ApplicationCreatedEvent({
@@ -40,7 +24,12 @@ const applicationPublications = (application, reportReceipt) => [
     event: new CreateNewCaseCommand(application),
     target: config.sns.createNewCaseTopicArn,
   },
-  ...(reportReceipt ? receiptPublications(application) : []),
+  ...(reportReceipt
+    ? [
+        ...createApplicationReportingPublications(application),
+        createApplicationStatusReportingPublication({ application }),
+      ]
+    : []),
 ];
 
 export const createApplicationUseCase = async (
@@ -73,7 +62,6 @@ export const createApplicationUseCase = async (
     currentPhase: phase.code,
     currentStage: stage.code,
     currentStatus: status.code,
-    lastReportedStatus: initialReportingStatus(status, reportReceipt),
     code,
     configVersion: resolvedVersion, // Application.new maps this to originalConfigVersion + currentConfigVersion
     clientRef,

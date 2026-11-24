@@ -92,7 +92,6 @@ const toApplication = (doc) =>
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     submittedAt: doc.submittedAt,
-    lastReportedStatus: doc.lastReportedStatus,
     identifiers: doc.identifiers ?? {},
     metadata: doc.metadata ?? {},
     phases: doc.phases,

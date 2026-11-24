@@ -78,7 +78,24 @@ describe("transitionApplicationUseCase", () => {
       newFullyQualifiedStatus: "PRE_AWARD:ASSESSMENT:IN_REVIEW",
     });
     expect(publishStatusTransition).toHaveBeenCalledWith(session);
-    expect(saveEvents).not.toHaveBeenCalled();
+    expect(saveEvents).toHaveBeenCalledExactlyOnceWith(
+      [
+        {
+          target: config.sns.reportingEventsTopicArn,
+          segregationRef: "application-1-test-grant",
+          event: expect.objectContaining({
+            eventData: expect.objectContaining({
+              eventType: "APPLICATION_STATUS_CHANGED",
+              applicationType: "test-grant",
+              applicationId: "application-1",
+              previousApplicationStatus: currentPosition.status,
+              applicationStatus: targetPosition.status,
+            }),
+          }),
+        },
+      ],
+      session,
+    );
   });
 
   it("publishes the Claims-originated Case Working status command", async () => {
