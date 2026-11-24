@@ -2,6 +2,7 @@ import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { GrantDocument } from "../../src/grants/models/grant-document.js";
 import { Grant } from "../../src/grants/models/grant.js";
+import { seedConfigVersion } from "./applications.js";
 
 export const insertGrant = async (payload) => {
   const client = await MongoClient.connect(env.MONGO_URI);
@@ -69,6 +70,30 @@ export const createTestGrant = (overrides = {}) => {
     ],
     ...overrides,
   });
+};
+
+// The config version first: seeding one copies an already stored version of
+// the grant onto it, which the replace then overwrites with this version's own.
+export const seedAdministeredGrant = async (
+  db,
+  code,
+  { role, description, version = "1.0.0" },
+) => {
+  await seedConfigVersion(db, code, version);
+  await db.collection("grants").replaceOne(
+    { code, version },
+    {
+      ...new GrantDocument(
+        createTestGrant({
+          code,
+          version,
+          metadata: { description, startDate: "2023-01-01T00:00:00Z" },
+          admin: role ? { role } : undefined,
+        }),
+      ),
+    },
+    { upsert: true },
+  );
 };
 
 export const createGrant = async (code = "test-code-1") => {
