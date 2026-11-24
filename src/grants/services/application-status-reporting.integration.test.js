@@ -18,6 +18,8 @@ let seedConfigVersion;
 let findByClientRefAndCode;
 let withTransaction;
 let transitionApplicationUseCase;
+let applyExternalStateChange;
+let grantResolution;
 let createTestApplication;
 let createTestGrant;
 
@@ -33,6 +35,10 @@ beforeAll(async () => {
     await import("../repositories/application.repository.js"));
   ({ transitionApplicationUseCase } =
     await import("../use-cases/transition-application.use-case.js"));
+  ({ applyExternalStateChange } =
+    await import("./apply-event-status-change.service.js"));
+  grantResolution =
+    await import("../use-cases/resolve-current-grant.use-case.js");
   ({ save: saveGrant } = await import("../repositories/grant.repository.js"));
   ({ claimEvents } =
     await import("../../events/repositories/outbox.repository.js"));
@@ -56,10 +62,15 @@ afterAll(async () => {
 
 const initialStatus = "STATUS_APPLICATION_RECEIVED";
 
-const scenario = async (code, statuses, { submit = false } = {}) => {
+const scenario = async (
+  code,
+  statuses,
+  { submit = false, externalStatusMap } = {},
+) => {
   const clientRef = "application-1";
   const grant = createTestGrant({
     code,
+    externalStatusMap,
     phases: [
       {
         code: "PRE_AWARD",
@@ -100,6 +111,8 @@ const scenario = async (code, statuses, { submit = false } = {}) => {
   const ref = { code, clientRef };
 
   return {
+    grant,
+    ref,
     move: (status, afterMove = () => {}) =>
       withTransaction(async (session) => {
         const current = await findByClientRefAndCode(ref, session);
@@ -208,6 +221,62 @@ describe("Application status reporting", () => {
       sbi: saved.identifiers.sbi,
       statusDate: saved.updatedAt,
       userId: "operator-1",
+    });
+  });
+
+  it("does not report a duplicate when another transaction commits the same status during grant resolution", async () => {
+    const target = "INTERNAL_REVIEW";
+    const application = await scenario(
+      "reporting-concurrent-sources",
+      [{ code: target }],
+      {
+        externalStatusMap: {
+          phases: [
+            {
+              code: "PRE_AWARD",
+              stages: [
+                {
+                  code: "ASSESSMENT",
+                  statuses: [{ code: target, source: "CW", mappedTo: target }],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    );
+    const resolving = Promise.withResolvers();
+    const resume = Promise.withResolvers();
+    const resolution = {
+      grant: application.grant,
+      resolvedVersion: "1.0.1",
+    };
+    const resolveGrant = vi
+      .spyOn(grantResolution, "resolveGrantForApplication")
+      .mockImplementationOnce(async () => {
+        resolving.resolve();
+        await resume.promise;
+        return resolution;
+      })
+      .mockResolvedValue(resolution);
+
+    const externalChange = applyExternalStateChange({
+      ...application.ref,
+      sourceSystem: "CW",
+      externalRequestedState: target,
+    });
+    try {
+      await resolving.promise;
+      await application.move(target);
+    } finally {
+      resume.resolve();
+      await externalChange.finally(() => resolveGrant.mockRestore());
+    }
+
+    expect(await application.events()).toHaveLength(1);
+    expect(await application.stored()).toMatchObject({
+      currentStatus: target,
+      currentConfigVersion: resolution.resolvedVersion,
     });
   });
 

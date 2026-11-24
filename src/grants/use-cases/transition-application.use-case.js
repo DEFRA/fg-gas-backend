@@ -2,9 +2,12 @@ import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { saveEvents } from "../../events/index.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
-import { reportApplicationStatusChange } from "../services/report-application-status-change.service.js";
+import { createApplicationStatusReportingPublication } from "../events/application-status-reporting.event.js";
 import { ApplicationStatus } from "../models/application.js";
-import { update } from "../repositories/application.repository.js";
+import {
+  findByClientRefAndCode,
+  update,
+} from "../repositories/application.repository.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
 import { addAgreementUseCase } from "./add-agreement.use-case.js";
 import { applyAgreementTerminationUseCase } from "./apply-agreement-termination.use-case.js";
@@ -121,6 +124,28 @@ const runTransitionProcesses = async (handlers, context, session) => {
 };
 
 const transitionUserId = (context) => context?.eventData?.userId;
+
+const reportApplicationStatusChange = async (
+  { application, previousApplicationStatus, reload, userId },
+  session,
+) => {
+  const { code, clientRef } = application;
+  // A transition process can set the final status in this transaction.
+  const saved = reload
+    ? await findByClientRefAndCode({ code, clientRef }, session)
+    : application;
+
+  if (saved.currentStatus === previousApplicationStatus) {
+    return;
+  }
+
+  const publication = createApplicationStatusReportingPublication({
+    application: saved,
+    previousApplicationStatus,
+    userId,
+  });
+  await saveEvents([publication], session);
+};
 
 export const transitionApplicationUseCase = async (
   {
