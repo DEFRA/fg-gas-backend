@@ -1,4 +1,4 @@
-import { Decimal128 } from "mongodb";
+import { Decimal128, ObjectId } from "mongodb";
 
 // A day, then nothing or a time: hours, minutes, seconds if given, and the
 // zone's offset if not Z.
@@ -68,14 +68,29 @@ export const dateOf = (value) => {
   return isDateText(value) ? new Date(value) : null;
 };
 
-const isTypedDate = (value) =>
-  value !== null && typeof value === "object" && Object.hasOwn(value, "date");
+const isTagged = (value, tag) =>
+  value !== null && typeof value === "object" && Object.hasOwn(value, tag);
 
-// A date typed as ISODate travels as { date }; it is read as its text.
-export const plainValue = (value) => (isTypedDate(value) ? value.date : value);
+// An ObjectId as it travels, { oid }.
+export const isOidTag = (value) => isTagged(value, "oid");
 
-export const typedOf = (value) =>
-  isTypedDate(value) ? new Date(value.date) : value;
+// A date typed as ISODate travels as { date }, an ObjectId as { oid }: each
+// is read as its text.
+export const plainValue = (value) => {
+  if (isTagged(value, "date")) {
+    return value.date;
+  }
+
+  return isOidTag(value) ? value.oid : value;
+};
+
+export const typedOf = (value) => {
+  if (isTagged(value, "date")) {
+    return new Date(value.date);
+  }
+
+  return isOidTag(value) ? ObjectId.createFromHexString(value.oid) : value;
+};
 
 // ── Reading ──
 
@@ -87,9 +102,6 @@ const isObjectId = (value) => value?._bsontype === "ObjectId";
 export const isBsonValue = (value) =>
   typeof value?._bsontype === "string" && !isObjectId(value);
 
-// Where a value sent typed was cut short: never a stored value.
-export const CUT = Object.freeze({});
-
 export const isPlainObject = (value) =>
   typeof value === "object" &&
   typeOf(value) === "object" &&
@@ -97,7 +109,7 @@ export const isPlainObject = (value) =>
 
 // An object whose fields are read, as opposed to a BSON value.
 export const isOpenObject = (value) =>
-  isPlainObject(value) && !isBsonValue(value) && value !== CUT;
+  isPlainObject(value) && !isBsonValue(value);
 
 const NUMERIC_BSON = new Set(["Decimal128", "Long", "Int32", "Double"]);
 
@@ -130,8 +142,32 @@ export const decimalOf = (text) => {
   return match ? canonicalDecimal(match) : null;
 };
 
-const isNumericBson = (value) =>
+export const isNumericBson = (value) =>
   isBsonValue(value) && NUMERIC_BSON.has(value._bsontype);
+
+const PROMOTED = {
+  Int32: (value) => value.valueOf(),
+  Double: (value) => value.valueOf(),
+  Long: (value) =>
+    value.lessThanOrEqual(Number.MAX_SAFE_INTEGER) &&
+    value.greaterThanOrEqual(Number.MIN_SAFE_INTEGER)
+      ? value.toNumber()
+      : value,
+};
+
+// A stored number as the driver's promotion reads it: an Int32 or Double as
+// a number, a Long as one where a number holds it exactly. Records are read
+// unpromoted, so each keeps its BSON type; a filter tests them so.
+export const promotedOf = (value) =>
+  isBsonValue(value) && Object.hasOwn(PROMOTED, value._bsontype)
+    ? PROMOTED[value._bsontype](value)
+    : value;
+
+// A Double is its binary value, not the shorter text it prints as.
+const decimalOfBson = (value) =>
+  value._bsontype === "Double" && Number.isFinite(value.valueOf())
+    ? doubleDecimalOf(value.valueOf())
+    : decimalOf(String(value));
 
 // A numeric BSON value a double can't hold exactly (past about 15 digits, or
 // 2^53), as its exact decimal; null for any other value.
@@ -140,7 +176,7 @@ export const exactOf = (value) => {
     return null;
   }
 
-  const exact = decimalOf(String(value));
+  const exact = decimalOfBson(value);
   const number = Number(String(value));
   const held = Number.isFinite(number) ? doubleDecimalOf(number) : null;
 
@@ -200,9 +236,10 @@ export const compareDecimals = (a, b) =>
 
 const BINARY_PLACES = 1100;
 
-// A finite double's exact value as a decimal from decimalOf: its binary
-// fraction written out, not its shortest text.
-export const doubleDecimalOf = (number) => {
+// A finite double's exact value as digits and an exponent, the fewest
+// places after the point it needs: its binary fraction written out, not its
+// shortest text.
+export const doubleDigitsOf = (number) => {
   let whole = number;
   let places = 0;
 
@@ -211,10 +248,11 @@ export const doubleDecimalOf = (number) => {
     places += 1;
   }
 
-  const digits = BigInt(whole) * 5n ** BigInt(places);
-
-  return decimalOf(`${digits}e-${places}`);
+  return `${BigInt(whole) * 5n ** BigInt(places)}e${-places}`;
 };
+
+// The same as a decimal from decimalOf.
+export const doubleDecimalOf = (number) => decimalOf(doubleDigitsOf(number));
 
 // The longest text of a Decimal128: 34 digits, a sign, a point and an
 // exponent.
@@ -240,7 +278,12 @@ export const isDecimalTag = (text) =>
 // element taken by position.
 const found = (into, value, whole) => {
   into.present = true;
-  into.values.push(...(Array.isArray(value) && !whole ? value : [value]));
+
+  if (Array.isArray(value) && !whole) {
+    value.forEach((element) => into.values.push(element));
+  } else {
+    into.values.push(value);
+  }
 };
 
 const walkKey = (value, [name, ...rest], into) => {
@@ -335,31 +378,6 @@ export const valueAt = (doc, reader, ctx = {}) =>
     ? reader.read(doc, ctx)[0]
     : fieldPath(doc, reader.names, reader.charge);
 
-// A value with what may not be read below its path taken out, so comparing
-// or keying objects never tells apart what is hidden in them. A list's
-// elements are at its own path.
-const readableAt = (value, path, reader) => {
-  reader.charge?.(1);
-
-  if (Array.isArray(value)) {
-    return value.map((element) => readableAt(element, path, reader));
-  }
-
-  return isOpenObject(value)
-    ? Object.fromEntries(
-        Object.entries(value)
-          .filter(([key]) => reader.readable(`${path}.${key}`))
-          .map(([key, inner]) => [
-            key,
-            readableAt(inner, `${path}.${key}`, reader),
-          ]),
-      )
-    : value;
-};
-
-export const readableOf = (value, reader) =>
-  reader?.readable ? readableAt(value, reader.path, reader) : value;
-
 // ── Types, as Mongo orders them ──
 
 export const TYPE_ORDER = {
@@ -400,12 +418,18 @@ export const order = (a, b) => {
   return a < b ? -1 : 1;
 };
 
+// ObjectIds in order of their 12 bytes, as their lower-case hex is.
+const SAME_TYPE_ORDER = {
+  date: (a, b) => order(a.getTime(), b.getTime()),
+  objectId: (a, b) => order(a.toHexString(), b.toHexString()),
+};
+
 export const sameTypeOrder = (a, b) =>
-  isDate(a) ? order(a.getTime(), b.getTime()) : order(a, b);
+  (SAME_TYPE_ORDER[typeOf(a)] ?? order)(a, b);
 
 // How a stored value compares with a typed one of its type, or null when
 // their types differ and no comparison holds.
-const COMPARABLE = new Set(["number", "string", "boolean", "date"]);
+const COMPARABLE = new Set(["number", "string", "boolean", "date", "objectId"]);
 
 export const compared = (stored, wanted) => {
   const value = asTypeOf(stored, wanted);

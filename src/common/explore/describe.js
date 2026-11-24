@@ -1,16 +1,18 @@
 import { STORED } from "../buckets/bucket.js";
 import { REFS, scansOf } from "../buckets/plan.js";
 import { readStoredValues, readTimeoutMs } from "../buckets/engine.js";
+import { readCollection } from "./read-only.js";
 
 const declares = {
   fact: (bucket, { fact }) => Object.hasOwn(bucket.facts, fact),
   ref: (bucket, { ref }) =>
     Object.hasOwn(bucket.refs, ref) || bucket.links.includes(ref),
   time: (bucket, _, path) => bucket.time.field === path,
+  id: (_bucket, _index, path) => path === "_id",
 };
 
 // A path's index kind, where its bucket declares what it reads by: none for
-// a fact, ref kind or time that bucket lacks.
+// a fact, ref kind or time that bucket lacks, nor for an id off `_id`.
 const isDeclared = (bucket, kind, entry) =>
   !bucket ||
   !Object.hasOwn(declares, kind) ||
@@ -81,8 +83,8 @@ export const describePaths = (source, bucket) =>
     ]),
   );
 
-// What a source reads, as another service reads it: its roots, its known
-// paths and how each is read through an index, never its functions.
+// What a source reads, as another service reads it: its known paths and how
+// each is read through an index, never its functions.
 export const describeSource = (source) => ({
   name: source.name,
   label: source.label,
@@ -91,16 +93,9 @@ export const describeSource = (source) => ({
   noun: source.noun,
   star: source.star,
   time: source.time,
-  roots: rootsOf(source),
   answersAt: source.answersAt ?? null,
   paths: source.paths.map(describePath(source, bucketOf(source))),
 });
-
-// The roots a source reads, with those it adds to each record.
-export const rootsOf = (source) => [
-  ...source.roots,
-  ...Object.keys(source.added ?? {}),
-];
 
 const MAX_KNOWN = 200;
 
@@ -124,6 +119,7 @@ const storedOf = async (bucket, field) => {
     bucket,
     factNameOf(field),
     readTimeoutMs(),
+    readCollection(bucket.collection),
   );
 
   return values?.map((value) => ({ value }));

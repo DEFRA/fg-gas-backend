@@ -1,4 +1,4 @@
-import { ObjectId } from "mongodb";
+import { BSON, ObjectId } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
 import {
@@ -165,13 +165,12 @@ describe("viewApplicationPageUseCase", () => {
     expect(page.sourceErrors).toEqual([{ hop: "GAS outbox" }]);
   });
 
-  it("raw: the whole stored document with its size, logged without a ref", async () => {
-    const id = new ObjectId();
-    const document = {
-      _id: id,
+  it("raw: the whole stored document as base64 with its size, logged without a ref", async () => {
+    const document = BSON.serialize({
+      _id: new ObjectId(),
       ...REF,
-      phases: [{ code: "PRE_AWARD", answers: { anything: [1, 2] } }],
-    };
+      phases: [{ code: "PRE_AWARD", answers: { note: "sentinel-7c1e" } }],
+    }).toString("base64");
     findApplicationDocument.mockResolvedValue({ document, storedBytes: 2048 });
 
     const page = await view("raw");
@@ -179,12 +178,20 @@ describe("viewApplicationPageUseCase", () => {
     expect(findApplicationDocument).toHaveBeenCalledWith(REF, {
       maxBytes: 1024 * 1024,
     });
-    expect(page.raw).toEqual(document);
+    expect(page.document).toBe(document);
     expect(page.storedBytes).toBe(2048);
     expect(page.sectionErrors).toEqual([]);
+    expect(page.header.clientRef).toBe("ref-1");
     expect(logger.info).toHaveBeenCalledWith(
       "Read application document: 2048 bytes",
     );
+
+    const logged = JSON.stringify(
+      Object.values(logger).map((log) => log.mock?.calls),
+    );
+
+    expect(logged).not.toContain("sentinel-7c1e");
+    expect(logged).not.toContain(document);
   });
 
   it("raw: too large to show, from its stored size, without the document", async () => {
@@ -195,10 +202,26 @@ describe("viewApplicationPageUseCase", () => {
 
     const page = await view("raw");
 
-    expect(page.raw).toBeNull();
+    expect(page.document).toBeNull();
     expect(page.storedBytes).toBe(2 * 1024 * 1024);
     expect(page.sectionErrors).toEqual([
       { section: "raw", message: "too large to show" },
+    ]);
+  });
+
+  it("raw: bytes that aren't BSON fail the tab alone, the header still drawn", async () => {
+    findApplicationDocument.mockResolvedValue({
+      document: Buffer.from("not bson").toString("base64"),
+      storedBytes: 8,
+    });
+
+    const page = await view("raw");
+
+    expect(page.header.clientRef).toBe("ref-1");
+    expect(page.document).toBeNull();
+    expect(page.storedBytes).toBeNull();
+    expect(page.sectionErrors).toEqual([
+      { section: "raw", message: "The stored document can't be read" },
     ]);
   });
 

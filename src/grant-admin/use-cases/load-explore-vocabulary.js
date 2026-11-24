@@ -3,7 +3,7 @@ import { logger } from "../../common/logger.js";
 import { parsePath } from "../../common/explore/paths.js";
 import { questionPaths } from "../explore/question-paths.js";
 import { ownSources } from "../explore/sources.js";
-import { buildVocabulary, sharedVersion } from "../explore/vocabulary.js";
+import { buildVocabulary } from "../explore/vocabulary.js";
 import { findGrantQuestionSchemas } from "../../grants/services/config-version.service.js";
 import {
   cwExploreFailure,
@@ -113,10 +113,6 @@ const loadAnswers = async (timeLeftMs) =>
 
 const readingCw = shared(async () => {
   const sources = await findCwExploreSources();
-
-  if (sharedVersion(sources.versions) === null) {
-    throw cwExploreFailure("ERRORED");
-  }
 
   cw = { at: Date.now(), sources };
 

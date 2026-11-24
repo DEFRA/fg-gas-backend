@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  DENIED,
   MALFORMED,
-  NOT_A_ROOT,
-  isDeniedName,
-  normalisedName,
+  hasDollarSegment,
+  isDollarSegment,
   parsePath,
   pathProblem,
 } from "./paths.js";
@@ -36,11 +34,25 @@ describe("parsePath", () => {
     expect(parsePath("hasOwnProperty")).toEqual(["hasOwnProperty"]);
   });
 
+  it("takes _id, keys starting _ and keys starting $ after the first", () => {
+    expect(parsePath("_id")).toEqual(["_id"]);
+    expect(parsePath("answers._internal")).toEqual(["answers", "_internal"]);
+    expect(parsePath("phases.questions.$schema")).toEqual([
+      "phases",
+      "questions",
+      "$schema",
+    ]);
+    expect(parsePath("a.$ref.$id")).toEqual(["a", "$ref", "$id"]);
+  });
+
   it.each([
-    ["answers.$where"],
     ["$answers"],
+    ["$schema.x"],
     ["answers.$"],
     ["answers.$[]"],
+    ["answers.$[x]"],
+    ["answers.$**"],
+    ["answers.$$x"],
     ["answers..name"],
     [".answers"],
     ["answers."],
@@ -59,63 +71,39 @@ describe("parsePath", () => {
   ])("refuses %s", (text) => {
     expect(parsePath(text)).toBeNull();
   });
-
-  it.each([
-    ["answers.applicant.Bank.SORTCODE"],
-    ["_secret"],
-    ["_id"],
-    ["answers._internal"],
-    ["answers.sort_code"],
-    ["answers.Sort-Code"],
-    ["answers.access_token"],
-    ["answers.dateOfBirth"],
-    ["event.ip"],
-    ["definition.actions.url"],
-    ["definitions.agreementsService.internalUrl"],
-    ["definitions.grant.s3Key"],
-    ["s3Bucket"],
-  ])("refuses the denied %s", (text) => {
-    expect(parsePath(text)).toBeNull();
-  });
 });
 
-describe("isDeniedName", () => {
-  it("compares names without case, _ or -", () => {
-    expect(normalisedName("Sort_Code-x")).toBe("sortcodex");
-    expect(isDeniedName("SORT_CODE")).toBe(true);
-    expect(isDeniedName("business")).toBe(false);
+describe("isDollarSegment", () => {
+  it("tells a key starting $ from any other", () => {
+    expect(isDollarSegment("$schema")).toBe(true);
+    expect(isDollarSegment("schema")).toBe(false);
+    expect(hasDollarSegment("phases.questions.$schema.type")).toBe(true);
+    expect(hasDollarSegment("phases.questions")).toBe(false);
   });
 });
 
 describe("pathProblem", () => {
-  const lists = {
-    roots: ["caseRef", "payload", "definition.phases", "agreement.clientRef"],
-  };
-
-  it("allows a path at or under a root, answers too", () => {
-    expect(pathProblem("caseRef", lists)).toBeNull();
-    expect(pathProblem("definition.phases.stages.code", lists)).toBeNull();
-    expect(pathProblem("agreement.clientRef", lists)).toBeNull();
-    expect(pathProblem("payload.identifiers.sbi", lists)).toBeNull();
-    expect(
-      pathProblem("payload.answers.applicant.business.name", lists),
-    ).toBeNull();
+  it.each([
+    ["caseRef"],
+    ["_id"],
+    ["payload._x"],
+    ["payload.bank.sortCode"],
+    ["comments.text"],
+    ["event.ip"],
+    ["definition.actions.url"],
+    ["definitions.grant.s3Key"],
+    ["phases.questions.$schema"],
+  ])("reads %s, as every well-formed path is read", (path) => {
+    expect(pathProblem(path)).toBeNull();
   });
 
   it.each([
-    ["case ref", MALFORMED],
-    ["payload..x", MALFORMED],
-    ["payload.bank.x", DENIED],
-    ["payload._x", DENIED],
-    ["comments", NOT_A_ROOT],
-    ["__proto__", MALFORMED],
-    ["definition", NOT_A_ROOT],
-    ["definition.endpoints", NOT_A_ROOT],
-    ["definition.phasesX", NOT_A_ROOT],
-    ["agreement.applicant.name", NOT_A_ROOT],
-    ["caseRefs", NOT_A_ROOT],
-    ["payload.answers.applicant.bank", DENIED],
-  ])("refuses %s as %s", (path, problem) => {
-    expect(pathProblem(path, lists)).toBe(problem);
+    ["case ref"],
+    ["payload..x"],
+    ["__proto__"],
+    ["$schema"],
+    ["payload.$"],
+  ])("refuses %s as malformed", (path) => {
+    expect(pathProblem(path)).toBe(MALFORMED);
   });
 });

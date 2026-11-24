@@ -69,6 +69,17 @@ export const storedBytesSchema = Joi.number()
   .allow(null)
   .required();
 
+// A Raw tab's stored document: base64 of its own BSON, null beside a `raw`
+// section error. Its bytes are checked when read, so a bad one fails the tab
+// alone.
+export const storedDocumentSchema = (label) =>
+  Joi.string()
+    .base64()
+    .allow(null)
+    .required()
+    .description("Base64 of the record's BSON as stored")
+    .label(label);
+
 export const recordEventsSchema = (label) =>
   Joi.object({
     rows: Joi.array().items(eventRowSchema).required(),

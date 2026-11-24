@@ -409,16 +409,39 @@ Caseworking's part, the rooms, the audit and the HTTP answer. The answer paths
 it suggests come from the grants' question schemas, read through
 `config-version.service.js`.
 
-An answer's cell shows an object, other than a name, inline as text: every
-field of it that may be read, with denied names left out, up to 2,000
-characters. The `EXPLORE_QUERY` audit records that the operator queried a
-source, the outcome, the rows returned and whether it was a CSV, never what
-was asked.
+Three parts of the engine are read outside Explore.
+`common/explore/stored-document.js` reads a record as stored, its own bytes
+and its stored size, through the same read-only view;
+`common/explore/bson-bytes.js` checks a token's row and a Raw tab's bytes;
+and `common/explore/query-schema.js`'s one-document allowance bounds a Raw
+tab's values. `grants`' application repository reads an application's Raw tab
+with the stored-document reader, and `auth`'s access-token repository each
+token's row, its hash masked by Mongo. `auth/models/masked-hash.js` checks a
+row's bytes with `common/explore/bson-bytes.js`, so no whole hash leaves GAS;
+the mask and that check stay `auth`'s. `grant-admin/services/raw-section.js`
+decides when a Raw tab's document, an application's or a case's, is too
+large to show.
 
-A source is what a query may read of one collection: its roots, its paths and
-how each is read through an index. Like a bucket, it is declared in the module
-that owns the collection and registered with `registerExploreSource` when that
-module's plugin starts:
+An answer's cell holds its whole value: an object inline as text, every
+field of it. With `starts`, each record row of a page also carries its
+record's start, the first of its stored bytes cut by
+`common/explore/document-start.js` as the record is read; with `documents`
+(Show it and Download JSON), its document as stored, mongod's own BSON. Rows
+carry only their records' `_id`, unwind positions and size; once the parts
+are merged, `grant-admin/explore/documents.js` fetches the shown rows' starts
+or documents in their order through `common/explore/document-fetch.js`
+(Caseworking's in one `documents` call a round). A page ends at the first row
+whose start wasn't read in time, Keep looking going on from it. Download JSON
+streams every document as NDJSON (`stream.js`, written by `services/ndjson.js`). The `EXPLORE_QUERY`
+audit records that the operator queried a source, the outcome, the rows
+returned and which download it was for, CSV or JSON, if any; never what was
+asked or shown.
+
+A source is one collection a query may read, every well-formed path of it:
+the paths it suggests, each with its stored type, and how each is read
+through an index (`_id` through the `_id` index, by ObjectId). Like a bucket,
+it is declared in the module that owns the collection and registered with
+`registerExploreSource` when that module's plugin starts:
 
 | Source         | Declared in                               | Registered by         |
 | -------------- | ----------------------------------------- | --------------------- |
@@ -431,11 +454,9 @@ module's plugin starts:
 A source names its collection by its own module's constant, so a renamed
 collection is renamed for Explore too. A payment's agreement is attached by
 naming the `agreements` source: `grant-admin/explore/sources.js` reads that
-source's collection and roots from the registry, so Payments imports nothing of
-Agreements and an agreement is read through a payment only where agreements may
-be read. `grant-admin/explore/sources.test.js` lists every registered source's
-roots and paths, so what may be read is reviewed in one place and a new source
-or path shows there.
+source's collection from the registry, so Payments imports nothing of
+Agreements. `grant-admin/explore/sources.test.js` lists every registered
+source's paths, so a new source or path shows there.
 
 ESLint lets a module's `explore/` folder import only that module and `common`,
 lets `grant-admin` reach the sources only through the registry, and keeps

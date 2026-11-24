@@ -1,10 +1,10 @@
+import { ObjectId } from "mongodb";
 import { decodeCursor } from "../buckets/cursor.js";
 import {
   COUNT_CAP,
   MAX_TIME_MS_EXPIRED,
   SECONDARY,
   and,
-  collectionOf,
   findOptions,
   keysetParts,
   matchParts,
@@ -15,16 +15,19 @@ import {
 import { SCAN_BUDGET } from "../buckets/plan.js";
 import { compileWhere, plainValue } from "./evaluate.js";
 import {
-  projectionOf,
   readPathsOf,
   readersFor,
+  sizedProjectionOf,
   usedReaders,
 } from "./fields.js";
 import { compareRows } from "./merge.js";
 import { chargeWork, eachStep, freely, step } from "./meter.js";
 import { testsOf } from "./query-schema.js";
+import { readCollection } from "./read-only.js";
 import { refusalOf, refuseQuery } from "./refusal.js";
-import { rowMaker, unwinder } from "./rows.js";
+import { idOf, rowMaker, unwinder } from "./rows.js";
+
+const readCollectionOf = ({ bucket }) => readCollection(bucket.collection);
 
 export const WINDOW = 5_000;
 export const SORT_CAP = 5_000;
@@ -56,12 +59,20 @@ const sortsInMongo = (orderBy, time) =>
 
 // ── One box ──
 
-export const boxContext = (source, box, query, lens) => {
-  const readers = readersFor(source, lens);
+// A record skipped as too large to search, as the caller lists it: what it
+// opens and its typed `_id`.
+export const skippedOf = (source, doc, box) => ({
+  open: source.open(doc, box),
+  id: idOf(doc),
+});
+
+export const boxContext = (source, box, query, charge) => {
+  const readers = readersFor(source, { charge });
 
   return {
     box,
     readers,
+    skip: (doc) => skippedOf(source, doc, box),
     make: rowMaker({
       query,
       readerOf: readers.readerOf,
@@ -69,11 +80,14 @@ export const boxContext = (source, box, query, lens) => {
       timeNames: [box.bucket.time.field],
     }),
     unwound: unwinder({ query, readerOf: readers.readerOf }),
-    projection: projectionOf([
-      ...readPathsOf(usedReaders(query, readers)),
-      ...source.openPaths,
-      box.bucket.time.field,
-    ]),
+    projection: sizedProjectionOf(
+      [
+        ...readPathsOf(usedReaders(query, readers)),
+        ...source.openPaths,
+        box.bucket.time.field,
+      ],
+      Boolean(query.documents),
+    ),
   };
 };
 
@@ -125,16 +139,22 @@ const filterOf = (read) =>
 // Small batches, so no one batch of records holds the event loop long.
 const BATCH = 200;
 
+// Records are read with their numbers' BSON types, as mongod's expressions
+// and $group see them (evaluate.js promotedOf), and a regex with every one
+// of its options.
+export const UNPROMOTED = { promoteValues: false, bsonRegExp: true };
+
 const options = (read, extra) => ({
   ...findOptions(read),
   readPreference: SECONDARY,
   allowDiskUse: false,
   batchSize: BATCH,
+  ...UNPROMOTED,
   ...extra,
 });
 
 export const countBox = async (read, cap) => {
-  const found = await collectionOf(read)
+  const found = await readCollectionOf(read)
     .countDocuments(filterOf(read), {
       hint: findOptions(read).hint,
       maxTimeMS: timeLeft(read),
@@ -160,7 +180,7 @@ const keysetOf = (read) =>
     : [];
 
 export const readEdge = async (read) => {
-  const [edge = null] = await collectionOf(read)
+  const [edge = null] = await readCollectionOf(read)
     .find(
       and([filterOf(read), ...keysetOf(read)]),
       options(read, {
@@ -210,7 +230,7 @@ const ascending = (read) => ({
 });
 
 export const findDocs = (read, context, extra = {}) =>
-  collectionOf(read).find(
+  readCollectionOf(read).find(
     filterOf(read),
     options(read, { projection: context.projection, ...extra }),
   );
@@ -234,17 +254,19 @@ export const emptyBox = (box, end = true) => ({
 // its first record is more than one request can afford to search, that
 // record is skipped: the window ends just past it and says so, so Keep
 // looking always moves on. Its rows are those found so far.
-const endsAt = (found) =>
+const endsAt = (found, context) =>
   found.lastRead
-    ? { doc: found.lastRead, skipped: 0 }
-    : { doc: found.current, skipped: 1 };
+    ? { doc: found.lastRead, skipped: [] }
+    : { doc: found.current, skipped: [context.skip(found.current)] };
 
-const endedEarly = (box, found, error) => {
+const endedEarly = (context, found, error) => {
+  const { box } = context;
+
   if (refusalOf(error) !== "TOO_COSTLY" || !found.current) {
     throw error;
   }
 
-  const { doc, skipped } = endsAt(found);
+  const { doc, skipped } = endsAt(found, context);
 
   return {
     id: box.id,
@@ -279,7 +301,7 @@ export const readWindow = async (context, planned, query, meter) => {
 
   try {
     await eachDoc(
-      collectionOf(read).find(
+      readCollectionOf(read).find(
         and([filterOf(read), ...keysetParts(read), ...withinEdge(read, edge)]),
         options(read, { projection: context.projection }),
       ),
@@ -300,7 +322,7 @@ export const readWindow = async (context, planned, query, meter) => {
       true,
     );
   } catch (error) {
-    return endedEarly(box, found, error);
+    return endedEarly(context, found, error);
   }
 
   const full = rows.length === query.limit;
@@ -383,9 +405,9 @@ export const eachUnwound = (unwound, query, meter, take) => {
   const cost = 1 + shapeCost(query);
 
   return async (doc) => {
-    for (const one of unwound(doc)) {
+    for (const { doc: one, at } of unwound(doc)) {
       await step(meter, cost);
-      take(one);
+      take(one, at);
     }
   };
 };
@@ -429,11 +451,11 @@ export const unwoundRows = (query, make, inOrder) => {
   let n = 0;
 
   return {
-    take: (one, box) => {
+    take: (one, box, at) => {
       n += 1;
 
       if (kept.wants()) {
-        kept.add(make(one, box));
+        kept.add(make(one, box, at));
       }
     },
     answer: () => ({ rows: kept.rows(), count: { n, capped: false } }),
@@ -449,8 +471,8 @@ const readUnwound = async (context, planned, query, meter) => {
     context.make,
     sortsInMongo(query.orderBy, read.bucket.time.field),
   );
-  const take = eachUnwound(context.unwound, query, meter, (one) =>
-    found.take(one, context.box),
+  const take = eachUnwound(context.unwound, query, meter, (one, at) =>
+    found.take(one, context.box, at),
   );
   const extra = isTimeAscending(query.orderBy, read.bucket.time.field)
     ? ascending(read)
@@ -468,6 +490,46 @@ const readUnwound = async (context, planned, query, meter) => {
   );
 
   return { id: context.box.id, to: null, end: true, ...found.answer() };
+};
+
+// ── By id ──
+
+const ID_HINT = { _id: 1 };
+
+const idsPart = (planned) => ({
+  _id: { $in: planned.ids.map((hex) => ObjectId.createFromHexString(hex)) },
+});
+
+// The records an id read finds in one box, each tested as the query asks:
+// at most MAX_IDS, read through the `_id` index every collection has.
+export const idDocs = async (context, planned, meter) => {
+  const read = engineRead(planned, null, meter);
+  const found = await readCollectionOf(read)
+    .find(and([idsPart(planned), ...matchParts(read)]), {
+      projection: context.projection,
+      hint: ID_HINT,
+      ...UNPROMOTED,
+      maxTimeMS: timeLeft(read),
+      readPreference: SECONDARY,
+      allowDiskUse: false,
+      limit: planned.ids.length,
+    })
+    .toArray()
+    .catch(readFailed);
+  const test = compileWhere(
+    planned.residual,
+    context.readers.readerOf,
+    chargeTo(meter),
+  );
+  const docs = [];
+
+  await eachStep(found, meter, costOf(planned.residual), (doc) => {
+    if (test(doc, context.box)) {
+      docs.push(doc);
+    }
+  });
+
+  return docs;
 };
 
 export const readBox = (context, planned, query, meter) =>

@@ -1,4 +1,4 @@
-import { MongoClient, ObjectId } from "mongodb";
+import { BSON, MongoClient, ObjectId } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { env } from "node:process";
 import {
@@ -23,6 +23,7 @@ import {
   createTestGrant,
   insertGrant,
 } from "../helpers/grants.js";
+import { ODD_ELEMENTS, rawInsert, withElements } from "../helpers/raw-bson.js";
 import { sendMessage } from "../helpers/sqs.js";
 import { wreck } from "../helpers/wreck.js";
 import { withoutShell } from "../helpers/shell.js";
@@ -315,57 +316,102 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
     expect(page.sectionErrors).toEqual([]);
   });
 
-  it("raw: the whole stored document, two differently shaped answers back unchanged", async () => {
-    const wmp = anApplication("ref-1");
+  const storedOf = async (clientRef) => {
+    const [buf] = await applications
+      .find({ clientRef }, { raw: true })
+      .toArray();
+
+    return Buffer.from(buf);
+  };
+
+  const bytesOf = (page) => Buffer.from(page.document, "base64");
+
+  it("raw: the stored document as its own bytes, every type and key kept", async () => {
+    const doc = withElements(
+      BSON.serialize(anApplication("ref-1", { storedBytes: "its own" })),
+      ODD_ELEMENTS,
+    );
+    await rawInsert(env.MONGO_URI, db.databaseName, "applications", [doc]);
+
+    const { payload: page } = await getTab("raw");
+
+    expect(
+      applicationPageSchemas.raw.validate(withoutShell(page)).error,
+    ).toBeUndefined();
+    expect(page).not.toHaveProperty("raw");
+    expect(bytesOf(page).equals(await storedOf("ref-1"))).toBe(true);
+    expect(bytesOf(page).equals(doc)).toBe(true);
+    expect(page.storedBytes).toBe(doc.length);
+    expect(page.sectionErrors).toEqual([]);
+  });
+
+  it("raw: two differently shaped documents, each as stored", async () => {
     const frps = anApplication("ref-2", {
       phases: [
-        {
-          code: "PRE_AWARD",
-          answers: { applicant: { business: { name: "X" } } },
-        },
         { code: "AWARD", answers: { actions: [["CMOR1", 3]], total: 12.75 } },
       ],
     });
-    await applications.insertMany([wmp, frps]);
+    await applications.insertMany([anApplication("ref-1"), frps]);
 
-    for (const doc of [wmp, frps]) {
-      const { payload: page } = await getTab("raw", doc.clientRef);
+    for (const clientRef of ["ref-1", "ref-2"]) {
+      const { payload: page } = await getTab("raw", clientRef);
+
+      expect(bytesOf(page).equals(await storedOf(clientRef))).toBe(true);
+    }
+  });
+
+  const ofSize = (bytes) => {
+    const doc = anApplication("ref-1", { pad: "" });
+
+    return { ...doc, pad: "x".repeat(bytes - BSON.calculateObjectSize(doc)) };
+  };
+
+  it("raw: a document of 900 KiB is shown whole", async () => {
+    await applications.insertOne(ofSize(900 * 1024));
+
+    const { payload: page } = await getTab("raw");
+
+    expect(bytesOf(page)).toHaveLength(900 * 1024);
+    expect(page.storedBytes).toBe(900 * 1024);
+    expect(page.sectionErrors).toEqual([]);
+  });
+
+  it.each([
+    ["1 MiB and 1 byte", 1024 * 1024 + 1],
+    ["2 MiB", 2 * 1024 * 1024],
+  ])(
+    "raw: a document of %s is too large to show, its size still given",
+    async (_, bytes) => {
+      await applications.insertOne(ofSize(bytes));
+
+      const { payload: page } = await getTab("raw");
 
       expect(
         applicationPageSchemas.raw.validate(withoutShell(page)).error,
       ).toBeUndefined();
-      expect(page.raw.phases).toEqual(doc.phases);
-      expect(page.raw.metadata).toEqual(doc.metadata);
-      expect(page.raw._id).toBe(doc._id.toHexString());
-      expect(page.raw).not.toHaveProperty("storedBytes");
-      expect(page.storedBytes).toBeGreaterThan(0);
-    }
-  });
+      expect(page.header.clientRef).toBe("ref-1");
+      expect(page.document).toBeNull();
+      expect(page.storedBytes).toBe(bytes);
+      expect(page.sectionErrors).toEqual([
+        { section: "raw", message: "too large to show" },
+      ]);
+    },
+  );
 
-  it("raw: a document with its own storedBytes field comes back unchanged", async () => {
-    const doc = anApplication("ref-1", { storedBytes: "the document's own" });
-    await applications.insertOne(doc);
-
-    const { payload: page } = await getTab("raw");
-
-    expect(page.raw.storedBytes).toBe("the document's own");
-    expect(page.raw.phases).toEqual(doc.phases);
-    expect(page.storedBytes).toBeGreaterThan(0);
-  });
-
-  it("raw: a document over 1 MiB is too large to show, its size still given", async () => {
+  it("raw: a document of more values than one may print is too large to show", async () => {
+    const letters = [..."abcdefghijklmnopqrstuvwxyz"];
     await applications.insertOne(
       anApplication("ref-1", {
-        phases: [
-          { code: "PRE_AWARD", answers: { blob: "x".repeat(1_100_000) } },
-        ],
+        dense: Array.from({ length: 10_000 }, () =>
+          Object.fromEntries(letters.map((letter) => [letter, null])),
+        ),
       }),
     );
 
     const { payload: page } = await getTab("raw");
 
-    expect(page.raw).toBeNull();
-    expect(page.storedBytes).toBeGreaterThan(1_100_000);
+    expect(page.document).toBeNull();
+    expect(page.storedBytes).toBeLessThan(1024 * 1024);
     expect(page.sectionErrors).toEqual([
       { section: "raw", message: "too large to show" },
     ]);
@@ -527,13 +573,16 @@ describe("the same Client Reference in two grants", () => {
   const REF = `client-wmp-test-${randomUUID()}`;
   const GRANTS = ["test-code-1", "test-code-2"];
 
-  const grantOf = ({ data }) =>
-    data?.code ?? data?.grantCode ?? data?.workflowCode;
+  const grantOf = ({ data, eventData }) =>
+    data?.code ??
+    data?.grantCode ??
+    data?.workflowCode ??
+    eventData?.applicationType;
 
   // The rows each grant's writers wrote, read from the stored envelopes.
   const storedRowsOf = async (code) => {
     const rows = [
-      ...(await outbox.find({ "event.data": { $exists: true } }).toArray()),
+      ...(await outbox.find().toArray()),
       ...(await inbox.find().toArray()),
     ];
 
@@ -591,6 +640,7 @@ describe("the same Client Reference in two grants", () => {
       expect(stored.map(({ type }) => type)).toEqual(
         expect.arrayContaining([
           "ApplicationCreated",
+          "ApplicationCreatedReport",
           "CreateCase",
           "CaseStatusUpdated",
         ]),

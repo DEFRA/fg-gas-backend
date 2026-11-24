@@ -1,4 +1,5 @@
 import { MAX_SCANS } from "../buckets/plan.js";
+import { isOidTag } from "./evaluate-read.js";
 import { isDayText, isInstantText } from "./evaluate.js";
 
 export const NESTED = "NESTED";
@@ -8,6 +9,10 @@ export const REPEATED = "REPEATED";
 export const SECOND_REF = "SECOND_REF";
 export const WITHOUT_PARTNER = "WITHOUT_PARTNER";
 export const TOO_MANY_COMBINATIONS = "TOO_MANY_COMBINATIONS";
+export const TOO_MANY_IDS = "TOO_MANY_IDS";
+
+// The most ObjectIds one id read takes, every id test's together.
+export const MAX_IDS = 50;
 
 export const RESIDUAL_REASONS = [
   NESTED,
@@ -17,9 +22,12 @@ export const RESIDUAL_REASONS = [
   SECOND_REF,
   WITHOUT_PARTNER,
   TOO_MANY_COMBINATIONS,
+  TOO_MANY_IDS,
 ];
 
 const TIME_OPS = ["eq", "lt", "lte", "gt", "gte"];
+
+const ID = "_id";
 
 const isDate = (value) =>
   value !== null && typeof value === "object" && Object.hasOwn(value, "date");
@@ -51,6 +59,9 @@ const OPERATORS = {
     TIME_OPS.includes(op) &&
     (op === "eq" ? isDate(values[0]) : isBound(values[0])),
   box: () => true,
+  // Only `_id` is read through the `_id` index.
+  id: (_, { path, op, values }) =>
+    path === ID && ["eq", "in"].includes(op) && values.every(isOidTag),
 };
 
 const isLeaf = (test) => Object.hasOwn(test, "op");
@@ -94,16 +105,14 @@ const REF_KINDS = ["ref", "refs"];
 // itself, read as stored.
 const isRef = (field) => REF_KINDS.includes(field.index);
 
-const UNION_KINDS = ["fact", ...REF_KINDS];
+const UNION_KINDS = new Set(["fact", "id", ...REF_KINDS]);
 
 const isUnionTest = (test) => UNION_OPS.includes(test.op) && noBlank(test);
 
 const isUnionBranch = (fieldOf) => (test) => {
   const field = isLeaf(test) ? indexedField(fieldOf, test) : null;
 
-  return (
-    Boolean(field) && isUnionTest(test) && UNION_KINDS.includes(field.index)
-  );
+  return Boolean(field) && isUnionTest(test) && UNION_KINDS.has(field.index);
 };
 
 const isOneUnion = (branches, fieldOf) =>
@@ -163,18 +172,46 @@ const take = (taken, test, field) => {
 
 // A test read beside no partner is tested as it was asked.
 const withPartners = (classified, taken) =>
-  classified.map(({ asked, ...entry }) =>
+  classified.map((entry) =>
     !entry.why && entry.field.within && !taken.facts.has(entry.field.within)
-      ? { ...entry, test: asked, why: WITHOUT_PARTNER }
+      ? { ...entry, test: entry.asked, why: WITHOUT_PARTNER }
       : entry,
   );
+
+const isIdTest = ({ why, field }) => !why && field.index === "id";
+
+// Every id test's ObjectIds, once each, when there are at most MAX_IDS;
+// more, and each id test is tested record by record instead.
+const withIds = (classified, taken) => {
+  const ids = [
+    ...new Set(
+      classified
+        .filter(isIdTest)
+        .flatMap(({ test }) => test.values.map(({ oid }) => oid)),
+    ),
+  ];
+
+  if (ids.length <= MAX_IDS) {
+    taken.ids = ids;
+
+    return classified;
+  }
+
+  return classified.map((entry) =>
+    isIdTest(entry)
+      ? { ...entry, test: entry.asked, why: TOO_MANY_IDS }
+      : entry,
+  );
+};
 
 // Each top-level test of a WHERE, and whether it is read through the index:
 // `why` is null when it is, else the reason it is tested record by record.
 // `fieldOf` names a path's index kind, whether its values are closed, and
 // the path it is within. The checker and the planner both read tests so.
+// `taken.ids` holds the ObjectIds of an id read (isIdRead): the read is of
+// those records only, and every other test is tested on each.
 export const classifyTests = (conditions, fieldOf) => {
-  const taken = { facts: new Set(), ref: null, scans: 1 };
+  const taken = { facts: new Set(), ref: null, scans: 1, ids: [] };
   const classified = conditions.map((asked) => {
     const test = unionOf(asked, fieldOf);
     const field = isLeaf(test) ? indexedField(fieldOf, test) : null;
@@ -187,8 +224,16 @@ export const classifyTests = (conditions, fieldOf) => {
     return { test: why ? asked : test, asked, field, why };
   });
 
-  return { tests: withPartners(classified, taken), taken };
+  return {
+    tests: withIds(withPartners(classified, taken), taken).map(
+      ({ asked: _asked, ...entry }) => entry,
+    ),
+    taken,
+  };
 };
+
+// Whether the tests taken make an id read: exact, whatever else is tested.
+export const isIdRead = (taken) => taken.ids.length > 0;
 
 export const topLevelOf = (where) => {
   if (!where) {
@@ -202,7 +247,7 @@ export const topLevelOf = (where) => {
 // ref already read: a path within another is offered beside it.
 export const usablePaths = (paths, taken) =>
   paths
-    .filter(({ index }) => index)
+    .filter(({ index }) => index && index !== "id")
     .filter(
       (field) =>
         !isRef(field) || taken.ref === null || taken.ref === field.path,

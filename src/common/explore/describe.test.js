@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { readStoredValues } from "../buckets/engine.js";
+import { READS } from "./read-only.js";
 import { describeSource, knownValuesOf } from "./describe.js";
 import { testSource } from "./test-source.js";
 
@@ -30,8 +31,9 @@ describe("describeSource", () => {
       star: ["publicationDate", "box", "eventType", "status"],
       answersAt: "payload.answers",
     });
-    expect(described.roots).toEqual([...testSource().roots, "box"]);
+    expect(described).not.toHaveProperty("roots");
     expect(described.paths).toEqual([
+      entry("_id", { type: "objectId", index: "id" }),
       entry("ref", { index: "ref", scans: 1 }),
       entry("refs", { index: "refs", scans: 1 }),
       entry("msg", { index: "ref", scans: 1 }),
@@ -51,17 +53,19 @@ describe("describeSource", () => {
     expect(JSON.stringify(described)).not.toContain("open");
   });
 
-  it("drops an index its bucket doesn't declare, a time on another path too", () => {
+  it("drops an index its bucket doesn't declare, a time or an id on another path too", () => {
     const source = {
       ...testSource(),
       paths: [
         { path: "createdAt", index: { time: true } },
         { path: "other", index: { ref: "nope" } },
         { path: "x", index: { fact: "nope" } },
+        { path: "ownerId", index: { id: true } },
       ],
     };
 
     expect(describeSource(source).paths.map(({ index }) => index)).toEqual([
+      null,
       null,
       null,
       null,
@@ -89,7 +93,9 @@ describe("knownValuesOf", () => {
       expect.objectContaining({ id: "test.outbox" }),
       "code",
       1000,
+      expect.anything(),
     );
+    expect(Object.keys(readStoredValues.mock.calls[0][3])).toEqual(READS);
   });
 
   it("keeps stored values in the order the index holds them", async () => {

@@ -26,7 +26,6 @@ describe("readersFor", () => {
     expect(readersFor(source).readerOf({ path: "event.data.sbi" })).toEqual({
       path: "event.data.sbi",
       names: ["event", "data", "sbi"],
-      readable: expect.any(Function),
       charge: undefined,
     });
   });
@@ -42,7 +41,6 @@ describe("readersFor", () => {
     expect(readersFor({ name: "x" }).readerOf({ path: "service" })).toEqual({
       path: "service",
       names: ["service"],
-      readable: expect.any(Function),
       charge: undefined,
     });
   });
@@ -100,5 +98,30 @@ describe("usedReaders and projectionOf", () => {
     );
 
     expect(projectionOf(readPathsOf(used))).toEqual({ phases: 1, "a.b": 1 });
+  });
+
+  it("projects a record's own key whole, a number too, as a record is no list", () => {
+    const used = usedReaders(
+      query({ columns: [{ path: "2026" }, { path: "7.a.0" }] }),
+      readersFor({ name: "x" }),
+    );
+
+    expect(projectionOf(readPathsOf(used))).toEqual({ 2026: 1, "7.a": 1 });
+  });
+
+  it("projects a path down to its first $ key, which Mongo refuses to project", () => {
+    const used = usedReaders(
+      query({
+        where: { path: "phases.questions.$schema", op: "filled", values: [] },
+        columns: [{ path: "a.$ref.$id" }, { path: "_id" }],
+      }),
+      readersFor({ name: "x" }),
+    );
+
+    expect(projectionOf(readPathsOf(used))).toEqual({
+      "phases.questions": 1,
+      a: 1,
+      _id: 1,
+    });
   });
 });

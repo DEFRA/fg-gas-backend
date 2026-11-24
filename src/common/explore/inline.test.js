@@ -1,12 +1,14 @@
-import { Binary, Decimal128, Long, ObjectId, Timestamp } from "mongodb";
-import { describe, expect, it } from "vitest";
 import {
-  MAX_INLINE_LENGTH,
-  inlineOf,
-  isNameObject,
-  nameOf,
-  objectCellOf,
-} from "./inline.js";
+  Binary,
+  Decimal128,
+  Double,
+  Int32,
+  Long,
+  ObjectId,
+  Timestamp,
+} from "mongodb";
+import { describe, expect, it } from "vitest";
+import { inlineOf, objectCellOf } from "./inline.js";
 
 describe("inlineOf", () => {
   it("prints a flat object as mongosh does", () => {
@@ -58,49 +60,63 @@ describe("inlineOf", () => {
     );
   });
 
-  it("writes only what the reader may read, below its path", () => {
-    const reader = {
-      path: "plan",
-      readable: (path) => !path.startsWith("plan.hidden"),
-    };
-
+  it("writes every key, whatever its name", () => {
     expect(
-      inlineOf(
-        { ref: "a", hidden: { x: 1 }, list: [{ hidden: 1, y: 2 }] },
-        reader,
-      ),
-    ).toBe("{ ref: 'a', list: [ { hidden: 1, y: 2 } ] }");
-    expect(
-      objectCellOf(
-        { first: "Sam", last: "Rowe" },
-        { path: "name", readable: (path) => path !== "name.last" },
-      ),
-    ).toBe("Sam");
+      inlineOf({
+        _id: 1,
+        $schema: "x",
+        sortCode: "1",
+        url: "u",
+        hidden: { _x: 1 },
+      }),
+    ).toBe(
+      "{ _id: 1, '$schema': 'x', sortCode: '1', url: 'u', hidden: { _x: 1 } }",
+    );
   });
 
-  it("escapes no more of a long text than it shows", () => {
-    const text = inlineOf({ note: `'${"x".repeat(10_000_000)}` });
-
-    expect(text).toHaveLength(MAX_INLINE_LENGTH);
-    expect(text.startsWith("{ note: '\\'xxx")).toBe(true);
-    expect(text.endsWith("x…")).toBe(true);
+  it("prints Int32 and Double as plain numbers, as mongosh does", () => {
+    expect(
+      inlineOf({ a: new Int32(5), b: new Double(5), c: new Double(-0) }),
+    ).toBe("{ a: 5, b: 5, c: -0 }");
   });
 
-  it("visits no more of a large object than its text shows", () => {
+  it("writes a long text whole", () => {
+    const long = `'${"x".repeat(1_000_000)}`;
+
+    expect(inlineOf({ note: long })).toBe(
+      `{ note: '\\'${"x".repeat(1_000_000)}' }`,
+    );
+  });
+
+  it("writes a large object whole, visiting every value once", () => {
     let visited = 0;
     const big = Object.fromEntries(
-      Array.from({ length: 100_000 }, (_, n) => [`k${n}`, { v: n }]),
+      Array.from({ length: 10_000 }, (_, n) => [`k${n}`, { v: n }]),
     );
     const text = inlineOf(big, {
       path: "big",
-      readable: () => true,
       charge: (units) => {
         visited += units;
       },
     });
 
-    expect(text).toHaveLength(MAX_INLINE_LENGTH);
-    expect(visited).toBeLessThan(1000);
+    expect(text.endsWith("k9999: { v: 9999 } }")).toBe(true);
+    expect(visited).toBe(20_001);
+  });
+
+  it("writes a 21-level object and a 3,552-item list whole", () => {
+    let deep = { v: 1 };
+
+    for (let n = 0; n < 21; n += 1) {
+      deep = { d: deep };
+    }
+
+    expect(inlineOf(deep)).toBe(
+      `${"{ d: ".repeat(21)}{ v: 1 }${" }".repeat(21)}`,
+    );
+    expect(inlineOf({ list: Array.from({ length: 3552 }, (_, n) => n) })).toBe(
+      `{ list: [ ${Array.from({ length: 3552 }, (_, n) => n).join(", ")} ] }`,
+    );
   });
 
   it("prints dates and ids as mongosh does", () => {
@@ -115,81 +131,23 @@ describe("inlineOf", () => {
     );
   });
 
-  it("reads a name object inside as one name", () => {
+  it("writes a name object as the object it is", () => {
     expect(
       inlineOf({ applicant: { first: "Jo", middle: null, last: "Bloggs" } }),
-    ).toBe("{ applicant: 'Jo Bloggs' }");
+    ).toBe("{ applicant: { first: 'Jo', middle: null, last: 'Bloggs' } }");
   });
 
-  it("leaves out denied names and undefined values at any depth", () => {
+  it("leaves out undefined values at any depth", () => {
     expect(inlineOf({ a: { sortCode: "1", _id: 2, b: 3, c: undefined } })).toBe(
-      "{ a: { b: 3 } }",
+      "{ a: { sortCode: '1', _id: 2, b: 3 } }",
     );
-  });
-
-  it("cuts a long object short with …", () => {
-    const text = inlineOf({ list: Array.from({ length: 1000 }, () => "abc") });
-
-    expect(text).toHaveLength(MAX_INLINE_LENGTH);
-    expect(text.endsWith("…")).toBe(true);
-    expect(text.startsWith("{ list: [ 'abc', 'abc'")).toBe(true);
   });
 });
 
-describe("name objects", () => {
-  it.each([
-    [{ first: "Jo", last: "Bloggs" }, true],
-    [{ title: "Dr", last: "Bloggs" }, true],
-    [{ first: "Jo", age: 3 }, false],
-    [{ title: "Dr" }, false],
-    [{ first: 1 }, false],
-    ["Jo", false],
-  ])("%j is a name: %s", (value, is) => {
-    expect(isNameObject(value)).toBe(is);
-  });
-
-  it("judges a name on the parts the reader may read", () => {
-    const reader = (hidden) => ({
-      path: "name",
-      readable: (path) => path !== `name.${hidden}`,
+describe("objectCellOf", () => {
+  it("holds an object's text, every key, a name's parts too", () => {
+    expect(objectCellOf({ first: "Sam", last: "Rowe" })).toEqual({
+      text: "{ first: 'Sam', last: 'Rowe' }",
     });
-
-    expect(
-      objectCellOf({ first: "Sam", last: "Rowe", x: 1 }, reader("x")),
-    ).toBe("Sam Rowe");
-    expect(objectCellOf({ first: "Sam", last: "Rowe", secret: "s" })).toBe(
-      "Sam Rowe",
-    );
-    expect(objectCellOf({ last: "Rowe" }, reader("last"))).toEqual({
-      text: "{}",
-    });
-  });
-
-  it("stops judging a name at the first field that is no part of one", () => {
-    const seen = [];
-    const value = Object.fromEntries(
-      Array.from({ length: 1000 }, (_, n) => [`k${n}`, n]),
-    );
-
-    expect(
-      isNameObject(
-        { first: "Sam", ...value },
-        {
-          path: "x",
-          readable: (path) => {
-            seen.push(path);
-
-            return true;
-          },
-        },
-      ),
-    ).toBe(false);
-    expect(seen.length).toBeLessThan(5);
-  });
-
-  it("reads the parts there are, in order", () => {
-    expect(nameOf({ last: "Bloggs", title: "Dr", first: "" })).toBe(
-      "Dr Bloggs",
-    );
   });
 });

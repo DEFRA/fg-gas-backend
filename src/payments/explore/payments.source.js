@@ -32,21 +32,6 @@ export const paymentsSource = {
     "totalAmountPence",
     "payments.dueDate",
   ],
-  roots: [
-    "invoiceNumber",
-    "originalInvoiceNumber",
-    "paymentRequestNumber",
-    "source",
-    "sbi",
-    "frn",
-    "scheme",
-    "marketingYear",
-    "ledger",
-    "currency",
-    "totalAmountPence",
-    "payments",
-    "createdAt",
-  ],
   answersAt: null,
   attach: [
     {
@@ -64,6 +49,7 @@ export const paymentsSource = {
     "agreement.clientRef",
   ],
   paths: [
+    { path: "_id", type: "text" },
     { path: "invoiceNumber", type: "text" },
     { path: AGREEMENT_NUMBER, type: "text" },
     { path: "source.clientRef", type: "text" },

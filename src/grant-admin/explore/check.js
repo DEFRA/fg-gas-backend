@@ -1,12 +1,15 @@
 import {
+  MAX_IDS,
   NESTED,
   NOT_INDEXED,
   NOT_INDEX_OPERATOR,
   REPEATED,
   SECOND_REF,
   TOO_MANY_COMBINATIONS,
+  TOO_MANY_IDS,
   WITHOUT_PARTNER,
   classifyTests,
+  isIdRead,
   topLevelOf,
   usablePaths,
 } from "../../common/explore/index-tests.js";
@@ -39,6 +42,7 @@ const OPERATORS_OF = {
   refs: () => VALUE_OR_IN,
   time: () => "an ISODate and $gt, $gte, $lt or $lte",
   box: () => "a value",
+  id: () => "ObjectId('…') or $in of them",
 };
 
 const NULL_IN = "NULL_IN";
@@ -60,6 +64,8 @@ const REASONS = {
     name
       ? `${name} makes too many combinations of values`
       : "the conditions make too many combinations of values",
+  [TOO_MANY_IDS]: (name) =>
+    `${name} is read through its index for at most ${MAX_IDS} ObjectIds in all`,
 };
 
 const pathsOf = (source) => (path) =>
@@ -106,10 +112,12 @@ const isNewestFirst = (orderBy) => !orderBy;
 
 const countsEvery = (query) => query.mode !== "rows" || isUnwinding(query);
 
-const firstResidual = (source, where) =>
-  classifyTests(topLevelOf(where), pathsOf(source)).tests.find(
-    ({ why }) => why,
-  ) ?? null;
+// An id read is exact whatever else the query tests.
+const firstResidual = (source, where) => {
+  const { tests, taken } = classifyTests(topLevelOf(where), pathsOf(source));
+
+  return isIdRead(taken) ? null : (tests.find(({ why }) => why) ?? null);
+};
 
 const firstLeaf = (node) => {
   const branch = ["all", "any"].find((name) => Object.hasOwn(node, name));

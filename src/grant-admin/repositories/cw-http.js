@@ -119,10 +119,18 @@ const toAnsweredFailure = (error, label, expected, failures) => {
   });
 };
 
-const toFailure = (error, label, expected, failures) =>
-  isUnsent(error)
+const isTooLargeFor = (error, failures) =>
+  Boolean(error.answerTooLarge && failures?.tooLarge);
+
+const toFailure = (error, label, expected, failures) => {
+  if (isTooLargeFor(error, failures)) {
+    return failures.tooLarge(error);
+  }
+
+  return isUnsent(error)
     ? unreachable()
     : toAnsweredFailure(error, label, expected, failures);
+};
 
 const assertCwConfigured = () => {
   if (!isCwConfigured()) {
@@ -146,9 +154,28 @@ const responseError = (res, payload) =>
 
 const MIN_ERROR_STATUS = 400;
 
+// An answer longer than `maxBytes` is never read whole: Caseworking was
+// asked for more than a caller holds.
+const tooLarge = (error) =>
+  Object.assign(Boom.entityTooLarge("CW-BE answer too large"), {
+    answerTooLarge: true,
+    cause: error,
+  });
+
+const isOverMaxBytes = (error, options) =>
+  options.maxBytes !== undefined && statusOf(error) === PAYLOAD_TOO_LARGE;
+
+const readBody = async (res, options) => {
+  try {
+    return await wreck.read(res, options);
+  } catch (error) {
+    throw isOverMaxBytes(error, options) ? tooLarge(error) : error;
+  }
+};
+
 const readAnswer = async (pending, options) => {
   const res = await pending;
-  const payload = await wreck.read(res, options);
+  const payload = await readBody(res, options);
 
   if (res.statusCode >= MIN_ERROR_STATUS) {
     throw responseError(res, payload);

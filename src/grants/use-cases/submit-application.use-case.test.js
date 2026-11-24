@@ -28,7 +28,7 @@ describe("submitApplicationUseCase", () => {
     vi.useRealTimers();
   });
 
-  it("creates an application", async () => {
+  it("creates and reports an application without an applicant name", async () => {
     save.mockResolvedValue({ insertedId: "1234" });
     saveEvents.mockResolvedValueOnce(undefined);
     const mockSession = {};
@@ -58,7 +58,69 @@ describe("submitApplicationUseCase", () => {
     expect(application.currentPhase).toBe(ApplicationPhase.PreAward);
     expect(application.clientRef).toBe("test-client-ref");
     expect(application.originalConfigVersion).toBe("1.0.0");
+    const [publications] = saveEvents.mock.lastCall;
+    const report = publications.find(
+      ({ event }) => event.eventData?.eventType === "APPLICATION_CREATED",
+    );
+    expect(report.event.eventData.applicationId).toBe("test-client-ref");
+    expect(report.event.eventData).not.toHaveProperty("applicantName");
   });
+
+  it.each(["water-management", "test-grant"])(
+    "queues the %s reporting event in the application transaction",
+    async (code) => {
+      save.mockResolvedValue({ insertedId: "1234" });
+      const session = {};
+      withTransaction.mockImplementation(async (callback) => callback(session));
+      resolveAndFetchGrant.mockResolvedValue({
+        grant: createTestGrant(),
+        resolvedVersion: "1.0.0",
+      });
+
+      const answers = {
+        applicant: {
+          business: {
+            name: "Example Farm",
+            phone: { mobile: "07000000000" },
+          },
+          customer: { name: { first: "Jane", last: "Doe" }, address: {} },
+        },
+        collaborationScore: 0,
+        estimatedMaxGrant: 62200,
+        extraSchemeAnswer: { selected: ["scheme-option"] },
+      };
+
+      await submitApplicationUseCase(code, {
+        metadata: {
+          clientRef: "wmg-test-ref",
+          sbi: "800000001",
+          frn: "1000000001",
+          crn: "9000000001",
+          submittedAt: "2000-01-01T12:00:00Z",
+          configVersion: "1.0.0",
+        },
+        answers,
+      });
+
+      const [application, savedSession] = save.mock.lastCall;
+      const [publications, outboxSession] = saveEvents.mock.lastCall;
+      expect(savedSession).toBe(session);
+      expect(outboxSession).toBe(session);
+      const report = publications.find(
+        ({ event }) => event.eventData?.eventType === "APPLICATION_CREATED",
+      );
+      expect(report.event.eventData).toMatchObject({
+        applicationId: "wmg-test-ref",
+        applicationType: code,
+        applicationReceiptDate: application.createdAt,
+        applicantName: "Jane Doe",
+        sbi: "800000001",
+        crn: "9000000001",
+        grantConfigVersion: "1.0.0",
+      });
+      expect(report.event.eventData.applicationPayload).toEqual(answers);
+    },
+  );
 
   it("throws when answers do not match the schema", async () => {
     const mockSession = {};

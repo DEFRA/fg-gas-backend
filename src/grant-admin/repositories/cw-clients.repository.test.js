@@ -1,4 +1,10 @@
+import { BSON, Binary, Int32, Long, ObjectId } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  documentOf,
+  objectIdElement,
+  stringElement,
+} from "../../../test/helpers/raw-bson.js";
 import { wreck } from "../../common/wreck.js";
 import {
   changeCwApiTokenExpiry,
@@ -50,17 +56,19 @@ const cwToken = {
   inUse: true,
 };
 
-const stored = {
-  _id: { $oid: TOKEN_ID },
+const storedRow = {
+  _id: new ObjectId(TOKEN_ID),
   id: "eee••••••eee",
-  client: "fg-gas-backend",
+  clientId: "fg-gas-backend",
   tokenHint: "x9Q_",
   expiresAt: null,
-  createdAt: { $date: "2026-11-02T10:00:00Z" },
+  createdAt: new Date("2026-11-02T10:00:00Z"),
   createdBy: "Ann Operator",
 };
 
-const listed = { ...cwToken, stored };
+const base64Of = (row) => BSON.serialize(row).toString("base64");
+
+const listed = { ...cwToken, document: base64Of(storedRow) };
 
 const failureOf = async (call) => {
   const error = await call().catch((e) => e);
@@ -108,30 +116,65 @@ describe("findCwApiTokens", () => {
   });
 
   it("passes the stored row on exactly as sent, every field it has", async () => {
-    const row = { ...stored, revokedAt: null, revokedBy: null, legacy: 1 };
+    const document = base64Of({
+      ...storedRow,
+      revokedAt: null,
+      revokedBy: null,
+      legacy: new Int32(1),
+      count: Long.fromNumber(2),
+    });
     wreck.get.mockResolvedValue({
-      payload: { tokens: [{ ...listed, stored: row }] },
+      payload: { tokens: [{ ...listed, document }] },
     });
 
-    expect((await findCwApiTokens({ actor: ACTOR })).tokens[0].stored).toEqual(
-      row,
-    );
+    expect(
+      (await findCwApiTokens({ actor: ACTOR })).tokens[0].document,
+    ).toEqual(document);
   });
 
+  const twiceId = documentOf([
+    objectIdElement("_id", new ObjectId(TOKEN_ID)),
+    stringElement("id", "eee••••••eee"),
+    stringElement("id", HASH),
+  ]).toString("base64");
+
   it.each([
-    ["an unmasked id", { id: HASH }],
-    ["a hash in another field", { tokenHash: HASH }],
-    ["a nested value", { extra: { id: HASH } }],
-    ["a hash as a key", { [HASH]: 1 }],
-  ])("is a 502 quoting no hash on a stored row with %s", async (_, extra) => {
+    ["an unmasked id", base64Of({ ...storedRow, id: HASH })],
+    ["a hash in another field", base64Of({ ...storedRow, tokenHash: HASH })],
+    ["a nested value", base64Of({ ...storedRow, extra: { id: HASH } })],
+    ["a list holding a hash", base64Of({ ...storedRow, list: [HASH] })],
+    [
+      "a Binary(32)",
+      base64Of({ ...storedRow, id2: new Binary(Buffer.from(HASH, "hex")) }),
+    ],
+    ["a hash as a key", base64Of({ ...storedRow, [HASH]: 1 })],
+    ["a second id", twiceId],
+    ["bytes that aren't BSON", Buffer.from(HASH).toString("base64")],
+  ])(
+    "is a 502 quoting no hash on a stored row with %s",
+    async (_, document) => {
+      wreck.get.mockResolvedValue({
+        payload: { tokens: [{ ...listed, document }] },
+      });
+
+      const failure = await failureOf(() => findCwApiTokens({ actor: ACTOR }));
+
+      expect(failure.statusCode).toBe(502);
+      expect(JSON.stringify(failure)).not.toContain(HASH);
+    },
+  );
+
+  it("is a 502 on a Caseworking that still answers the row as `stored`", async () => {
+    const { document, ...old } = listed;
     wreck.get.mockResolvedValue({
-      payload: { tokens: [{ ...listed, stored: { ...stored, ...extra } }] },
+      payload: {
+        tokens: [{ ...old, stored: { _id: { $oid: TOKEN_ID }, id: "x" } }],
+      },
     });
 
-    const failure = await failureOf(() => findCwApiTokens({ actor: ACTOR }));
-
-    expect(failure.statusCode).toBe(502);
-    expect(JSON.stringify(failure)).not.toContain(HASH);
+    expect(
+      (await failureOf(() => findCwApiTokens({ actor: ACTOR }))).statusCode,
+    ).toBe(502);
   });
 
   it("is a 503 CW_UNREACHABLE when Caseworking cannot be reached", async () => {

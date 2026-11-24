@@ -1,8 +1,9 @@
+import { isDollarSegment } from "../../../common/explore/paths.js";
 import {
   MAX_COLUMNS,
   MAX_LIMIT,
   MAX_UNWINDS,
-  QUERY_VERSIONS,
+  QUERY_VERSION,
 } from "../../../common/explore/query-schema.js";
 import {
   ACCUMULATORS,
@@ -30,14 +31,22 @@ export { READ_MESSAGES } from "./read-messages.js";
 
 const DEFAULT_LIMIT = 50;
 
+// No projection: the record whole, with its `_id`.
+const WHOLE = { whole: true, id: true };
+const ID = "_id";
+
 // ── Columns ──
 
+// A name is mongod's field name: a dotted one names a field inside one, so
+// no part of it may be empty or start with $.
 const checkName = (entry) => {
-  if (entry.key === "") {
+  const parts = entry.key.split(".");
+
+  if (parts.includes("")) {
     fail(READ_MESSAGES.emptyName, entry);
   }
 
-  if (entry.key.startsWith("$")) {
+  if (parts.some((part) => part.startsWith("$"))) {
     fail(READ_MESSAGES.dollarName(entry.key), entry);
   }
 
@@ -46,7 +55,23 @@ const checkName = (entry) => {
     : entry.key;
 };
 
-const expressionColumn = (ctx, entry) => {
+// mongod can't project a key starting $: a projection, an expression and an
+// unwind name its parent instead.
+const projectable = ({ path }, node) => {
+  const names = path.split(".");
+  const at = names.findIndex(isDollarSegment);
+
+  return at === -1
+    ? { path }
+    : fail(
+        READ_MESSAGES.dollarKey(names[at], names.slice(0, at).join(".")),
+        node,
+      );
+};
+
+const projectedRef = (node, what) => projectable(refOf(node, what), node);
+
+const expressionColumn = (entry) => {
   const inner = onlyEntry(entry.value);
   const fn = inner ? EXPRESSIONS.get(inner.key) : undefined;
 
@@ -54,29 +79,36 @@ const expressionColumn = (ctx, entry) => {
     fail(READ_MESSAGES.show, entry);
   }
 
-  const { path } = refOf(ctx, inner.value, inner.key);
+  const { path } = projectedRef(inner.value, inner.key);
 
   return { fn, path, as: checkName(entry) };
 };
 
-const projectedColumn = (ctx, entry) => {
+const projectedColumn = (entry) => {
   if (isOne(entry.value)) {
-    return pathOf(ctx, entry.key, entry);
+    return projectable(pathOf(entry.key, entry), entry);
+  }
+
+  if (entry.key === ID) {
+    fail(READ_MESSAGES.ownId, entry);
   }
 
   if (isRef(entry.value)) {
-    return { ...refOf(ctx, entry.value, entry.key), as: checkName(entry) };
+    return {
+      ...projectedRef(entry.value, entry.key),
+      as: checkName(entry),
+    };
   }
 
-  return expressionColumn(ctx, entry);
+  return expressionColumn(entry);
 };
 
-const columnOfEntry = (ctx, entry) => {
+const columnOfEntry = (entry) => {
   if (!isZero(entry.value)) {
-    return [projectedColumn(ctx, entry), entry];
+    return [projectedColumn(entry), entry];
   }
 
-  return entry.key === "_id" ? null : fail(READ_MESSAGES.zero, entry);
+  return entry.key === ID ? null : fail(READ_MESSAGES.zero, entry);
 };
 
 const checkColumns = (pairs) => {
@@ -87,34 +119,75 @@ const checkColumns = (pairs) => {
   return pairs.map(([column]) => column);
 };
 
+// The name a column takes in a projected record: its own name, else its
+// path.
+const keyOfColumn = ({ path, as }) => as ?? path;
+
+const isWithin = (shorter, longer) => longer.startsWith(`${shorter}.`);
+
+// Two columns where one names a key inside the other, as mongod refuses
+// them: `a` with `a.b`, or a name with a path below it.
+const checkCollisions = (pairs) =>
+  pairs.forEach(([column, entry], n) =>
+    pairs.slice(0, n).forEach(([other]) => {
+      const [a, b] = [keyOfColumn(other), keyOfColumn(column)];
+      const [shorter, longer] = a.length < b.length ? [a, b] : [b, a];
+
+      if (isWithin(shorter, longer)) {
+        fail(READ_MESSAGES.collision(shorter, longer), entry);
+      }
+    }),
+  );
+
+// `_id` is the first column, as mongod puts it first.
+const idFirst = (pairs) => [
+  ...pairs.filter(([column]) => column.path === ID && !column.as),
+  ...pairs.filter(([column]) => column.path !== ID || column.as),
+];
+
+const isIdZero = (entry) => entry.key === ID && isZero(entry.value);
+
 // A projection to columns: null when it names none, for the defaults.
+// `_id: 0` alone shows the defaults too, and a document without its `_id`.
+// Each column's entry is kept, to say where mongod failed on it.
 const projectionOf = (ctx, node) => {
   if (!isObject(node)) {
     fail(READ_MESSAGES.fields, node);
   }
 
-  const pairs = node.entries
-    .map((entry) => columnOfEntry(ctx, entry))
-    .filter(Boolean);
+  const pairs = node.entries.map(columnOfEntry).filter(Boolean);
 
-  return pairs.length ? checkColumns(pairs) : null;
+  checkCollisions(pairs);
+  ctx.shape = {
+    whole: pairs.length === 0,
+    id: !node.entries.some(isIdZero),
+  };
+
+  const ordered = idFirst(pairs);
+
+  ctx.columnsAt = ordered.map(([, entry]) => entry.value);
+
+  return pairs.length ? checkColumns(ordered) : null;
 };
 
 const defaultColumns = (source) => source.star.map((path) => ({ path }));
 
 // ── $group ──
 
-const summed = (ctx, node) => ({ fn: "sum", ...refOf(ctx, node, "$sum") });
+const summed = (node) => ({
+  fn: "sum",
+  ...projectedRef(node, "$sum"),
+});
 
 // $sum: 1 counts; any other number is refused, as summing it is no answer.
-const sumColumn = (ctx, inner) => {
+const sumColumn = (_ctx, inner) => {
   if (isNumber(inner.value, 1)) {
     return { fn: "count", path: "*" };
   }
 
   return inner.value.type === "number"
     ? fail(READ_MESSAGES.sumOne, inner.value)
-    : summed(ctx, inner.value);
+    : summed(inner.value);
 };
 
 const ACCUMULATOR_COLUMNS = {
@@ -123,11 +196,17 @@ const ACCUMULATOR_COLUMNS = {
     isObject(inner.value) && !inner.value.entries.length
       ? { fn: "count", path: "*" }
       : fail(READ_MESSAGES.count, inner.value),
-  min: (ctx, inner) => ({ fn: "min", ...refOf(ctx, inner.value, "$min") }),
-  max: (ctx, inner) => ({ fn: "max", ...refOf(ctx, inner.value, "$max") }),
+  min: (_ctx, inner) => ({
+    fn: "min",
+    ...projectedRef(inner.value, "$min"),
+  }),
+  max: (_ctx, inner) => ({
+    fn: "max",
+    ...projectedRef(inner.value, "$max"),
+  }),
 };
 
-const accumulatorColumn = (ctx, entry) => {
+const accumulatorColumn = (ctx) => (entry) => {
   const inner = onlyEntry(entry.value);
   const fn = inner ? ACCUMULATORS.get(inner.key) : undefined;
 
@@ -136,18 +215,19 @@ const accumulatorColumn = (ctx, entry) => {
     : fail(READ_MESSAGES.work(entry.key), entry);
 };
 
+// `_id` keeps its meaning here: the path to group by.
 const groupOf = (ctx, node, stage) => {
   if (!isObject(node)) {
     fail(READ_MESSAGES.group, node);
   }
 
-  const id = node.entries.find(({ key }) => key === "_id");
+  const id = node.entries.find(({ key }) => key === ID);
   const { path } = id
-    ? refOf(ctx, id.value, "_id")
+    ? refOf(id.value, ID)
     : fail(READ_MESSAGES.groupId, stage);
   const accumulators = node.entries
     .filter((entry) => entry !== id)
-    .map((entry) => accumulatorColumn(ctx, entry));
+    .map(accumulatorColumn(ctx));
 
   return {
     groupBy: { path },
@@ -165,12 +245,12 @@ const SORT_WAYS = new Map([
 const keyOf = ({ path, fn = null }) => ({ path, fn });
 
 const groupSortKey = (entry, { path }) =>
-  ["_id", path].includes(entry.key)
+  [ID, path].includes(entry.key)
     ? { path, fn: null }
     : fail(READ_MESSAGES.sortGroups, entry);
 
 // A sort key is a column's name, else the group's path, else a path.
-const sortKeyOf = (ctx, entry, read) => {
+const sortKeyOf = (entry, read) => {
   const named = (read.columns ?? []).find(({ as }) => as === entry.key);
 
   if (named) {
@@ -179,7 +259,7 @@ const sortKeyOf = (ctx, entry, read) => {
 
   return read.groupBy
     ? groupSortKey(entry, read.groupBy)
-    : { ...pathOf(ctx, entry.key, entry), fn: null };
+    : { ...pathOf(entry.key, entry), fn: null };
 };
 
 const sortOf = (ctx, node, read) => {
@@ -195,16 +275,22 @@ const sortOf = (ctx, node, read) => {
 
   ctx.sortAt = entry;
 
-  return { ...sortKeyOf(ctx, entry, read), desc };
+  return { ...sortKeyOf(entry, read), desc };
 };
 
-const limitNode = (ctx, node, message) => {
-  const fits =
-    node.type === "number" && Number.isInteger(node.value) && node.value >= 1;
+const isPositiveInteger = (node) =>
+  node.type === "number" && Number.isInteger(node.value) && node.value >= 1;
 
+const limitNode = (ctx, node, message) => {
   ctx.limitAt = node;
 
-  return fits ? node.value : fail(message, node);
+  if (!isPositiveInteger(node)) {
+    fail(message, node);
+  }
+
+  return node.value > MAX_LIMIT
+    ? fail(READ_MESSAGES.limitMost, node)
+    : node.value;
 };
 
 // ── The methods ──
@@ -279,7 +365,7 @@ const distinctName = (named, call) => {
 // answer holds.
 const readDistinct = (ctx, call) => {
   const [named, filter] = argsOf(call, 2, READ_MESSAGES.distinct);
-  const { path } = pathOf(ctx, distinctName(named, call), named);
+  const { path } = pathOf(distinctName(named, call), named);
 
   return {
     mode: "distinct",
@@ -315,25 +401,25 @@ const preserveOf = (entry) => {
 };
 
 // $unwind: '$path', or { path: '$path', preserveNullAndEmptyArrays: true }.
-const unwindOf = (ctx, node) => {
+const unwindOf = (node) => {
   if (!isObject(node)) {
-    return { ...refOf(ctx, node, "$unwind"), preserve: false };
+    return { ...projectedRef(node, "$unwind"), preserve: false };
   }
 
   const entries = unwindEntries(node);
 
   return {
-    ...refOf(ctx, entries.get("path").value, "$unwind"),
+    ...projectedRef(entries.get("path").value, "$unwind"),
     preserve: preserveOf(entries.get("preserveNullAndEmptyArrays")),
   };
 };
 
 const STAGE_READERS = {
   $match: (ctx, entry) => ({ where: filterOf(ctx, entry.value) }),
-  $unwind: (ctx, entry, read) => ({
+  $unwind: (_ctx, entry, read) => ({
     unwind:
       read.unwind.length < MAX_UNWINDS
-        ? [...read.unwind, unwindOf(ctx, entry.value)]
+        ? [...read.unwind, unwindOf(entry.value)]
         : fail(READ_MESSAGES.unwinds, entry),
   }),
   $group: (ctx, entry) => ({
@@ -425,8 +511,6 @@ const sourceOf = (vocabulary, node) => {
   throw vocabulary.unavailable.get(node.name);
 };
 
-const limitOf = (asked = DEFAULT_LIMIT) => Math.min(asked, MAX_LIMIT);
-
 const checkCells = (ctx, columns, limit, tree) => {
   if (columns.length * limit > MAX_CELLS) {
     fail(READ_MESSAGES.cells(columns.length, limit), ctx.limitAt ?? tree);
@@ -442,16 +526,25 @@ const isTimeDescending = (source, orderBy) =>
 const orderOf = (source, { mode, orderBy = null }) =>
   mode === "rows" && isTimeDescending(source, orderBy) ? null : orderBy;
 
+const shapeOf = (ctx) => ctx.shape ?? WHOLE;
+
+// Where each test, the sort and each column were written.
+const spansOf = (ctx) => ({
+  tests: ctx.spans,
+  sort: ctx.sortAt ?? null,
+  columns: ctx.columnsAt ?? [],
+});
+
 const queryOf = (tree, vocabulary) => {
   const source = sourceOf(vocabulary, tree.source);
   const ctx = { source, spans: new Map(), tests: 0 };
   const read = readCalls(ctx, tree.calls);
-  const limit = limitOf(read.limit);
+  const limit = read.limit ?? DEFAULT_LIMIT;
 
   checkCells(ctx, read.columns, limit, tree);
 
   const query = {
-    v: Math.max(...QUERY_VERSIONS),
+    v: QUERY_VERSION,
     source: source.name,
     mode: read.mode,
     columns: read.columns,
@@ -463,11 +556,7 @@ const queryOf = (tree, vocabulary) => {
     positions: null,
   };
 
-  return {
-    query,
-    source,
-    spans: { tests: ctx.spans, sort: ctx.sortAt ?? null },
-  };
+  return { query, source, shape: shapeOf(ctx), spans: spansOf(ctx) };
 };
 
 // The literal tree and the vocabulary to the Query GAS and Caseworking run,

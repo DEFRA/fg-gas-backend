@@ -22,7 +22,6 @@ vi.mock("../repositories/cw-explore.repository.js", async (importOriginal) => ({
 }));
 
 const CW = {
-  versions: [2],
   sources: [
     {
       name: "cases",
@@ -32,7 +31,6 @@ const CW = {
       noun: { one: "case", many: "cases" },
       star: ["caseRef"],
       time: "createdAt",
-      roots: ["caseRef", "payload"],
       answersAt: "payload.answers",
       paths: [
         {
@@ -96,8 +94,36 @@ describe("loadExploreVocabulary", () => {
     expect(applications.paths.get("phases.answers.parcels.planted").type).toBe(
       "date",
     );
-    expect(applications.paths.has("phases.answers.bank.sortCode")).toBe(false);
-    expect(vocabulary.cwVersion).toBe(2);
+    expect(applications.paths.get("phases.answers.bank.sortCode").type).toBe(
+      "text",
+    );
+  });
+
+  it("reads a sources answer with _id typed objectId and indexed by id", async () => {
+    findCwExploreSources.mockResolvedValueOnce({
+      sources: [
+        {
+          ...CW.sources[0],
+          paths: [
+            ...CW.sources[0].paths,
+            {
+              path: "_id",
+              type: "objectId",
+              index: "id",
+              closed: false,
+              within: null,
+            },
+          ],
+        },
+      ],
+    });
+
+    const vocabulary = await loadExploreVocabulary();
+
+    expect(vocabulary.sources.get("cases").paths.get("_id")).toMatchObject({
+      type: "objectId",
+      index: "id",
+    });
   });
 
   it("keeps a good answer, and reads the definitions once in five minutes", async () => {
@@ -146,7 +172,6 @@ describe("loadExploreVocabulary", () => {
 
     expect(findCwExploreSources).not.toHaveBeenCalled();
     expect(vocabulary.sources.has("applications")).toBe(true);
-    expect(vocabulary.cwVersion).toBeNull();
   });
 
   it("shares a read already in flight", async () => {
@@ -184,16 +209,6 @@ describe("loadExploreVocabulary", () => {
           .paths.has("phases.answers.referenceNumber"),
       ).toBe(false);
     });
-  });
-
-  it("says Caseworking errored when it reads no version GAS sends, v1 too", async () => {
-    findCwExploreSources.mockResolvedValue({ ...CW, versions: [1] });
-
-    const vocabulary = await loadExploreVocabulary();
-
-    expect(vocabulary.unavailable.get("cases").output.payload.reason).toBe(
-      "ERRORED",
-    );
   });
 });
 
@@ -236,6 +251,11 @@ describe("exploreVocabularyUseCase", () => {
         {
           path: "payload.answers.parcels.planted",
           type: "date",
+          indexed: false,
+        },
+        {
+          path: "payload.answers.bank.sortCode",
+          type: "text",
           indexed: false,
         },
       ],

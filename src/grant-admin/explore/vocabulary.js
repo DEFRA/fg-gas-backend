@@ -1,5 +1,4 @@
 import { describeSource } from "../../common/explore/describe.js";
-import { QUERY_VERSIONS } from "../../common/explore/query-schema.js";
 import { SOURCES } from "./language/allowlist.js";
 import { lex } from "./language/lex.js";
 
@@ -55,13 +54,6 @@ const entryOf = (described, answers) => {
   return { ...described, paths };
 };
 
-// The highest Query version both services read, or null when there is none.
-export const sharedVersion = (versions) => {
-  const shared = QUERY_VERSIONS.filter((v) => versions.includes(v));
-
-  return shared.length ? Math.max(...shared) : null;
-};
-
 const cwEntries = (cw) =>
   cw
     ? cw.sources.filter(
@@ -83,7 +75,6 @@ export const buildVocabulary = ({ own, answers, cw, cwFailure }) => {
   return {
     sources: new Map(sources.map((source) => [source.name, source])),
     unavailable: new Map(cw ? [] : CW_SOURCES.map((name) => [name, cwFailure])),
-    cwVersion: cw ? sharedVersion(cw.versions) : null,
   };
 };
 

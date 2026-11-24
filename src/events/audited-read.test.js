@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  getRequestContext,
+  withRequestContext,
+} from "../common/get-request-context.js";
 import { logger } from "../common/logger.js";
 import {
   transactionOptions,
   withTransaction,
 } from "../common/with-transaction.js";
 import { auditStatus } from "./audit-constants.js";
-import { AUDIT_COMMIT_MS, auditedRead } from "./audited-read.js";
+import { AUDIT_COMMIT_MS, auditedRead, auditedStream } from "./audited-read.js";
 import { writeAuditEvent } from "./write-audit-event.js";
 
 vi.mock("../common/logger.js");
@@ -301,5 +305,72 @@ describe("auditedRead", () => {
       ).rejects.toMatchObject({ outOfTime: true, auditNotWritten: true });
       expect(writeAuditEvent).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("auditedStream", () => {
+  beforeEach(() => {
+    withTransaction.mockImplementation((callback) => callback(SESSION));
+    writeAuditEvent.mockResolvedValue();
+  });
+
+  it("writes no audit for a read it hands on, then one when the stream ends", async () => {
+    const streamed = auditedStream(
+      async () => ({ rows: 2 }),
+      audit,
+    )({
+      tab: "raw",
+    });
+
+    expect(await streamed.read()).toEqual({ rows: 2 });
+    expect(writeAuditEvent).not.toHaveBeenCalled();
+
+    await streamed.ended({ rows: 1 }, null);
+
+    expect(writeAuditEvent).toHaveBeenCalledTimes(1);
+    expect(writeAuditEvent.mock.calls[0][0]).toMatchObject({
+      status: auditStatus.SUCCESS,
+      details: { rows: 1, failed: false },
+    });
+  });
+
+  it("writes FAILURE for a refused read, and for a stream that failed", async () => {
+    const streamed = auditedStream(async () => {
+      throw new Error("refused");
+    }, audit)({});
+
+    await expect(streamed.read()).rejects.toThrow("refused");
+    await streamed.ended({ rows: 1 }, new Error("broke"));
+
+    expect(writeAuditEvent.mock.calls.map(([event]) => event.status)).toEqual([
+      auditStatus.FAILURE,
+      auditStatus.FAILURE,
+    ]);
+  });
+
+  it("audits a stream that ends after its request as that request's user", async () => {
+    const users = [];
+    writeAuditEvent.mockImplementation(async () =>
+      users.push(getRequestContext()?.user ?? null),
+    );
+    const streamed = withRequestContext({ user: "operator-1" }, () =>
+      auditedStream(async () => ({ rows: 2 }), audit)({}),
+    );
+
+    await withRequestContext({ user: "operator-1" }, () => streamed.read());
+    await streamed.ended({ rows: 2 }, null);
+
+    expect(getRequestContext()).toBeNull();
+    expect(users).toEqual(["operator-1"]);
+  });
+
+  it("logs, never throws, when the stream's audit isn't written", async () => {
+    writeAuditEvent.mockRejectedValue(new Error("mongo down"));
+
+    await auditedStream(vi.fn(), audit)({}).ended({ rows: 0 }, null);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      "Streamed read audit not written",
+    );
   });
 });
