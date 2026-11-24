@@ -109,21 +109,45 @@ const latchInvalidDefinition = async (err, grantCode, resolvedVersion) => {
   );
 };
 
+// The config broker also publishes a grant's release under each of its
+// aliases, all pointing at the same definition. The definition is stored under
+// its own code, so a version published under any other code can never be read
+// back as a grant of that code.
+const assertDefinesGrant = (grantDefinition, grantCode, resolvedVersion) => {
+  if (grantDefinition.code !== grantCode) {
+    throw Boom.badImplementation(
+      `Grant definition for ${grantCode}@${resolvedVersion} declares code "${grantDefinition.code}"`,
+    );
+  }
+};
+
+const loadConcurrentlyStored = async (grantCode, resolvedVersion) => {
+  logger.info(
+    `Concurrent insert for ${grantCode}@${resolvedVersion}, loading existing`,
+  );
+  const grant = await findByCode(grantCode, resolvedVersion);
+  if (!grant) {
+    throw Boom.internal(
+      `Grant ${grantCode}@${resolvedVersion} conflicted on insert but is not stored`,
+    );
+  }
+
+  // The grant exists, so record Fetched here too in case the winning
+  // process crashed before updating the status; otherwise the row stays
+  // pending and every request re-fetches from S3.
+  await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
+  return grant;
+};
+
 const saveOrFallback = async (grantDefinition, grantCode, resolvedVersion) => {
   try {
+    assertDefinesGrant(grantDefinition, grantCode, resolvedVersion);
     const grant = await saveFromDefinition(grantDefinition, resolvedVersion);
     await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
     return grant;
   } catch (err) {
     if (err.isBoom && err.output.statusCode === HTTP_CONFLICT) {
-      logger.info(
-        `Concurrent insert for ${grantCode}@${resolvedVersion}, loading existing`,
-      );
-      // The grant exists, so record Fetched here too in case the winning
-      // process crashed before updating the status; otherwise the row stays
-      // pending and every request re-fetches from S3.
-      await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
-      return findByCode(grantCode, resolvedVersion);
+      return loadConcurrentlyStored(grantCode, resolvedVersion);
     }
 
     await latchInvalidDefinition(err, grantCode, resolvedVersion);
