@@ -1,7 +1,6 @@
 import {
   eventAdded,
   eventPaths,
-  eventRoots,
   eventStar,
   openEvent,
 } from "./event-fields.js";
@@ -15,7 +14,6 @@ export const eventsSource = {
   noun: { one: "event", many: "events" },
   time: "publicationDate",
   star: eventStar,
-  roots: eventRoots,
   added: eventAdded,
   answersAt: null,
   boxes: [

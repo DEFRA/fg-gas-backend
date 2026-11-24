@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyTests, usablePaths } from "./index-tests.js";
+import { classifyTests, isIdRead, usablePaths } from "./index-tests.js";
 
 const paths = new Map(
   [
@@ -17,6 +17,8 @@ const paths = new Map(
     { path: "createdAt", index: "time", closed: false, within: null },
     { path: "service", index: "box", closed: true, within: null },
     { path: "currentStatus", index: null, closed: false, within: null },
+    { path: "_id", index: "id", closed: false, within: null },
+    { path: "ownerId", index: "id", closed: false, within: null },
   ].map((entry) => [entry.path, entry]),
 );
 
@@ -25,6 +27,11 @@ const pathOf = (path) => paths.get(path) ?? null;
 const test = (path, op, ...values) => ({ path, op, values });
 
 const date = (text) => ({ date: text });
+
+const oid = (n) => ({ oid: n.toString(16).padStart(24, "0") });
+
+const oids = (from, to) =>
+  Array.from({ length: to - from }, (_, n) => oid(from + n));
 
 const whys = (...conditions) =>
   classifyTests(conditions, pathOf).tests.map(({ why }) => why);
@@ -196,6 +203,85 @@ describe("classifyTests", () => {
         test("currentConfigVersion", "in", ...many(7)),
       ),
     ).toEqual([null, "TOO_MANY_COMBINATIONS"]);
+  });
+});
+
+describe("id tests", () => {
+  it("reads _id with ObjectIds by $eq or $in, and a top-level $or of them, as an id read", () => {
+    const { tests, taken } = classifyTests(
+      [
+        test("_id", "eq", oid(1)),
+        { any: [test("_id", "eq", oid(2)), test("_id", "in", oid(3), oid(1))] },
+      ],
+      pathOf,
+    );
+
+    expect(tests.map(({ why }) => why)).toEqual([null, null]);
+    expect(taken.ids).toEqual([oid(1).oid, oid(2).oid, oid(3).oid]);
+    expect(isIdRead(taken)).toBe(true);
+  });
+
+  it("reads an id index only on _id, whatever another path declares", () => {
+    const { tests, taken } = classifyTests(
+      [test("ownerId", "eq", oid(1))],
+      pathOf,
+    );
+
+    expect(tests[0].why).toBe("NOT_INDEX_OPERATOR");
+    expect(isIdRead(taken)).toBe(false);
+  });
+
+  it("reads an id beside a fact and a ref, each still classified", () => {
+    const { tests, taken } = classifyTests(
+      [
+        test("code", "eq", "a"),
+        test("clientRef", "eq", "R"),
+        test("_id", "in", ...oids(0, 50)),
+      ],
+      pathOf,
+    );
+
+    expect(tests.map(({ why }) => why)).toEqual([null, null, null]);
+    expect(taken.ids).toHaveLength(50);
+  });
+
+  it.each([
+    ["a range", [test("_id", "gt", oid(1))], "NOT_INDEX_OPERATOR"],
+    ["$ne", [test("_id", "ne", oid(1))], "NOT_INDEX_OPERATOR"],
+    ["text", [test("_id", "eq", "1")], "NOT_INDEX_OPERATOR"],
+    ["$not", [{ not: test("_id", "eq", oid(1)) }], "NESTED"],
+    [
+      "$or with another path",
+      [{ any: [test("_id", "eq", oid(1)), test("code", "eq", "a")] }],
+      "NESTED",
+    ],
+  ])("tests _id by %s record by record", (_name, conditions, why) => {
+    const { tests, taken } = classifyTests(conditions, pathOf);
+
+    expect(tests[0].why).toBe(why);
+    expect(isIdRead(taken)).toBe(false);
+  });
+
+  it("tests every id test record by record past 50 ObjectIds in all", () => {
+    const { tests, taken } = classifyTests(
+      [test("_id", "in", ...oids(0, 30)), test("_id", "in", ...oids(25, 51))],
+      pathOf,
+    );
+
+    expect(tests.map(({ why }) => why)).toEqual([
+      "TOO_MANY_IDS",
+      "TOO_MANY_IDS",
+    ]);
+    expect(taken.ids).toEqual([]);
+  });
+
+  it("counts an ObjectId given twice once", () => {
+    const { taken } = classifyTests(
+      [test("_id", "in", ...oids(0, 50)), test("_id", "eq", oid(3))],
+      pathOf,
+    );
+
+    expect(taken.ids).toHaveLength(50);
   });
 });
 

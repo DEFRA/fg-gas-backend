@@ -4,6 +4,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { testBucket } from "../buckets/test-bucket.js";
 import { partialValue } from "./evaluate.js";
 import { checkPart } from "./large-answers.js";
+import {
+  expectReadsOnly,
+  spyCollections,
+} from "../../../test/helpers/explore-read-only.js";
 import { inbox, outbox, testSource } from "./test-source.js";
 
 vi.mock("../logger.js");
@@ -54,7 +58,7 @@ let encodeCursor;
 let meterFor;
 
 const query = (overrides = {}) => ({
-  v: 2,
+  v: 3,
   source: "events",
   mode: overrides.groupBy ? "groups" : "rows",
   columns: [{ path: "status" }],
@@ -181,14 +185,14 @@ afterAll(async () => {
 });
 
 describe("runPart on MongoDB", () => {
-  describe("a path the source may not read", () => {
+  describe("a malformed path, in a forged Query", () => {
     it.each([
-      ["off its roots", query({ columns: [{ path: "secret" }] })],
-      ["denied", query({ where: test("payload.answers.sortCode", "eq", "x") })],
+      ["a column", query({ columns: [{ path: "$where" }] })],
+      ["a filter", query({ where: test("payload..sortCode", "eq", "x") })],
       [
-        "unwound and denied",
+        "an unwind",
         query({
-          unwind: [{ path: "payload.answers.sortCode", preserve: false }],
+          unwind: [{ path: "payload.__proto__", preserve: false }],
         }),
       ],
     ])("is refused before any read: %s", async (_, asked) => {
@@ -202,11 +206,11 @@ describe("runPart on MongoDB", () => {
       expect(count).not.toHaveBeenCalled();
     });
 
-    it("reads an answer below its roots", async () => {
+    it("reads any well-formed path", async () => {
       const part = await run.runPart(
         source,
         query({
-          columns: [{ path: "payload.answers.parcels" }],
+          columns: [{ path: "payload.answers.parcels" }, { path: "secret" }],
           where: test("status", "eq", "DEAD_LETTER"),
           limit: 1,
         }),
@@ -1074,7 +1078,6 @@ describe("runPart on MongoDB", () => {
       size: "small",
       collection: "things",
       time: "createdAt",
-      roots: ["ref", "createdAt", "owner.name"],
       answersAt: null,
       attach: [
         {
@@ -1094,6 +1097,60 @@ describe("runPart on MongoDB", () => {
         .filter(([name]) => name === "owners")
         .map(([, [filter]]) => filter);
 
+    it("reads through the read-only view alone, writing nothing", async () => {
+      const { knownValuesOf } = await import("./describe.js");
+      const [{ _id }] = await db
+        .collection("outbox")
+        .find({}, { projection: { _id: 1 }, limit: 1 })
+        .toArray();
+      const spied = spyCollections();
+      const dead = test("status", "eq", "DEAD_LETTER");
+
+      await run.runPart(source, query({ where: dead, limit: 5 }));
+      await run.runPart(
+        source,
+        query({
+          mode: "count",
+          columns: [{ fn: "count", path: "*" }],
+          where: dead,
+        }),
+      );
+      await run.runPart(
+        source,
+        query({
+          columns: [{ path: "eventType" }, { fn: "count", path: "*" }],
+          where: dead,
+          groupBy: { path: "eventType" },
+        }),
+      );
+      await run.runPart(
+        source,
+        query({ where: test("grantCode", "contains", "rare"), limit: 5 }),
+      );
+      await run.runPart(
+        things,
+        query({
+          source: "things",
+          columns: [{ path: "ref" }, { path: "owner.name" }],
+        }),
+      );
+      await run.runPart(
+        source,
+        query({ where: test("_id", "eq", { oid: _id.toHexString() }) }),
+      );
+      await knownValuesOf(source);
+
+      expect(spied.reads.map(({ name }) => name)).toEqual(
+        expect.arrayContaining([
+          "find",
+          "aggregate",
+          "countDocuments",
+          "estimatedDocumentCount",
+        ]),
+      );
+      expectReadsOnly(spied);
+    });
+
     it("reads only the attached records the filtered ones name, when no test reads them", async () => {
       const find = vi.spyOn(Collection.prototype, "find");
 
@@ -1110,6 +1167,57 @@ describe("runPart on MongoDB", () => {
         { c0: "T-2", c1: "Lower Brook" },
       ]);
       expect(ownersRead(find)).toEqual([{ key: { $in: ["o2"] } }]);
+    });
+
+    const ownersOptions = (find) =>
+      find.mock.contexts
+        .map((collection, n) => [collection.collectionName, find.mock.calls[n]])
+        .filter(([name]) => name === "owners")
+        .map(([, [, options]]) => options);
+
+    it("reads the whole attached record when its root is asked", async () => {
+      const find = vi.spyOn(Collection.prototype, "find");
+
+      const part = await run.runPart(
+        things,
+        query({
+          source: "things",
+          columns: [{ path: "ref" }, { path: "owner" }],
+          where: test("ref", "eq", "T-2"),
+        }),
+      );
+
+      expect(ownersOptions(find)[0].projection).toBeUndefined();
+      expect(part.boxes[0].rows.map(({ cells }) => cells)).toEqual([
+        {
+          c0: "T-2",
+          c1: {
+            text: expect.stringMatching(
+              /^\{ _id: ObjectId\('[0-9a-f]{24}'\), key: 'o2', name: 'Lower Brook' \}$/,
+            ),
+          },
+        },
+      ]);
+    });
+
+    it("reads the whole attached record when only a key starting $ under it is asked", async () => {
+      const find = vi.spyOn(Collection.prototype, "find");
+
+      const part = await run.runPart(
+        things,
+        query({
+          source: "things",
+          columns: [{ path: "ref" }],
+          where: {
+            all: [test("ref", "eq", "T-2"), test("owner.$tag", "empty")],
+          },
+        }),
+      );
+
+      expect(ownersOptions(find)[0].projection).toBeUndefined();
+      expect(part.boxes[0].rows.map(({ cells }) => cells)).toEqual([
+        { c0: "T-2" },
+      ]);
     });
 
     it("reads every attached record when a key isn't text or a number", async () => {
@@ -1135,6 +1243,32 @@ describe("runPart on MongoDB", () => {
       }
 
       expect(ownersRead(find)).toEqual([{}]);
+    });
+
+    it("reads a record's key that is a number, through the projection", async () => {
+      await db.collection("things").insertOne({
+        _id: "t4",
+        ref: "T-4",
+        createdAt: "2026-10-04T00:00:00.000Z",
+        2026: "kept",
+      });
+
+      try {
+        const part = await run.runPart(
+          things,
+          query({
+            source: "things",
+            columns: [{ path: "ref" }, { path: "2026" }],
+            where: test("2026", "filled"),
+          }),
+        );
+
+        expect(part.boxes[0].rows.map(({ cells }) => cells)).toEqual([
+          { c0: "T-4", c1: "kept" },
+        ]);
+      } finally {
+        await db.collection("things").deleteOne({ _id: "t4" });
+      }
     });
 
     it("reads no attached record for a count that tests none", async () => {
@@ -1177,7 +1311,6 @@ describe("runPart on MongoDB", () => {
       size: "small",
       collection: "grown",
       time: "createdAt",
-      roots: ["ref", "createdAt"],
       answersAt: null,
       open: (doc) => ({ kind: "thing", ref: doc.ref }),
       openPaths: ["ref"],
@@ -1210,7 +1343,6 @@ describe("runPart on MongoDB", () => {
       size: "small",
       collection: "things",
       time: "createdAt",
-      roots: ["ref", "createdAt", "owner.name"],
       answersAt: null,
       attach: [{ as: "owner", collection: "owners", on: [["owner", "key"]] }],
       open: (doc) => ({ kind: "thing", ref: doc.ref }),
@@ -1387,7 +1519,6 @@ describe("runPart on MongoDB", () => {
         size: "small",
         collection: "floats",
         time: "createdAt",
-        roots: ["ref", "group", "createdAt", "x", "xs"],
         answersAt: null,
         open: (doc) => ({ kind: "float", ref: doc.ref }),
         openPaths: ["ref"],
@@ -1447,7 +1578,6 @@ describe("runPart on MongoDB", () => {
         size: "small",
         collection: "overflow",
         time: "createdAt",
-        roots: ["ref", "group", "createdAt", "x", "xs"],
         answersAt: null,
         open: (doc) => ({ kind: "overflow", ref: doc.ref }),
         openPaths: ["ref"],
@@ -1636,7 +1766,6 @@ describe("runPart on MongoDB", () => {
         size: "small",
         collection: "lists",
         time: "createdAt",
-        roots: ["ref", "createdAt", "parts"],
         answersAt: null,
         open: (doc) => ({ kind: "list", ref: doc.ref }),
         openPaths: ["ref"],
@@ -1659,14 +1788,17 @@ describe("runPart on MongoDB", () => {
         )
         .finally(() => clearInterval(ticking));
 
-      expect(part.groups.map(({ n }) => n).sort()).toEqual([
-        20_000, 20_000, 20_000,
-      ]);
-      expect(part.groups.map(({ value }) => value)).toEqual([
-        { k: [["code", "c0"]] },
-        { k: [["code", "c1"]] },
-        { k: [["code", "c2"]] },
-      ]);
+      expect(part.groups.map(({ n }) => n)).toEqual(
+        Array.from({ length: 6 }, () => 10_000),
+      );
+      expect(part.groups.map(({ value }) => value)).toEqual(
+        Array.from({ length: 6 }, (_, n) => ({
+          k: [
+            ["code", `c${n % 3}`],
+            ["secret", { k: [["sortCode", String(n % 2)]] }],
+          ],
+        })),
+      );
       expect(turns).toBeGreaterThan(1);
     });
 
@@ -1683,5 +1815,268 @@ describe("runPart on MongoDB", () => {
         ),
       ).toBe("GROUP_NEEDS_EXACT");
     });
+  });
+});
+
+describe("runPart by _id, on MongoDB", () => {
+  const idsOf = async (collection, filter, n) =>
+    (
+      await db
+        .collection(collection)
+        .find(filter, { projection: { _id: 1 } })
+        .limit(n)
+        .toArray()
+    ).map(({ _id }) => ({ oid: _id.toHexString() }));
+
+  const keysOf = (part, asked) =>
+    merge
+      .mergeExact(part.boxes, asked)
+      .rows.map(({ box, key }) => `${box}/${key.i}`);
+
+  it("reads ObjectIds through the _id index, exactly, newest first across boxes", async () => {
+    const ids = [
+      ...(await idsOf("outbox", { status: "FAILED" }, 3)),
+      ...(await idsOf("inbox", { status: "COMPLETED" }, 2)),
+    ];
+    const wanted = new Set(ids.map(({ oid }) => oid));
+    const find = vi.spyOn(Collection.prototype, "find");
+    const asked = query({ where: test("_id", "in", ...ids) });
+    const part = await run.runPart(source, asked);
+    const options = find.mock.calls.map(([, given]) => given);
+
+    expect(part.read).toBe("exact");
+    expect(merge.mergeExact(part.boxes, asked).count).toEqual({
+      n: 5,
+      capped: false,
+    });
+    expect(keysOf(part, asked)).toEqual(
+      await truthOf((doc) => wanted.has(doc._id.toHexString())),
+    );
+    expect(options.map(({ hint, limit }) => ({ hint, limit }))).toEqual([
+      { hint: { _id: 1 }, limit: 5 },
+      { hint: { _id: 1 }, limit: 5 },
+    ]);
+  });
+
+  it("tests every other condition, index tests too, on what it reads", async () => {
+    const ids = await idsOf("outbox", {}, 8);
+    const asked = query({
+      where: {
+        all: [
+          test("status", "eq", "COMPLETED"),
+          test("ref", "eq", "record-1"),
+          {
+            any: [
+              test("_id", "in", ...ids.slice(0, 4)),
+              test("_id", "eq", ids[5]),
+            ],
+          },
+        ],
+      },
+    });
+    const wanted = new Set([...ids.slice(0, 4), ids[5]].map(({ oid }) => oid));
+    const part = await run.runPart(source, asked);
+
+    expect(part.read).toBe("exact");
+    expect(keysOf(part, asked)).toEqual(
+      await truthOf(
+        (doc) =>
+          wanted.has(doc._id.toHexString()) &&
+          doc.status === "COMPLETED" &&
+          doc.ref === "record-1",
+      ),
+    );
+  });
+
+  it("stays exact asked for a window or from positions, and sorts by anything", async () => {
+    const ids = await idsOf("inbox", {}, 6);
+    const asked = query({
+      where: test("_id", "in", ...ids),
+      orderBy: { path: "_id", fn: null, desc: true },
+      window: true,
+      positions: { "test.inbox": null },
+    });
+    const part = await run.runPart(source, asked);
+    const rows = merge.mergeExact(part.boxes, asked).rows;
+
+    expect(part.read).toBe("exact");
+    expect(rows.map(({ key }) => key.i)).toEqual(
+      ids
+        .map(({ oid }) => oid)
+        .toSorted()
+        .toReversed(),
+    );
+  });
+
+  it("counts, groups and unwinds only what it reads", async () => {
+    const ids = await idsOf("outbox", {}, 4);
+    const where = test("_id", "in", ...ids);
+    const count = await run.runPart(
+      source,
+      query({
+        mode: "count",
+        columns: [{ fn: "count", path: "*" }],
+        where,
+        limit: 1,
+      }),
+    );
+    const groups = await run.runPart(
+      source,
+      query({
+        mode: "groups",
+        where,
+        columns: [{ path: "status" }, { fn: "count", path: "*" }],
+        groupBy: { path: "status" },
+      }),
+    );
+    const unwound = await run.runPart(
+      source,
+      query({ where, unwind: [{ path: "refs", preserve: false }] }),
+    );
+
+    expect(count.boxes.map(({ count: n }) => n.n)).toEqual([4, 0]);
+    expect(groups.groups.reduce((sum, { n }) => sum + n, 0)).toBe(4);
+    expect(unwound.boxes.map(({ count: n }) => n.n)).toEqual([8, 0]);
+  });
+
+  it("charges grouping what it reads to the request's work, as counting does not", async () => {
+    const where = test("_id", "in", ...(await idsOf("outbox", {}, 4)));
+    const grouped = {
+      mode: "groups",
+      where,
+      columns: [{ path: "status" }, { fn: "count", path: "*" }],
+      groupBy: { path: "status" },
+    };
+    const read = meterFor(Date.now() + 10_000, Infinity);
+    await run.runPart(
+      source,
+      query({ mode: "count", columns: [{ fn: "count", path: "*" }], where }),
+      read,
+    );
+
+    expect(
+      await refusal(
+        run.runPart(
+          source,
+          query(grouped),
+          meterFor(Date.now() + 10_000, read.spent),
+        ),
+      ),
+    ).toBe("TOO_COSTLY");
+  });
+
+  it("reads a record with no time by its id, last, as a plain exact read reads it", async () => {
+    const { insertedId } = await db
+      .collection("outbox")
+      .insertOne({ status: "COMPLETED", ref: "no-time" });
+
+    try {
+      const [old] = await idsOf("outbox", { ref: "record-1" }, 1);
+      const asked = query({
+        where: test("_id", "in", { oid: insertedId.toHexString() }, old),
+      });
+      const rows = merge.mergeExact(
+        (await run.runPart(source, asked)).boxes,
+        asked,
+      ).rows;
+
+      expect(rows.map(({ key }) => key.i)).toEqual([
+        old.oid,
+        insertedId.toHexString(),
+      ]);
+      expect(rows[1].key.t).toBeNull();
+    } finally {
+      await db.collection("outbox").deleteOne({ _id: insertedId });
+    }
+  });
+
+  it("reads a range of _id windowed, newest first, and refuses a sort by it so", async () => {
+    const [from] = await idsOf("outbox", {}, 1);
+    const asked = query({ where: test("_id", "gte", from) });
+    const part = await run.runPart(source, asked);
+    const merged = merge.mergeWindowed(part.boxes, asked);
+
+    expect(part.read).toBe("windowed");
+    expect(merged.rows.map(({ box, key }) => `${box}/${key.i}`)).toEqual(
+      (
+        await truthOf(
+          (doc) => doc._id.toHexString() >= from.oid && doc.publicationDate,
+        )
+      ).slice(0, 50),
+    );
+    expect(
+      await refusal(
+        run.runPart(
+          source,
+          query({
+            where: test("_id", "gte", from),
+            orderBy: { path: "_id", fn: null, desc: true },
+          }),
+        ),
+      ),
+    ).toBe("ORDER_NEEDS_EXACT");
+  });
+
+  it("filters, sorts, groups and lists values on keys starting $", async () => {
+    await db.collection("schemas").insertMany([
+      {
+        _id: "s1",
+        ref: "S-1",
+        createdAt: "2026-10-01T00:00:00.000Z",
+        questions: { $schema: "draft-07", $ref: "#/a" },
+      },
+      {
+        _id: "s2",
+        ref: "S-2",
+        createdAt: "2026-10-02T00:00:00.000Z",
+        questions: { $schema: "draft-04" },
+      },
+      { _id: "s3", ref: "S-3", createdAt: "2026-10-03T00:00:00.000Z" },
+    ]);
+    const schemas = {
+      name: "schemas",
+      service: "Test",
+      size: "small",
+      collection: "schemas",
+      time: "createdAt",
+      answersAt: null,
+      open: (doc) => ({ kind: "schema", ref: doc.ref }),
+      openPaths: ["ref"],
+      paths: [{ path: "ref", type: "text" }],
+    };
+    const find = vi.spyOn(Collection.prototype, "find");
+    const rows = await run.runPart(
+      schemas,
+      query({
+        source: "schemas",
+        columns: [{ path: "ref" }, { path: "questions" }],
+        where: test("questions.$schema", "contains", "draft"),
+        orderBy: { path: "questions.$schema", fn: null, desc: false },
+      }),
+    );
+    const groups = await run.runPart(
+      schemas,
+      query({
+        source: "schemas",
+        mode: "distinct",
+        columns: [{ path: "questions.$schema" }],
+        groupBy: { path: "questions.$schema" },
+        limit: 5000,
+      }),
+    );
+
+    expect(rows.boxes[0].rows.map(({ cells }) => cells)).toEqual([
+      { c0: "S-2", c1: { text: "{ '$schema': 'draft-04' }" } },
+      { c0: "S-1", c1: { text: "{ '$schema': 'draft-07', '$ref': '#/a' }" } },
+    ]);
+    expect(find.mock.calls[0][1].projection).toEqual({
+      ref: 1,
+      questions: 1,
+      createdAt: 1,
+    });
+    expect(groups.groups.map(({ value }) => value)).toEqual([
+      "draft-07",
+      "draft-04",
+    ]);
   });
 });

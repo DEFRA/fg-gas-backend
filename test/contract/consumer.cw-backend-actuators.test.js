@@ -531,7 +531,7 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
 
   describe("the Explore actuators", () => {
     const QUERY = {
-      v: 2,
+      v: 3,
       source: "cases",
       mode: "rows",
       columns: [
@@ -573,7 +573,7 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
       within: null,
     };
 
-    it("lists the Query versions it reads and its sources, with what each may read", () =>
+    it("lists its sources, with the paths each suggests", () =>
       run(
         {
           states: [{ description: "cases exist" }],
@@ -586,7 +586,6 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           willRespondWith: {
             status: 200,
             body: {
-              versions: eachLike(integer(2)),
               sources: eachLike({
                 name: like("cases"),
                 label: like("Cases, in Caseworking"),
@@ -595,7 +594,6 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
                 noun: { one: like("case"), many: like("cases") },
                 star: eachLike("caseRef"),
                 time: like("createdAt"),
-                roots: eachLike("caseRef"),
                 answersAt: like("payload.answers"),
                 paths: eachLike(known),
               }),
@@ -603,9 +601,8 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           },
         },
         async () => {
-          const { versions, sources } = await findCwExploreSources();
+          const { sources } = await findCwExploreSources();
 
-          expect(versions).toContain(2);
           expect(sources[0].name).toBe("cases");
         },
       ));
@@ -732,43 +729,6 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           });
         },
       ));
-
-    it("refuses a path off its own roots or answer list, reading nothing", () => {
-      const offList = {
-        ...QUERY,
-        columns: [{ path: "comments.text" }],
-      };
-
-      return run(
-        {
-          states: [{ description: "cases exist" }],
-          uponReceiving: "an Explore query reading a path Caseworking refuses",
-          withRequest: {
-            method: "POST",
-            path: "/actuators/explore/query",
-            headers: exploreHeaders,
-            body: offList,
-          },
-          willRespondWith: {
-            status: 400,
-            body: {
-              reason: "EXPLORE_QUERY_REFUSED",
-              refusal: "PATH_NOT_ALLOWED",
-            },
-          },
-        },
-        async () => {
-          const error = await asOperator(() =>
-            queryCwExplore(offList, { actor: ACTOR, timeLeftMs: 5000 }),
-          ).catch((e) => e);
-
-          expect(error).toMatchObject({
-            refusal: "PATH_NOT_ALLOWED",
-            service: "CW",
-          });
-        },
-      );
-    });
 
     it("refuses a query it can't read exactly by its code and why, for GAS to word", () => {
       const grouped = {

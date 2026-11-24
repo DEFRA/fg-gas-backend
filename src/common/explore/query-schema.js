@@ -1,10 +1,11 @@
 import Joi from "joi";
+import { MAX_KEY_LENGTH } from "../buckets/error-key.js";
 import { isDecimalTag } from "./evaluate-read.js";
 import { isDateText } from "./evaluate.js";
 import { MAX_PATTERN_LENGTH, usablePatterns } from "./pattern.js";
 import { MAX_PATH_LENGTH, parsePath } from "./paths.js";
 
-export const QUERY_VERSIONS = [2];
+export const QUERY_VERSION = 3;
 
 export const OPS = [
   "eq",
@@ -20,7 +21,7 @@ export const OPS = [
   "filled",
 ];
 export const FUNCTIONS = ["count", "sum", "min", "max"];
-export const TYPES = ["text", "number", "boolean", "date"];
+export const TYPES = ["text", "number", "boolean", "date", "objectId"];
 export const MODES = ["rows", "groups", "count", "distinct"];
 
 export const MAX_COLUMNS = 20;
@@ -35,7 +36,20 @@ export const MAX_UNWINDS = 4;
 // sent without holding the service.
 export const MAX_CELLS = 20_000;
 const MAX_LISTED_PATHS = 2000;
-const MAX_ROOTS = 50;
+
+// Error keys are cut by code points (error-key.js), so a key may be longer
+// in UTF-16 than any other value.
+const KEY_PATHS = new Set(["errorKey"]);
+
+// Whether text is longer than a test on its path may compare. A key of
+// MAX_KEY_LENGTH code points is at most twice as long in UTF-16.
+export const isTooLong = (path, text) =>
+  KEY_PATHS.has(path)
+    ? text.length > 2 * MAX_KEY_LENGTH || [...text].length > MAX_KEY_LENGTH
+    : text.length > MAX_VALUE_LENGTH;
+
+export const maxLengthOf = (path) =>
+  KEY_PATHS.has(path) ? MAX_KEY_LENGTH : MAX_VALUE_LENGTH;
 
 const LIST_OPS = ["in", "nin"];
 const MAX_AS = 64;
@@ -46,27 +60,33 @@ const NAME = /^[A-Za-z_][A-Za-z0-9_]{0,99}$/;
 const BOX = /^[a-z]+\.[a-z][a-z0-9-]*$/;
 
 const name = Joi.string().pattern(NAME);
-const path = Joi.string().max(MAX_PATH_LENGTH);
+const pathText = Joi.string().max(MAX_PATH_LENGTH);
 
 const INVALID = "any.invalid";
 
 const assertPath = (text, helpers) =>
   parsePath(text) === null ? helpers.error(INVALID) : text;
 
-// A stored path, well formed and nothing denied: what may be read of it is
-// the receiver's own check.
-const storedPath = path.custom(assertPath);
+// A stored path, well formed: `_id`, or segments of a key's characters, a
+// key starting $ after the first.
+const storedPath = pathText.custom(assertPath);
 
 // A date names a real day and time, so it always has an instant.
 const realDate = Joi.string().custom((text, helpers) =>
   isDateText(text) ? text : helpers.error(INVALID),
 );
 
-const value = Joi.alternatives(
-  Joi.string().max(MAX_VALUE_LENGTH).allow(""),
+// Text is as long as its path allows (isTooLong), checked with the test.
+const testValue = Joi.alternatives(
+  Joi.string().allow(""),
   Joi.number(),
   Joi.boolean(),
   Joi.object({ date: realDate.required() }),
+  Joi.object({
+    oid: Joi.string()
+      .pattern(/^[0-9a-f]{24}$/)
+      .required(),
+  }),
 ).allow(null);
 
 // Its limits are the matcher's own: CW checks them again when it compiles it.
@@ -86,11 +106,20 @@ const valueCount = (op) => {
   return LIST_OPS.includes(op) ? [1, MAX_VALUES] : [1, 1];
 };
 
-const assertValueCount = (asked, helpers) => {
+const isLongText = (path) => (value) =>
+  typeof value === "string" && isTooLong(path, value);
+
+const assertValues = (asked, helpers) => {
   const [least, most] = valueCount(asked.op);
   const given = asked.values.length;
 
-  return given < least || given > most ? helpers.error(INVALID) : asked;
+  if (given < least || given > most) {
+    return helpers.error(INVALID);
+  }
+
+  return asked.values.some(isLongText(asked.path))
+    ? helpers.error(INVALID)
+    : asked;
 };
 
 const regexTest = Joi.object({
@@ -104,8 +133,8 @@ const valueTest = Joi.object({
   op: Joi.string()
     .valid(...OPS.filter((op) => op !== "regex"))
     .required(),
-  values: Joi.array().items(value).max(MAX_VALUES).required(),
-}).custom(assertValueCount);
+  values: Joi.array().items(testValue).max(MAX_VALUES).required(),
+}).custom(assertValues);
 
 const test = Joi.alternatives(regexTest, valueTest);
 
@@ -162,9 +191,7 @@ const unwindStep = Joi.object({
 const UNWOUND = ["rows", "groups"];
 
 export const querySchema = Joi.object({
-  v: Joi.number()
-    .valid(...QUERY_VERSIONS)
-    .required(),
+  v: Joi.number().valid(QUERY_VERSION).required(),
   source: name.required(),
   mode: Joi.string()
     .valid(...MODES)
@@ -316,11 +343,11 @@ const knownPath = Joi.object({
   path: storedPath.required(),
   type: Joi.string().valid(...TYPES),
   index: Joi.string()
-    .valid("fact", "ref", "refs", "time", "box")
+    .valid("fact", "ref", "refs", "time", "box", "id")
     .allow(null)
     .required(),
   closed: Joi.boolean().required(),
-  within: path.allow(null).required(),
+  within: pathText.allow(null).required(),
   // For a ref: the index scans one value of it takes.
   scans: Joi.number().integer().min(1),
   // For a time: how its bucket stores it.
@@ -336,7 +363,7 @@ const knownPath = Joi.object({
 });
 
 // Fields this release no longer reads, from a service on an older one, are
-// ignored.
+// ignored: `roots` among them.
 const source = Joi.object({
   name: name.required(),
   label: Joi.string().required(),
@@ -346,15 +373,13 @@ const source = Joi.object({
     one: Joi.string().required(),
     many: Joi.string().required(),
   }).required(),
-  star: Joi.array().items(path).required(),
-  time: path.allow(null).required(),
-  roots: Joi.array().items(path).max(MAX_ROOTS).required(),
-  answersAt: path.allow(null).required(),
+  star: Joi.array().items(pathText).required(),
+  time: pathText.allow(null).required(),
+  answersAt: pathText.allow(null).required(),
   paths: Joi.array().items(knownPath).max(MAX_LISTED_PATHS).required(),
 }).unknown(true);
 
-// What a service can be asked: the Query versions it reads, and its sources.
+// What a service can be asked: its sources.
 export const sourcesSchema = Joi.object({
-  versions: Joi.array().items(Joi.number().integer()).min(1).required(),
   sources: Joi.array().items(source).required(),
 }).label("ExploreSources");

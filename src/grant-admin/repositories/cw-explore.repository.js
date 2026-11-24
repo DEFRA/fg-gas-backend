@@ -85,7 +85,7 @@ const readOrFail = (schema, payload) => {
   return value;
 };
 
-// What Caseworking can be asked: its Query versions and its sources.
+// What Caseworking can be asked: its sources.
 export const findCwExploreSources = () =>
   cwRequest("get", "/actuators/explore/sources", EXPLORE_LABEL, {
     failures: EXPLORE_FAILURES,

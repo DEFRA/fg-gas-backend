@@ -55,7 +55,6 @@ const known = (path, extra = {}) => ({
 });
 
 const CW_SOURCES = {
-  versions: [2],
   sources: [
     {
       name: "cases",
@@ -65,13 +64,6 @@ const CW_SOURCES = {
       noun: { one: "case", many: "cases" },
       star: ["caseRef", "workflowCode", "currentStatus", "createdAt"],
       time: "createdAt",
-      roots: [
-        "caseRef",
-        "workflowCode",
-        "currentStatus",
-        "createdAt",
-        "payload",
-      ],
       answersAt: "payload.answers",
       paths: [
         known("caseRef", { index: "ref", scans: 1 }),
@@ -181,25 +173,22 @@ describe("exploreQueryUseCase", () => {
     expect(error.data).toEqual({ logLevel: "info" });
   });
 
-  it("refuses a path under none of the source's roots", async () => {
-    const text = "db.applications.find({}, { clientRef: 1, colour: 1 })";
-    const error = await failure(ask(text));
+  it("reads a path no source suggests, and says it may be mistyped", async () => {
+    runPart.mockResolvedValue(exactPart("gas.agreements", []));
 
-    expect(error.output.payload.error).toMatchObject({
-      message: expect.stringMatching(
-        /^Applications can’t read “colour”\. A path starts with clientRef, code, /,
-      ),
-      at: text.indexOf("colour"),
-    });
-    expect(writeAuditEvent).not.toHaveBeenCalled();
+    const answer = await ask(
+      "db.agreements.find({}, { agreementNumber: 1, 'payload.bank.sortCode': 1, colour: 1 })",
+    );
+
+    expect(answer.unseen).toEqual(["payload.bank.sortCode", "colour"]);
+    expect(runPart).toHaveBeenCalledTimes(1);
   });
 
   it.each([
-    ["db.applications.find({ anything: /9238/ })", "anything"],
-    ["db.applications.find({ 'identifiers.nino': 'x' })", "nino"],
+    ["db.applications.find({ 'a..b': 1 })", "a..b"],
     ["db.applications.find({ _id: 'x' })", "_id"],
-    ["db.cases.find({ comments: /x/ })", "comments"],
-    ["db.cases.find({ 'payload.answers.sortCode': 'x' })", "sortCode"],
+    ["db.applications.find({ _id: ObjectId('x') })", "_id"],
+    ["db.cases.find({}, { 'a.$ref': 1 })", "$ref"],
   ])("refuses %s, reading and auditing nothing", async (text) => {
     const error = await failure(ask(text));
 
@@ -252,7 +241,7 @@ describe("exploreQueryUseCase", () => {
     const [source, query] = runPart.mock.calls[0];
 
     expect(source.name).toBe("applications");
-    expect(query).toMatchObject({ v: 2, limit: 50, positions: null });
+    expect(query).toMatchObject({ v: 3, limit: 50, positions: null });
     expect(query).not.toHaveProperty("answers");
     expect(query.where).toEqual({
       all: [
@@ -430,7 +419,7 @@ describe("exploreQueryUseCase", () => {
     });
   });
 
-  it("asks Caseworking for its source at the version both read, with the operator", async () => {
+  it("asks Caseworking for its source, with the operator", async () => {
     queryCwExplore.mockResolvedValue(exactPart("cw.cases", [row(5, 1, "CW")]));
 
     await ask(
@@ -439,7 +428,7 @@ describe("exploreQueryUseCase", () => {
 
     expect(queryCwExplore).toHaveBeenCalledWith(
       expect.objectContaining({
-        v: 2,
+        v: 3,
         source: "cases",
         columns: [
           { path: "caseRef" },
@@ -468,7 +457,7 @@ describe("exploreQueryUseCase", () => {
     );
   });
 
-  it("words Caseworking refusing a path off its roots, naming Caseworking", async () => {
+  it("words Caseworking refusing a malformed path, naming Caseworking", async () => {
     queryCwExplore.mockRejectedValue(
       Object.assign(refuseQuery("PATH_NOT_ALLOWED"), { service: "CW" }),
     );
@@ -480,7 +469,7 @@ describe("exploreQueryUseCase", () => {
     expect(error.output.payload).toEqual({
       statusCode: 400,
       reason: "QUERY_REFUSED",
-      message: "Caseworking doesn’t let Explore read a path this query uses",
+      message: "Caseworking can’t read a malformed path in this query",
       service: "CW",
       vocabulary: VOCABULARY,
     });
@@ -890,15 +879,20 @@ describe("exploreQueryUseCase", () => {
     expect(answer.rows).toHaveLength(1);
   });
 
-  it("caps LIMIT and uses the limit asked", async () => {
+  it("refuses a LIMIT over 5,000 and uses the limit asked", async () => {
     runPart.mockResolvedValue(exactPart("gas.agreements", []));
 
-    await ask("db.agreements.find({}, { agreementNumber: 1 }).limit(9000)");
+    const text = "db.agreements.find({}, { agreementNumber: 1 }).limit(9000)";
+    const error = await failure(ask(text));
+
     await ask("db.agreements.find({}, { agreementNumber: 1 })", { limit: 7 });
 
-    expect(runPart.mock.calls.map(([, query]) => query.limit)).toEqual([
-      5000, 7,
-    ]);
+    expect(error.output.payload.error).toEqual({
+      message: "Explore shows at most 5,000 rows",
+      at: text.indexOf("9000"),
+      end: text.indexOf("9000") + 4,
+    });
+    expect(runPart.mock.calls.map(([, query]) => query.limit)).toEqual([7]);
   });
 
   it("refuses a 31st test, reading nothing", async () => {
