@@ -45,6 +45,7 @@ export const eventDetailResponseSchema = eventRowWithAttemptsSchema
     // Present only where a purge is possible: the admin gates its button on
     // it. Null on anything but a dead letter.
     purgeDeletionDate: nullableIso,
+    purgeIsFinal: Joi.boolean().optional(),
     // The one record this event belongs to, where its owning service has it.
     record: Joi.object({
       kind: Joi.string()

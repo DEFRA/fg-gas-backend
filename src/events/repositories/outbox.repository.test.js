@@ -636,7 +636,13 @@ describe("outbox.repository payload edits", () => {
     expect(findOne).toHaveBeenCalledWith(
       { _id: new ObjectId(ID) },
       {
-        projection: { status: 1, event: 1, payloadRevision: 1, lastEdit: 1 },
+        projection: {
+          status: 1,
+          event: 1,
+          payloadRevision: 1,
+          lastEdit: 1,
+          deliverySequence: 1,
+        },
         session,
       },
     );
@@ -650,6 +656,10 @@ describe("outbox.repository payload edits", () => {
     expect(updateOne.mock.calls[0][0]).toEqual({
       _id: new ObjectId(ID),
       status: { $in: [OutboxStatus.DEAD_LETTER, OutboxStatus.PURGED] },
+      $or: [
+        { status: OutboxStatus.DEAD_LETTER },
+        { deliverySequence: { $exists: false } },
+      ],
       payloadRevision: { $in: [null, 0] },
     });
   });

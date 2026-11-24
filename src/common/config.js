@@ -73,7 +73,7 @@ const schema = Joi.object({
   OUTBOX_EXPIRES_MS: Joi.number(),
   OUTBOX_CLAIM_MAX_RECORDS: Joi.number(),
   OUTBOX_POLL_MS: Joi.number(),
-  OUTBOX_SEQUENCED_DELIVERY_ENABLED: Joi.boolean().default(false),
+  OUTBOX_SEQUENCED_DELIVERY_ENABLED: Joi.boolean().optional().default(false),
   INBOX_MAX_RETRIES: Joi.number(),
   INBOX_EXPIRES_MS: Joi.number(),
   INBOX_CLAIM_MAX_RECORDS: Joi.number(),

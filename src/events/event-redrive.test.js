@@ -243,8 +243,7 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
     ).toBe(false);
   });
 
-  // The promise the purge confirm makes: "You can redrive it until then."
-  it("matches a purged row too, so a purge can be undone until it is deleted", () => {
+  it("matches a purged unsequenced row, so it can be redriven until deletion", () => {
     expect(
       matchesFilter({ ...aDeadLetter(), status: "PURGED" }, redriveFilter),
     ).toBe(true);

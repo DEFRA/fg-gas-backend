@@ -335,12 +335,15 @@ export const findStatusById = async (id, session) => {
 };
 
 // Purging a sequenced row releases its successors and makes that row terminal.
+const redrivableOutbox = {
+  status: { $in: REDRIVABLE_STATUSES },
+  $or: [{ status: DEAD_LETTER }, { deliverySequence: { $exists: false } }],
+};
 export const redriveById = async (id, { by, session } = {}) => {
   const { matchedCount } = await db.collection(collection).updateOne(
     {
       _id: toId(id),
-      status: { $in: REDRIVABLE_STATUSES },
-      $or: [{ status: DEAD_LETTER }, { deliverySequence: { $exists: false } }],
+      ...redrivableOutbox,
     },
     redriveUpdate(OutboxStatus.RESUBMITTED, { by }),
     { session },
@@ -372,7 +375,13 @@ export const findEditableById = (id, session) =>
   db.collection(collection).findOne(
     { _id: toId(id) },
     {
-      projection: { status: 1, event: 1, payloadRevision: 1, lastEdit: 1 },
+      projection: {
+        status: 1,
+        event: 1,
+        payloadRevision: 1,
+        lastEdit: 1,
+        deliverySequence: 1,
+      },
       session,
     },
   );
@@ -387,7 +396,7 @@ export const editPayloadById = async (
   const { matchedCount } = await db.collection(collection).updateOne(
     {
       _id: toId(id),
-      status: { $in: REDRIVABLE_STATUSES },
+      ...redrivableOutbox,
       payloadRevision: revisionFilter(revision),
     },
     editUpdate({

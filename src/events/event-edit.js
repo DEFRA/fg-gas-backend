@@ -69,9 +69,9 @@ export const staleEdit = (box, id) =>
   );
 
 // The same body shape as `redriveConflict`, in an edit's own words.
-export const editConflict = (box, id, status, statusLabel) => {
+export const editConflict = (box, id, status, statusLabel, message) => {
   const error = Boom.conflict(
-    `${box} event "${id}" is ${status}, not ${EDITABLE_DESCRIPTION}`,
+    message ?? `${box} event "${id}" is ${status}, not ${EDITABLE_DESCRIPTION}`,
   );
 
   error.output.payload.status = status;

@@ -15,6 +15,7 @@ let saveGrant;
 let findNextMessage;
 let purgeById;
 let redriveById;
+let editPayloadById;
 let config;
 let OutboxSubscriber;
 let saveEvents;
@@ -47,7 +48,7 @@ beforeAll(async () => {
   ({ save: saveGrant } = await import("../repositories/grant.repository.js"));
   ({ saveEvents } = await import("../../events/save-events.js"));
   ({ config } = await import("../../common/config.js"));
-  ({ findNextMessage, purgeById, redriveById } =
+  ({ findNextMessage, purgeById, redriveById, editPayloadById } =
     await import("../../events/repositories/outbox.repository.js"));
   ({ OutboxSubscriber } =
     await import("../../events/subscribers/outbox.subscriber.js"));
@@ -308,6 +309,12 @@ describe("Application status reporting", () => {
       heldRef,
     );
     expect(await redriveById(dead._id.toHexString())).toBe(false);
+    expect(
+      await editPayloadById(dead._id.toHexString(), {
+        revision: 1,
+        event: { id: "edited" },
+      }),
+    ).toBe(false);
   });
 
   it("keeps sequenced reports unclaimable during the worker rollout and releases them in order", async () => {

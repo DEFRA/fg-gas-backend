@@ -3,7 +3,7 @@ import { DEAD_LETTER } from "../../events/event-redrive.js";
 import { expiryFrom } from "../../events/event-retention.js";
 import { isPlainJson, withJsonNumbers } from "../../events/plain-json.js";
 import { actorName } from "./event-display.js";
-import { CASEWORKING } from "./event-sources.js";
+import { CASEWORKING, GAS } from "./event-sources.js";
 import {
   deriveTraceId,
   normaliseGasInbox,
@@ -114,6 +114,11 @@ export const toEventDetail = ({
     segregationRef: orNull(doc.segregationRef),
     attemptHistory: toAttemptHistory(doc.attemptHistory),
     lastRedrive: intermediate.lastRedrive,
+    ...(service === GAS &&
+      box === "outbox" &&
+      doc.deliverySequence !== undefined && {
+        purgeIsFinal: true,
+      }),
     // Kept through a redrive, so the admin can show "Previously purged".
     lastPurge: toLastPurge(doc.lastPurge),
     purgeDeletionDate: toPurgeDeletionDate({

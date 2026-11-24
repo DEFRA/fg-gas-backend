@@ -18,7 +18,7 @@ export const redriveEventRoute = {
   path: "/grant-admin/events/{service}/{box}/{id}/redrive",
   options: {
     description:
-      "Admin: put one DEAD_LETTER or PURGED event back in front of its poller. 409 when the row is in any other status.",
+      "Admin: put one DEAD_LETTER or PURGED event back in front of its poller. Purged sequenced GAS outbox events and events in other statuses return 409.",
     tags: ["api"],
     validate: { params: eventParamsSchema, headers: actorHeaderSchema },
     notes: SHELL_NOTES[SHELL_ERRORS],

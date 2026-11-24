@@ -50,7 +50,7 @@ export const editPayloadRoute = {
           [constants.HTTP_STATUS_NOT_FOUND]: { description: "No such event" },
           [constants.HTTP_STATUS_CONFLICT]: {
             description:
-              "Not redrivable (DEAD_LETTER or PURGED); the body names its status",
+              "Event is ineligible for editing, including purged sequenced GAS outbox events. The body names its status.",
           },
           [constants.HTTP_STATUS_PRECONDITION_FAILED]: {
             description:

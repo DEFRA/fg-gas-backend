@@ -362,3 +362,24 @@ describe("config METRICS_ENABLED", () => {
     expect((await loadConfig()).metrics.enabled).toBe(true);
   });
 });
+
+describe("config OUTBOX_SEQUENCED_DELIVERY_ENABLED", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it.each([
+    [undefined, false],
+    ["true", true],
+  ])(
+    "sets sequenced delivery with the environment value %s",
+    async (value, expected) => {
+      vi.stubEnv("OUTBOX_SEQUENCED_DELIVERY_ENABLED", value);
+      vi.resetModules();
+
+      const { config } = await import("./config.js");
+
+      expect(config.outbox.sequencedDeliveryEnabled).toBe(expected);
+    },
+  );
+});

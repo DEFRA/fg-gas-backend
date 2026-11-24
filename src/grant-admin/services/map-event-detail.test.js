@@ -725,6 +725,11 @@ describe("toEventDetail purgeDeletionDate", () => {
     expect(outboxDetail().purgeDeletionDate).toBe("2026-12-20T09:00:00.000Z");
   });
 
+  it("tells the admin when purging a GAS outbox event is final", () => {
+    expect(outboxDetail({ deliverySequence: 0 }).purgeIsFinal).toBe(true);
+    expect(outboxDetail().purgeIsFinal).toBeUndefined();
+  });
+
   it("follows a shorter configured retention", () => {
     const detail = toEventDetail({
       service: "gas",
