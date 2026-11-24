@@ -158,12 +158,13 @@ describe("Application status reporting", () => {
     // A receipt written by an older GAS instance has no sequence. A later
     // writer's clock can put the withdrawal before both submission reports.
     await application.move("APPLICATION_WITHDRAWN");
-    await db
-      .collection("outbox")
-      .updateOne(
-        { segregationRef, applicationReportingSequence: -1 },
-        { $unset: { applicationReportingSequence: "" } },
-      );
+    await db.collection("outbox").updateOne(
+      { segregationRef, applicationReportingSequence: -1 },
+      {
+        $unset: { applicationReportingSequence: "" },
+        $set: { publicationDate: new Date(1) },
+      },
+    );
     await db
       .collection("outbox")
       .updateOne(
