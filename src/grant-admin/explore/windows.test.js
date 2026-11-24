@@ -103,7 +103,7 @@ describe("readAnswerWindows", () => {
 
     return {
       rows: [{ cells: {} }],
-      window: { to: null, end: false, positions: "p", skipped: 0 },
+      window: { to: null, end: false, positions: "p", skipped: [] },
     };
   };
 

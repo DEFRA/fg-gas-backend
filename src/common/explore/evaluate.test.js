@@ -1,7 +1,8 @@
-import { Decimal128, Long, ObjectId } from "mongodb";
+import { Decimal128, Double, Int32, Long, ObjectId } from "mongodb";
 import { describe, expect, it } from "vitest";
 import {
   accumulate,
+  bsonTypeName,
   cellOf,
   compareBson,
   compareOrdered,
@@ -14,6 +15,7 @@ import {
   orderValueOf,
   orderedExpressionOf,
   orderedOf,
+  orderedValue,
   partialValue,
   readAt,
   sentPartial,
@@ -146,6 +148,14 @@ describe("compileWhere", () => {
     expect(matches(test("identifiers.sbi", "eq", 200000001))).toBe(false);
     expect(matches(test("agreed", "eq", true))).toBe(true);
     expect(matches(test("agreed", "eq", "true"))).toBe(false);
+  });
+
+  it("puts an object with its own _bsontype in no range, as a type it isn't", () => {
+    const odd = { x: { _bsontype: "custom", toString: null } };
+
+    expect(
+      ["lt", "lte", "gt", "gte"].map((op) => matches(test("x", op, 1), odd)),
+    ).toEqual([false, false, false, false]);
   });
 
   it("matches any value of a list", () => {
@@ -313,19 +323,41 @@ describe("shapeValue and cellOf", () => {
       text: "{ bank: { sortCode: '1' } }",
     });
     expect(shapeValue({ a: 1, n: { first: "Sam", last: "Rowe" } })).toEqual({
-      text: "{ a: 1, n: 'Sam Rowe' }",
+      text: "{ a: 1, n: { first: 'Sam', last: 'Rowe' } }",
     });
     expect(shapeValue(Decimal128.fromString("1.50"))).toBe("1.50");
     expect(shapeValue([{ a: 1 }])).toEqual([{ text: "{ a: 1 }" }]);
-    expect(shapeValue([undefined])).toEqual(["{…}"]);
+    expect(shapeValue([undefined])).toEqual([null]);
   });
 
-  it("shows a list inside a list as stored, 8 deep at most", () => {
+  it("shows numbers of every BSON type as numbers, where one holds them", () => {
+    expect(shapeValue(new Int32(5))).toBe(5);
+    expect(shapeValue(new Double(2.5))).toBe(2.5);
+    expect(shapeValue(Long.fromNumber(7))).toBe(7);
+    expect(shapeValue(Long.fromString("9007199254740993"))).toBe(
+      "9007199254740993",
+    );
+    expect(shapeValue([new Int32(1), new Double(Number.NaN)])).toEqual([
+      1,
+      "NaN",
+    ]);
+  });
+
+  it("shows a list inside a list as stored, whole at any depth", () => {
     expect(shapeValue([1, [2, [null, { a: 1 }]]])).toEqual([
       1,
       [2, [null, { text: "{ a: 1 }" }]],
     ]);
-    expect(shapeValue([[[[[[[[[1]]]]]]]]])).toEqual([[[[[[[["[…]"]]]]]]]]);
+    expect(shapeValue([[[[[[[[[[[[1]]]]]]]]]]]])).toEqual([
+      [[[[[[[[[[[1]]]]]]]]]]],
+    ]);
+  });
+
+  it("shows every value of a long list", () => {
+    const list = Array.from({ length: 3552 }, (_, n) => ({ parcel: n }));
+
+    expect(shapeValue(list)).toHaveLength(3552);
+    expect(shapeValue(list).at(-1)).toEqual({ text: "{ parcel: 3551 }" });
   });
 
   it("makes a cell of the path's value, a list through each list", () => {
@@ -359,19 +391,19 @@ describe("shapeValue and cellOf", () => {
     });
   });
 
-  it("shows a name object as one name", () => {
+  it("shows a name object as the object it is", () => {
     expect(
       cellOf(
         { name: { title: "Dr", first: "Jo", last: "Bloggs" } },
         at("name"),
       ),
-    ).toBe("Dr Jo Bloggs");
+    ).toEqual({ text: "{ title: 'Dr', first: 'Jo', last: 'Bloggs' }" });
   });
 
-  it("shows a list of one object as that object, a longer one each inline in the list", () => {
-    expect(cellOf({ a: [{ id: "1" }] }, at("a"))).toEqual({
-      text: "{ id: '1' }",
-    });
+  it("shows a list of one object as a list, as mongod's '$path' gives it", () => {
+    expect(cellOf({ a: [{ id: "1" }] }, at("a"))).toEqual([
+      { text: "{ id: '1' }" },
+    ]);
     expect(cellOf({ a: [{ id: "1" }, { id: "2" }] }, at("a"))).toEqual([
       { text: "{ id: '1' }" },
       { text: "{ id: '2' }" },
@@ -383,12 +415,53 @@ describe("shapeValue and cellOf", () => {
 describe("expressionOf", () => {
   const actions = at("phases.answers.parcels.actions.value");
 
-  it("counts the outer list for $size, and a value that isn't a list as (none)", () => {
+  it("counts the outer list for $size", () => {
     expect(expressionOf("count", doc, at("phases"))).toBe(1);
     expect(expressionOf("count", doc, at("phases.answers.parcels"))).toBe(1);
     expect(expressionOf("count", doc, at("tags"))).toBe(0);
-    expect(expressionOf("count", doc, at("clientRef"))).toBeNull();
-    expect(expressionOf("count", doc, at("missing"))).toBeNull();
+  });
+
+  it.each([
+    ["clientRef", "string"],
+    ["missing", "missing"],
+    ["closedAt", "null"],
+    ["identifiers", "object"],
+    ["_id", "objectId"],
+  ])(
+    "fails $size of %s, not a list, as mongod does, naming its type",
+    (path, type) => {
+      const failed = (() => {
+        try {
+          expressionOf("count", doc, at(path));
+        } catch (error) {
+          return error;
+        }
+
+        return null;
+      })();
+
+      expect(failed).toMatchObject({
+        refusal: "MONGOD_ERROR",
+        detail: { fn: "count", type },
+      });
+    },
+  );
+
+  it("names each number's BSON type as mongod does", () => {
+    expect(
+      [
+        new Int32(1),
+        Long.fromNumber(1),
+        new Double(1),
+        Decimal128.fromString("1"),
+      ].map(bsonTypeName),
+    ).toEqual(["int", "long", "double", "decimal"]);
+    expect([true, new Date(0), [], undefined].map(bsonTypeName)).toEqual([
+      "bool",
+      "date",
+      "array",
+      "missing",
+    ]);
   });
 
   it("sums a list's numbers one level deep, or the number, else 0", () => {
@@ -446,21 +519,27 @@ describe("accumulate", () => {
       { n: "NaN" },
       { n: "NaN" },
       { n: "Infinity" },
+      "f",
+      null,
     ]);
     expect(
-      partialValue(
-        "sum",
-        mergePartial(
+      Number(
+        partialValue(
           "sum",
-          sentPartial("sum", half([1e308])),
-          sentPartial("sum", half([1e308, 1])),
+          mergePartial(
+            "sum",
+            sentPartial("sum", half([1e308])),
+            sentPartial("sum", half([1e308, 1])),
+          ),
         ),
       ),
     ).toBe(Infinity);
     expect(
-      partialValue(
-        "sum",
-        mergePartial("sum", sentPartial("sum", half(values)), [1, 0, 1]),
+      Number(
+        partialValue(
+          "sum",
+          mergePartial("sum", sentPartial("sum", half(values)), [1, 0, 1]),
+        ),
       ),
     ).toBe(Infinity);
   });
@@ -473,13 +552,15 @@ describe("accumulate", () => {
       { n: "Infinity" },
       { n: "NaN" },
       { n: "Infinity" },
+      "f",
+      null,
     ]);
-    expect(partialValue("sum", mergePartial("sum", finite, overflowed))).toBe(
-      Infinity,
-    );
-    expect(partialValue("sum", mergePartial("sum", overflowed, finite))).toBe(
-      Infinity,
-    );
+    expect(
+      Number(partialValue("sum", mergePartial("sum", finite, overflowed))),
+    ).toBe(Infinity);
+    expect(
+      Number(partialValue("sum", mergePartial("sum", overflowed, finite))),
+    ).toBe(Infinity);
   });
 
   it("sends a merged sum's parts that aren't finite tagged, so JSON keeps them", () => {
@@ -490,12 +571,41 @@ describe("accumulate", () => {
     );
     const received = JSON.parse(JSON.stringify(merged));
 
-    expect(received).toEqual([{ n: "NaN" }, { n: "NaN" }, { n: "Infinity" }]);
-    expect(partialValue("sum", received)).toBe(Infinity);
+    expect(received).toEqual([
+      { n: "NaN" },
+      { n: "NaN" },
+      { n: "Infinity" },
+      "f",
+      null,
+    ]);
+    expect(Number(partialValue("sum", received))).toBe(Infinity);
     expect(mergePartial("sum", sent("sum", [1.5]), sent("sum", [2]))).toEqual([
-      3.5, 0, 3.5,
+      3.5,
+      0,
+      3.5,
+      "f",
+      null,
     ]);
   });
+
+  it.each([
+    [["NaN"], ["1"], "NaN"],
+    [["Infinity"], ["-Infinity"], "NaN"],
+    [["Infinity", "2"], ["3"], "Infinity"],
+    [["1"], ["-Infinity"], "-Infinity"],
+  ])(
+    "merges Decimal128s %j and %j sent through JSON as mongod adds them, to %s",
+    (first, second, total) => {
+      const received = [first, second].map((texts) =>
+        JSON.parse(
+          JSON.stringify(sent("sum", texts.map(Decimal128.fromString))),
+        ),
+      );
+      const merged = partialValue("sum", mergePartial("sum", ...received));
+
+      expect([merged._bsontype, String(merged)]).toEqual(["Decimal128", total]);
+    },
+  );
 
   it("takes the least and greatest whole value, nulls and missing left out", () => {
     expect(over("min", [7, [], undefined, null, { a: 1 }])).toBe(7);
@@ -522,7 +632,12 @@ describe("accumulate", () => {
 describe("mergePartial", () => {
   it("adds counts and sums, and keeps the extreme of typed parts", () => {
     expect(mergePartial("count", 2, 3)).toBe(5);
-    expect(shownPartial("sum", mergePartial("sum", [0, 0], [3, 0]))).toBe(3);
+    expect(
+      shownPartial(
+        "sum",
+        mergePartial("sum", [0, 0, 0, "i", null], [3, 0, 3, "i", null]),
+      ),
+    ).toBe(3);
     expect(mergePartial("min", 4, "a")).toBe(4);
     expect(mergePartial("max", 4, "a")).toBe("a");
     expect(mergePartial("max", null, 4)).toBe(4);
@@ -549,12 +664,6 @@ describe("mergePartial", () => {
         "2026-10-14T00:00:00.000Z",
       ),
     ).toBe("2026-10-14T00:00:00.000Z");
-  });
-
-  it("adds a sum sent as one number, as a service before these pairs sends it", () => {
-    expect(shownPartial("sum", mergePartial("sum", [1.5, 0], 2))).toBe(3.5);
-    expect(shownPartial("sum", mergePartial("sum", 2, [1.5, 0]))).toBe(3.5);
-    expect(shownPartial("sum", 4)).toBe(4);
   });
 
   it("adds sums with what each part lost", () => {
@@ -585,11 +694,11 @@ describe("BSON values and objects that travel typed", () => {
     expect(groupKeyOf(decimal)).toBe(groupKeyOf(1.5));
     expect(compareBson(Decimal128.fromString("2"), 10)).toBe(-1);
     expect(shownOrdered(orderedOf({ amount: decimal }))).toEqual({
-      text: "{ amount: 1.5 }",
+      text: "{ amount: Decimal128('1.50') }",
     });
   });
 
-  it("shows where an object sent typed was cut short", () => {
+  it("sends an object whole, however wide or deep", () => {
     const wide = Object.fromEntries(
       Array.from({ length: 150 }, (_, n) => [`k${n}`, n]),
     );
@@ -598,8 +707,32 @@ describe("BSON values and objects that travel typed", () => {
       1,
     );
 
-    expect(shownOrdered(orderedOf(wide)).text).toMatch(/k98: 98, … }$/);
-    expect(shownOrdered(orderedOf(deep)).text).toContain("a: … }");
+    expect(shownOrdered(orderedOf(wide)).text).toMatch(/k149: 149 }$/);
+    expect(shownOrdered(orderedOf(deep)).text).toBe(
+      `${"{ a: ".repeat(12)}1${" }".repeat(12)}`,
+    );
+  });
+
+  it("sends each number with its BSON type, and reads it back so", () => {
+    const values = [
+      new Int32(5),
+      new Double(5),
+      new Double(-0),
+      new Double(Number.NaN),
+      Long.fromString("9007199254740993"),
+      Decimal128.fromString("1.50"),
+    ];
+    const sent = JSON.parse(JSON.stringify(values.map(orderedOf)));
+
+    expect(sent).toEqual([
+      { i: 5 },
+      { f: 5 },
+      { f: "-0" },
+      { f: "NaN" },
+      { l: "9007199254740993" },
+      { x: "1.50" },
+    ]);
+    expect(sent.map(orderedValue)).toEqual(values);
   });
 
   it("keeps an ObjectId its own type when grouping, ordering and showing", () => {
@@ -636,9 +769,9 @@ describe("BSON values and objects that travel typed", () => {
     ).toBe(-1);
     expect(compareBson(Decimal128.fromString("1E-400"), 0)).toBe(1);
     expect(orderedOf(Decimal128.fromString("Infinity"))).toEqual({
-      n: "Infinity",
+      x: "Infinity",
     });
-    expect(orderedOf(Decimal128.fromString("NaN"))).toEqual({ n: "NaN" });
+    expect(orderedOf(Decimal128.fromString("NaN"))).toEqual({ x: "NaN" });
     expect(compareBson(Decimal128.fromString("-Infinity"), -1)).toBe(-1);
 
     expect(compareBson(0, Decimal128.fromString("-1E-400"))).toBe(1);
@@ -707,13 +840,12 @@ describe("BSON values and objects that travel typed", () => {
     expect(compareBson({ a: Decimal128.fromString("1") }, { a: 3 })).toBe(-1);
   });
 
-  it("shows a list cut short inside an object with a bare …", () => {
+  it("sends a long list inside an object whole", () => {
     const text = shownOrdered(
       orderedOf({ items: Array.from({ length: 150 }, () => 0) }),
     ).text;
 
-    expect(text.endsWith("0, 0, … ] }")).toBe(true);
-    expect(text).not.toContain("'…'");
+    expect(text).toBe(`{ items: [ ${Array(150).fill(0).join(", ")} ] }`);
   });
 
   it("keeps a group's list of one object a list", () => {
@@ -727,10 +859,16 @@ describe("groupKeyOf", () => {
     expect(groupKeyOf(true)).not.toBe(groupKeyOf("true"));
   });
 
-  it("keys a time as one, however it is stored", () => {
-    expect(groupKeyOf("2026-10-14T00:00:00.000Z")).toBe(
+  it("keys a Date apart from ISO text, as mongod's $group does", () => {
+    expect(groupKeyOf("2026-10-14T00:00:00.000Z")).not.toBe(
       groupKeyOf(new Date("2026-10-14T00:00:00.000Z")),
     );
+  });
+
+  it("keys numbers by value, whatever their BSON type", () => {
+    expect(groupKeyOf(new Int32(5))).toBe(groupKeyOf(new Double(5)));
+    expect(groupKeyOf(Long.fromNumber(5))).toBe(groupKeyOf(5));
+    expect(groupKeyOf(Decimal128.fromString("5.0"))).toBe(groupKeyOf(5));
   });
 
   it("keys null and missing as one", () => {
@@ -753,10 +891,10 @@ describe("unwindDoc", () => {
     ...unwindDoc(record, { names: path.split("."), preserve }),
   ];
 
-  it("makes a row of each element, the path set to it", () => {
+  it("makes a row of each element, the path set to it, with its index", () => {
     expect(unwind({ _id: 1, a: { b: [1, [2]] } }, "a.b")).toEqual([
-      { _id: 1, a: { b: 1 } },
-      { _id: 1, a: { b: [2] } },
+      [{ _id: 1, a: { b: 1 } }, 0],
+      [{ _id: 1, a: { b: [2] } }, 1],
     ]);
   });
 
@@ -767,15 +905,15 @@ describe("unwindDoc", () => {
   });
 
   it("keeps the record when asked, an empty list's key removed", () => {
-    expect(unwind({ _id: 3, a: [] }, "a", true)).toEqual([{ _id: 3 }]);
+    expect(unwind({ _id: 3, a: [] }, "a", true)).toEqual([[{ _id: 3 }, null]]);
     expect(unwind({ _id: 5, a: null }, "a", true)).toEqual([
-      { _id: 5, a: null },
+      [{ _id: 5, a: null }, null],
     ]);
-    expect(unwind({ _id: 4 }, "a", true)).toEqual([{ _id: 4 }]);
+    expect(unwind({ _id: 4 }, "a", true)).toEqual([[{ _id: 4 }, null]]);
   });
 
   it("makes one row of a value that isn't a list", () => {
-    expect(unwind({ a: 7 }, "a")).toEqual([{ a: 7 }]);
+    expect(unwind({ a: 7 }, "a")).toEqual([[{ a: 7 }, null]]);
   });
 
   it("never changes the record", () => {
@@ -814,27 +952,23 @@ describe("orderValueOf and compareBson", () => {
     expect(shownOrdered(order(true))).toBe("true");
   });
 
-  it("sends what a value sorts by at most 100 values long, a number that isn't finite tagged", () => {
+  it("sends what a value sorts by whole, a number that isn't finite tagged", () => {
     const long = orderedOf(Array.from({ length: 150 }, (_, n) => n));
 
-    expect(long).toHaveLength(100);
-    expect(long.at(-1)).toEqual({ c: true });
+    expect(long).toHaveLength(150);
+    expect(long.at(-1)).toBe(149);
     expect(orderedOf(Number.NaN)).toEqual({ n: "NaN" });
     expect(compareOrdered({ n: "-Infinity" }, -1)).toBe(-1);
   });
 
-  it("shows a grouped or least or greatest list cut short with its …, as its cell does", () => {
+  it("shows a grouped or least or greatest list whole, as its cell does", () => {
     const parcels = Array.from({ length: 150 }, (_, n) => `P${n}`);
     const objects = Array.from({ length: 150 }, (_, n) => ({ id: n, a: 1 }));
     const greatest = sentPartial("max", accumulate("max", undefined, parcels));
 
     expect(shownOrdered(orderedOf(parcels))).toEqual(shapeValue(parcels));
-    expect(shownOrdered(orderedOf(parcels)).at(-1)).toBe("…");
-    expect(shownPartial("max", greatest).at(-1)).toBe("…");
-    expect(shownOrdered(orderedOf(objects)).at(-1)).toBe("…");
-    expect(shownOrdered(orderedOf(parcels.slice(0, 99)))).toEqual(
-      parcels.slice(0, 99),
-    );
+    expect(shownPartial("max", greatest)).toEqual(parcels);
+    expect(shownOrdered(orderedOf(objects))).toEqual(shapeValue(objects));
   });
 
   it("sorts by a worked-out value typed", () => {
@@ -842,7 +976,7 @@ describe("orderValueOf and compareBson", () => {
       b: true,
     });
     expect(orderedExpressionOf("count", { a: [1, 2] }, at("a"))).toBe(2);
-    expect(partialValue("count", 3)).toBe(3);
+    expect(partialValue("count", 3)).toEqual(new Int32(3));
     expect(partialValue("max", undefined)).toBeNull();
   });
 
@@ -1013,9 +1147,9 @@ describe("as mongod answers", () => {
       { text: "{ b: 1 }" },
       { text: "{ b: null }" },
     ]);
-    expect(expressionOf("max", records[0], at("a"))).toEqual({
-      text: "{ b: 4 }",
-    });
+    expect(expressionOf("max", records[0], at("a"))).toEqual([
+      { text: "{ b: 4 }" },
+    ]);
     expect(expressionOf("max", records[7], at("a"))).toEqual([2, 3]);
   });
 
@@ -1082,9 +1216,11 @@ describe("as mongod answers", () => {
     const unwound = (path, preserve) =>
       records
         .slice(0, 10)
-        .flatMap((record) => [
-          ...unwindDoc(record, { names: path.split("."), preserve }),
-        ]);
+        .flatMap((record) =>
+          [...unwindDoc(record, { names: path.split("."), preserve })].map(
+            ([row]) => row,
+          ),
+        );
 
     expect(unwound("a", false).map(({ _id }) => _id)).toEqual([
       1, 1, 1, 1, 1, 2, 6, 6, 7, 8, 8, 8, 8, 8, 9, 9, 10, 10,

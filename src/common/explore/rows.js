@@ -1,4 +1,6 @@
+import { BSON } from "mongodb";
 import {
+  SIZE_ERROR,
   accumulate,
   cellOf,
   dateOf,
@@ -12,6 +14,9 @@ import {
   valueAt,
   valuesOf,
 } from "./evaluate.js";
+import { promotedOf } from "./evaluate-read.js";
+import { SIZE_KEY } from "./fields.js";
+import { refusalOf } from "./refusal.js";
 
 // A column's expression as text: `clientRef`, `count(phases.answers.parcels)`,
 // `count(*)`.
@@ -25,12 +30,28 @@ const isStar = ({ path }) => path === "*";
 
 const readerOfExpr = (readerOf, expr) => (isStar(expr) ? null : readerOf(expr));
 
-const cellMaker = (readerOf, column) => {
+// A cell mongod's expression fails on fails the query, naming its column.
+const inColumn = (make, n) => (doc, ctx) => {
+  try {
+    return make(doc, ctx);
+  } catch (error) {
+    if (refusalOf(error) === SIZE_ERROR) {
+      error.detail = { ...error.detail, column: n };
+    }
+
+    throw error;
+  }
+};
+
+const cellMaker = (readerOf, column, n) => {
   const reader = readerOfExpr(readerOf, column);
 
-  return column.fn
-    ? (doc, ctx) => expressionOf(column.fn, doc, reader, ctx)
-    : (doc, ctx) => cellOf(doc, reader, ctx);
+  return inColumn(
+    column.fn
+      ? (doc, ctx) => expressionOf(column.fn, doc, reader, ctx)
+      : (doc, ctx) => cellOf(doc, reader, ctx),
+    n,
+  );
 };
 
 // What a row sorts by, typed, so a merge compares it as the read did.
@@ -51,20 +72,42 @@ const timeOf = (doc, timeNames) =>
     timeNames.reduce((value, name) => value?.[name], doc),
   )?.toISOString() ?? null;
 
-// Turns one record into a row: its key in time order, what it opens, its
-// cells by column key, and what it sorts by.
+// A record's `_id` as the BSON of { _id }, its type kept.
+export const idOf = (doc) =>
+  BSON.serialize({ _id: doc._id }).toString("base64");
+
+const sizeOf = (doc) =>
+  Object.hasOwn(doc, SIZE_KEY) ? Number(promotedOf(doc[SIZE_KEY])) : null;
+
+// Turns one record into a row: its key in time order, what it opens, what
+// it sorts by, with documents its typed `_id`, unwind positions and size,
+// and how its cells are made. Cells are made only for the rows an answer
+// keeps (withCells), as mongod works out a projection only for what it
+// returns.
 export const rowMaker = ({ query, readerOf, open, timeNames }) => {
   const keys = columnKeys(query.columns);
-  const cells = query.columns.map((column) => cellMaker(readerOf, column));
+  const cells = query.columns.map((column, n) =>
+    cellMaker(readerOf, column, n),
+  );
   const order = orderMaker(readerOf, query.orderBy);
 
-  return (doc, ctx) => ({
+  const fetchedBy = query.documents
+    ? (doc, at) => ({ id: idOf(doc), at, size: sizeOf(doc) })
+    : () => ({});
+
+  return (doc, ctx, at = []) => ({
     key: { t: timeOf(doc, timeNames), i: String(doc._id) },
     open: open(doc, ctx),
-    cells: Object.fromEntries(keys.map((key, n) => [key, cells[n](doc, ctx)])),
     order: order(doc, ctx),
+    ...fetchedBy(doc, at),
+    cells: () =>
+      Object.fromEntries(keys.map((key, n) => [key, cells[n](doc, ctx)])),
   });
 };
+
+// A kept row with its cells made.
+export const withCells = (row) =>
+  typeof row.cells === "function" ? { ...row, cells: row.cells() } : row;
 
 const aggregatesOf = ({ columns, orderBy }) => {
   const exprs = [...columns, ...(orderBy?.fn ? [orderBy] : [])].filter(
@@ -143,24 +186,26 @@ export const grouper = ({ query, readerOf }) => {
 };
 
 // The rows a Query's $unwind stages make of one record, one at a time, so
-// each can be charged before the next is made.
+// each can be charged before the next is made, each with its positions:
+// the element's index at each step, null where none was a list's element,
+// as mongod's includeArrayIndex gives them.
 export const unwinder = ({ query, readerOf }) => {
   const steps = (query.unwind ?? []).map(({ path, preserve }) => ({
     names: readerOf({ path }).names,
     preserve,
   }));
 
-  const expand = function* (doc, at) {
-    if (at === steps.length) {
-      yield doc;
+  const expand = function* (doc, step, at) {
+    if (step === steps.length) {
+      yield { doc, at };
 
       return;
     }
 
-    for (const one of unwindDoc(doc, steps[at])) {
-      yield* expand(one, at + 1);
+    for (const [one, index] of unwindDoc(doc, steps[step])) {
+      yield* expand(one, step + 1, [...at, index]);
     }
   };
 
-  return (doc) => expand(doc, 0);
+  return (doc) => expand(doc, 0, []);
 };

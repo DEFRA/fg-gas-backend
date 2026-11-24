@@ -102,9 +102,6 @@ const isObjectId = (value) => value?._bsontype === "ObjectId";
 export const isBsonValue = (value) =>
   typeof value?._bsontype === "string" && !isObjectId(value);
 
-// Where a value sent typed was cut short: never a stored value.
-export const CUT = Object.freeze({});
-
 export const isPlainObject = (value) =>
   typeof value === "object" &&
   typeOf(value) === "object" &&
@@ -112,7 +109,7 @@ export const isPlainObject = (value) =>
 
 // An object whose fields are read, as opposed to a BSON value.
 export const isOpenObject = (value) =>
-  isPlainObject(value) && !isBsonValue(value) && value !== CUT;
+  isPlainObject(value) && !isBsonValue(value);
 
 const NUMERIC_BSON = new Set(["Decimal128", "Long", "Int32", "Double"]);
 
@@ -145,8 +142,32 @@ export const decimalOf = (text) => {
   return match ? canonicalDecimal(match) : null;
 };
 
-const isNumericBson = (value) =>
+export const isNumericBson = (value) =>
   isBsonValue(value) && NUMERIC_BSON.has(value._bsontype);
+
+const PROMOTED = {
+  Int32: (value) => value.valueOf(),
+  Double: (value) => value.valueOf(),
+  Long: (value) =>
+    value.lessThanOrEqual(Number.MAX_SAFE_INTEGER) &&
+    value.greaterThanOrEqual(Number.MIN_SAFE_INTEGER)
+      ? value.toNumber()
+      : value,
+};
+
+// A stored number as the driver's promotion reads it: an Int32 or Double as
+// a number, a Long as one where a number holds it exactly. Records are read
+// unpromoted, so each keeps its BSON type; a filter tests them so.
+export const promotedOf = (value) =>
+  isBsonValue(value) && Object.hasOwn(PROMOTED, value._bsontype)
+    ? PROMOTED[value._bsontype](value)
+    : value;
+
+// A Double is its binary value, not the shorter text it prints as.
+const decimalOfBson = (value) =>
+  value._bsontype === "Double" && Number.isFinite(value.valueOf())
+    ? doubleDecimalOf(value.valueOf())
+    : decimalOf(String(value));
 
 // A numeric BSON value a double can't hold exactly (past about 15 digits, or
 // 2^53), as its exact decimal; null for any other value.
@@ -155,7 +176,7 @@ export const exactOf = (value) => {
     return null;
   }
 
-  const exact = decimalOf(String(value));
+  const exact = decimalOfBson(value);
   const number = Number(String(value));
   const held = Number.isFinite(number) ? doubleDecimalOf(number) : null;
 
@@ -215,9 +236,10 @@ export const compareDecimals = (a, b) =>
 
 const BINARY_PLACES = 1100;
 
-// A finite double's exact value as a decimal from decimalOf: its binary
-// fraction written out, not its shortest text.
-export const doubleDecimalOf = (number) => {
+// A finite double's exact value as digits and an exponent, the fewest
+// places after the point it needs: its binary fraction written out, not its
+// shortest text.
+export const doubleDigitsOf = (number) => {
   let whole = number;
   let places = 0;
 
@@ -226,10 +248,11 @@ export const doubleDecimalOf = (number) => {
     places += 1;
   }
 
-  const digits = BigInt(whole) * 5n ** BigInt(places);
-
-  return decimalOf(`${digits}e-${places}`);
+  return `${BigInt(whole) * 5n ** BigInt(places)}e${-places}`;
 };
+
+// The same as a decimal from decimalOf.
+export const doubleDecimalOf = (number) => decimalOf(doubleDigitsOf(number));
 
 // The longest text of a Decimal128: 34 digits, a sign, a point and an
 // exponent.

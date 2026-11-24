@@ -1,6 +1,11 @@
+import { isIdText } from "./bson-bytes.js";
 import { pathsOfQuery } from "./fields.js";
 import { hasDollarSegment, pathProblem } from "./paths.js";
-import { MAX_CELLS } from "./query-schema.js";
+import {
+  DOCUMENTS_MODE,
+  MAX_CELLS,
+  MAX_DOCUMENT_BYTES,
+} from "./query-schema.js";
 
 // The rules GAS's checker applies to a query, checked again on the Query a
 // service is sent, so a forged one is refused as GAS would refuse it.
@@ -34,6 +39,25 @@ const ownPositions = (source, query) => {
   return Object.keys(query.positions ?? {}).every((id) => ids.includes(id));
 };
 
+// A `documents` fetch asks only for rows of the source's own boxes, each by
+// a record's `_id` as the BSON of { _id }, at as many positions as the
+// Query unwinds.
+const isFetch = (query) => query.mode === DOCUMENTS_MODE;
+
+const ownFetchRows = (source, query) => {
+  const ids = boxIdsOf(source);
+
+  return !isFetch(query) || query.rows.every((row) => ids.includes(row.box));
+};
+
+const idsAreIds = (_source, query) =>
+  !isFetch(query) ||
+  query.rows.every((row) => isIdText(row.id, MAX_DOCUMENT_BYTES));
+
+const positionsFitUnwind = (_source, query) =>
+  !isFetch(query) ||
+  query.rows.every((row) => row.at.length === query.unwind.length);
+
 // count(*) counts a group's records: a row is one record, so it has none.
 const isStar = (ref) => ref?.path === "*";
 
@@ -60,9 +84,13 @@ const RULES = [
   (_source, query) => countsRecordsOnlyInGroups(query),
   (_source, query) => projectsNoDollarKey(query),
   ownPositions,
+  ownFetchRows,
+  idsAreIds,
+  positionsFitUnwind,
 ];
 
-// Whether a Query keeps every rule GAS's checker applies, on this source.
+// Whether the Query a service is sent keeps every one of RULES, on this
+// source.
 export const keepsRules = (source, query) =>
   RULES.every((holds) => holds(source, query));
 

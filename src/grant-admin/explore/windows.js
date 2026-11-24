@@ -76,8 +76,8 @@ export const readInTurn = async (turn) => {
   }
 };
 
-export const skippedIn = (counts) =>
-  counts.reduce((sum, skipped = 0) => sum + skipped, 0);
+// Every window's skipped records, in order.
+export const skippedIn = (lists) => lists.flatMap((skipped) => skipped ?? []);
 
 // ── `windows: N`, each window one answer ──
 
@@ -93,14 +93,20 @@ const bodyAfter = (body, answers) =>
 const rowsIn = (answers) =>
   answers.reduce((sum, { rows }) => sum + rows.length, 0);
 
+// Whether one more window's rows fit: in the cells one answer holds, and
+// within the cells allowance still left.
+const hasRoomFor = (answers, { query, limit, hasCellsLeft }) =>
+  (rowsIn(answers) + limit) * query.columns.length <= MAX_CELLS &&
+  hasCellsLeft();
+
 // Why the answers end after these, or null to read on: every window asked is
 // read, or the next could pass the cells one answer holds, so isn't read.
-const answersEnd = ({ body, query, limit }, answers) => {
+const answersEnd = ({ body, query, limit, hasCellsLeft }, answers) => {
   if (answers.length === body.windows || nextStart(answers.at(-1)) === null) {
     return { stopped: null };
   }
 
-  return (rowsIn(answers) + limit) * query.columns.length <= MAX_CELLS
+  return hasRoomFor(answers, { query, limit, hasCellsLeft })
     ? null
     : { stopped: TOO_MANY_CELLS };
 };
@@ -113,6 +119,20 @@ const stoppedOf = ({ ended, failed }, stoppedBy) => {
   return failed ? stoppedBy(failed) : TOO_LATE;
 };
 
+const documentsOf = (answers) => {
+  const { documents } = answers.at(-1);
+
+  return (
+    documents && {
+      ...documents,
+      bytes: answers.reduce(
+        (sum, answered) => sum + answered.documents.bytes,
+        0,
+      ),
+    }
+  );
+};
+
 // Every row read, its columns' kinds as all the windows say, the records
 // every window skipped, the last window's way on, and why they stopped.
 const joined = (query, answers, stopped) => {
@@ -123,6 +143,7 @@ const joined = (query, answers, stopped) => {
     ...last,
     columns: columnsOf(query, rows),
     rows,
+    documents: documentsOf(answers),
     window: last.window && {
       ...last.window,
       skipped: skippedIn(answers.map(({ window }) => window?.skipped)),
@@ -134,7 +155,8 @@ const joined = (query, answers, stopped) => {
 
 // Windows 1 to N, the first from `body.positions` or the top, each read by
 // `readAnswer(body)` as one query, at most `limit` rows. A later window that
-// fails keeps the rows before it, `stoppedBy(error)` saying why.
+// fails keeps the rows before it, `stoppedBy(error)` saying why. No window is
+// read once `hasCellsLeft()` says the cells allowance is spent.
 export const readAnswerWindows = async ({
   body,
   query,
@@ -142,11 +164,13 @@ export const readAnswerWindows = async ({
   meter,
   readAnswer,
   stoppedBy,
+  hasCellsLeft = () => true,
 }) => {
   const read = await readInTurn({
     meter,
     readWindow: (answers) => readAnswer(bodyAfter(body, answers)),
-    endOf: (answers) => answersEnd({ body, query, limit }, answers),
+    endOf: (answers) =>
+      answersEnd({ body, query, limit, hasCellsLeft }, answers),
     keepsRowsOn: () => true,
   });
 

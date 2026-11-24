@@ -30,16 +30,23 @@ import { filterOf, isRef, pathOf, refOf } from "./read-filter.js";
 export { READ_MESSAGES } from "./read-messages.js";
 
 const DEFAULT_LIMIT = 50;
+
+// No projection: the record whole, with its `_id`.
+const WHOLE = { whole: true, id: true };
 const ID = "_id";
 
 // ── Columns ──
 
+// A name is mongod's field name: a dotted one names a field inside one, so
+// no part of it may be empty or start with $.
 const checkName = (entry) => {
-  if (entry.key === "") {
+  const parts = entry.key.split(".");
+
+  if (parts.includes("")) {
     fail(READ_MESSAGES.emptyName, entry);
   }
 
-  if (entry.key.startsWith("$")) {
+  if (parts.some((part) => part.startsWith("$"))) {
     fail(READ_MESSAGES.dollarName(entry.key), entry);
   }
 
@@ -138,9 +145,12 @@ const idFirst = (pairs) => [
   ...pairs.filter(([column]) => column.path !== ID || column.as),
 ];
 
+const isIdZero = (entry) => entry.key === ID && isZero(entry.value);
+
 // A projection to columns: null when it names none, for the defaults.
-// `_id: 0` alone shows the defaults too.
-const projectionOf = (node) => {
+// `_id: 0` alone shows the defaults too, and a document without its `_id`.
+// Each column's entry is kept, to say where mongod failed on it.
+const projectionOf = (ctx, node) => {
   if (!isObject(node)) {
     fail(READ_MESSAGES.fields, node);
   }
@@ -148,8 +158,16 @@ const projectionOf = (node) => {
   const pairs = node.entries.map(columnOfEntry).filter(Boolean);
 
   checkCollisions(pairs);
+  ctx.shape = {
+    whole: pairs.length === 0,
+    id: !node.entries.some(isIdZero),
+  };
 
-  return pairs.length ? checkColumns(idFirst(pairs)) : null;
+  const ordered = idFirst(pairs);
+
+  ctx.columnsAt = ordered.map(([, entry]) => entry.value);
+
+  return pairs.length ? checkColumns(ordered) : null;
 };
 
 const defaultColumns = (source) => source.star.map((path) => ({ path }));
@@ -311,7 +329,7 @@ const chained = (ctx, calls, read) =>
 const readFind = (ctx, call, rest) => {
   const [filter, projection] = argsOf(call, 2, READ_MESSAGES.find);
   const where = filter ? filterOf(ctx, filter) : null;
-  const columns = projection ? projectionOf(projection) : null;
+  const columns = projection ? projectionOf(ctx, projection) : null;
 
   return chained(ctx, rest, {
     mode: "rows",
@@ -408,7 +426,7 @@ const STAGE_READERS = {
     mode: "groups",
     ...groupOf(ctx, entry.value, entry),
   }),
-  $project: (_ctx, entry) => ({ columns: projectionOf(entry.value) }),
+  $project: (ctx, entry) => ({ columns: projectionOf(ctx, entry.value) }),
   $sort: (ctx, entry, read) => ({ orderBy: sortOf(ctx, entry.value, read) }),
   $limit: (ctx, entry) => ({
     limit: limitNode(ctx, entry.value, READ_MESSAGES.stageLimit),
@@ -508,6 +526,15 @@ const isTimeDescending = (source, orderBy) =>
 const orderOf = (source, { mode, orderBy = null }) =>
   mode === "rows" && isTimeDescending(source, orderBy) ? null : orderBy;
 
+const shapeOf = (ctx) => ctx.shape ?? WHOLE;
+
+// Where each test, the sort and each column were written.
+const spansOf = (ctx) => ({
+  tests: ctx.spans,
+  sort: ctx.sortAt ?? null,
+  columns: ctx.columnsAt ?? [],
+});
+
 const queryOf = (tree, vocabulary) => {
   const source = sourceOf(vocabulary, tree.source);
   const ctx = { source, spans: new Map(), tests: 0 };
@@ -529,11 +556,7 @@ const queryOf = (tree, vocabulary) => {
     positions: null,
   };
 
-  return {
-    query,
-    source,
-    spans: { tests: ctx.spans, sort: ctx.sortAt ?? null },
-  };
+  return { query, source, shape: shapeOf(ctx), spans: spansOf(ctx) };
 };
 
 // The literal tree and the vocabulary to the Query GAS and Caseworking run,

@@ -142,8 +142,60 @@ export const windowEnding = (boxes, cut) => {
 
   return {
     partial: ending.some(({ partial }) => partial === true),
-    skipped: ending.reduce((n, { skipped = 0 }) => n + skipped, 0),
+    skipped: ending.flatMap(({ skipped = [] }) => skipped),
   };
+};
+
+// ── Cut at the cells allowance ──
+
+const isAfter = (row, box, cut) =>
+  compareKeys({ ...row.key, box: box.id }, cut) > 0;
+
+// A box whose window holds rows past the cut ends at the last it keeps, as
+// a window cut by its limit does, at least one row read: `cut`, as its
+// cells allowance ended it, not its work.
+const endedAtCut = (cut) => (box) => {
+  const kept = box.rows.filter((row) => !isAfter(row, box, cut));
+
+  if (kept.length === box.rows.length) {
+    return box;
+  }
+
+  const rows = kept.length ? kept : box.rows.slice(0, 1);
+
+  return {
+    ...box,
+    rows,
+    to: rows.at(-1).key,
+    end: false,
+    count: null,
+    partial: true,
+    cut: true,
+  };
+};
+
+// Windowed boxes ended at `cut`, the key of the last row their cells fit
+// with: each window ends early, and Keep looking goes on.
+export const cutAt = (boxes, cut) => boxes.map(endedAtCut(cut));
+
+// Only the rows an exact read can show: the first `limit` across the boxes,
+// in the Query's order. The counts stand.
+export const keptExact = (boxes, { limit, orderBy }) => {
+  const order = compareRows(orderBy);
+  const kept = new Set(
+    boxes
+      .flatMap(({ id, rows }) =>
+        rows.map((row) => ({ ...row, key: { ...row.key, box: id }, row })),
+      )
+      .sort(order)
+      .slice(0, limit)
+      .map(({ row }) => row),
+  );
+
+  return boxes.map((box) => ({
+    ...box,
+    rows: box.rows.filter((row) => kept.has(row)),
+  }));
 };
 
 const fnOf = (aggKey) => aggKey.slice(0, aggKey.indexOf("("));

@@ -1,7 +1,16 @@
 import Boom from "@hapi/boom";
 import { checkPart } from "../../common/explore/large-answers.js";
 import { parsePath } from "../../common/explore/paths.js";
-import { sourcesSchema } from "../../common/explore/query-schema.js";
+import { SIZE_ERROR } from "../../common/explore/evaluate.js";
+import { START_BYTES } from "../../common/explore/document-start.js";
+import {
+  CELLS_HELD_BYTES,
+  DOCUMENTS_MODE,
+  MAX_DOCUMENT_BYTES,
+  MAX_LIMIT,
+  STARTS,
+  sourcesSchema,
+} from "../../common/explore/query-schema.js";
 import { RESIDUAL_REASONS } from "../../common/explore/index-tests.js";
 import { REFUSALS, refuseQuery } from "../../common/explore/refusal.js";
 import { bodyOf, cwRequest, operatorHeaders } from "./cw-http.js";
@@ -28,13 +37,35 @@ const NOUN = /^[a-z][a-z ]{0,63}$/;
 const nounOf = (noun) =>
   typeof noun === "string" && NOUN.test(noun) ? noun : null;
 
-const detailOf = ({ why, path, noun } = {}) => {
+// mongod's type names, as its messages give them.
+const BSON_TYPE = /^[a-zA-Z]{1,24}$/;
+
+const MAX_COLUMN = 20;
+
+const columnOf = (column) =>
+  Number.isInteger(column) && column >= 0 && column < MAX_COLUMN
+    ? column
+    : null;
+
+// Where mongod failed on a value: the type it names and the column, never
+// a value.
+const mongodDetailOf = ({ fn, type, column }) =>
+  fn === "count" && BSON_TYPE.test(type ?? "")
+    ? { fn, type, column: columnOf(column) }
+    : null;
+
+const residualDetailOf = ({ why, path, noun }) => {
   if (RESIDUAL_REASONS.includes(why)) {
     return { why, path: pathOf(path) };
   }
 
   return nounOf(noun) ? { why: null, path: null, noun } : null;
 };
+
+const detailOf = (detail, refusal) =>
+  refusal === SIZE_ERROR
+    ? mongodDetailOf(detail ?? {})
+    : residualDetailOf(detail ?? {});
 
 const byCw = (error) => Object.assign(error, { service: "CW" });
 
@@ -48,7 +79,7 @@ const refused = (error) => {
   }
 
   return REFUSALS.includes(refusal)
-    ? byCw(refuseQuery(refusal, detailOf(detail)))
+    ? byCw(refuseQuery(refusal, detailOf(detail, refusal)))
     : cwFailure("ERRORED");
 };
 
@@ -98,6 +129,36 @@ export const findCwExploreSources = () =>
 const TIME_LEFT_HEADER = "x-explore-time-left-ms";
 const MARGIN_MS = 500;
 
+// The most an answer of Caseworking's holds: the cells it may hold (a
+// page's, or a download's own), or the documents and joined records, in
+// base64, it may hold, or one row's of a document and its joined record
+// past them, or a start for each row asked; and what each row takes beside
+// them, for two boxes' windows.
+// On the seed a row takes at most 231 bytes beside its cells
+// (verify/explore-measure.js).
+const ROW_BYTES = 1024;
+const ROWS = 2 * MAX_LIMIT;
+const ONE_ROW_BYTES = 2 * MAX_DOCUMENT_BYTES;
+
+const BASE64_BYTES = 3;
+const BASE64_CHARACTERS = 4;
+
+const base64Bytes = (bytes) =>
+  Math.ceil(bytes / BASE64_BYTES) * BASE64_CHARACTERS;
+
+const fetchedBytesOf = (query) =>
+  query.documents.mode === STARTS
+    ? query.rows.length * base64Bytes(START_BYTES)
+    : base64Bytes(Math.max(query.documents.bytes, ONE_ROW_BYTES));
+
+export const maxBytesOf = (query) =>
+  ROWS * ROW_BYTES +
+  (query.mode === DOCUMENTS_MODE
+    ? fetchedBytesOf(query)
+    : (query.cellBytes ?? CELLS_HELD_BYTES));
+
+const tooLargeAnswer = () => byCw(refuseQuery("ANSWER_TOO_LARGE"));
+
 export const queryCwExplore = (query, { actor, timeLeftMs, signal }) => {
   if (timeLeftMs <= MARGIN_MS) {
     return Promise.reject(byCw(refuseQuery("TOO_SLOW")));
@@ -105,7 +166,8 @@ export const queryCwExplore = (query, { actor, timeLeftMs, signal }) => {
 
   return cwRequest("post", "/actuators/explore/query", EXPLORE_LABEL, {
     body: query,
-    failures: EXPLORE_FAILURES,
+    maxBytes: maxBytesOf(query),
+    failures: { ...EXPLORE_FAILURES, tooLarge: tooLargeAnswer },
     timeout: timeLeftMs,
     signal,
     headers: {
@@ -115,7 +177,10 @@ export const queryCwExplore = (query, { actor, timeLeftMs, signal }) => {
   })
     .catch(asCwFailure)
     .then((payload) =>
-      checkPart(payload, { allowUnknown: true }).catch(() => {
+      checkPart(payload, {
+        allowUnknown: true,
+        query,
+      }).catch(() => {
         throw cwFailure("ERRORED");
       }),
     );

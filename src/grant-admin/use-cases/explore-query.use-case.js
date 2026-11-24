@@ -1,8 +1,14 @@
-import Boom from "@hapi/boom";
 import { oneOperatorAtATime, withRoom } from "../../common/explore/busy.js";
-import { TOO_MANY_COMBINATIONS } from "../../common/explore/index-tests.js";
+import {
+  cellsAllowanceOf,
+  costOfAll,
+  isSpent,
+  less,
+  rowCostOf,
+} from "../../common/explore/cells-allowance.js";
 import { decodePositions } from "../../common/explore/merge.js";
 import { meterFor, timeLeftOf } from "../../common/explore/meter.js";
+import { DOWNLOAD_BYTES, STARTS } from "../../common/explore/query-schema.js";
 import { refusalOf } from "../../common/explore/refusal.js";
 import { logger } from "../../common/logger.js";
 import {
@@ -10,148 +16,46 @@ import {
   auditActions,
   auditEntities,
 } from "../../events/audit-constants.js";
-import { auditedRead } from "../../events/audited-read.js";
+import { auditedRead, auditedStream } from "../../events/audited-read.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
-import { answerFrom, unseenPaths } from "../explore/answer.js";
-import { narrowingPaths, windowedMessage } from "../explore/check.js";
+import { answerFrom, limitsOf, unseenPaths } from "../explore/answer.js";
 import {
   UNTIL_END,
   asQueryPositions,
+  downloadOf,
   isLimitTyped,
   limitOf,
+  raiseOf,
   readCsvWindows,
+  withoutDownloadFacts,
 } from "../explore/csv.js";
+import {
+  withShownDocument,
+  withStarts,
+  withoutDocuments,
+} from "../explore/documents.js";
 import { partsOf } from "../explore/federate.js";
 import { readQuery } from "../explore/language/query.js";
+import { isShownGone, showQueryOf, shownOnly } from "../explore/show.js";
 import { findOwnSource } from "../explore/sources.js";
+import { downloadEnding, downloadLines } from "../explore/stream.js";
 import { readsCaseworking } from "../explore/vocabulary.js";
 import { readAnswerWindows } from "../explore/windows.js";
 import { queryCwExplore } from "../repositories/cw-explore.repository.js";
+import { ndjsonOf } from "../services/ndjson.js";
+import {
+  BAD_REQUEST,
+  NO_QUERY,
+  answerOfError,
+  answerWith,
+  queryInvalid,
+} from "./explore-answers.js";
 import { exploreVocabularyUseCase } from "./explore-vocabulary.use-case.js";
 import { loadExploreVocabulary } from "./load-explore-vocabulary.js";
-
-const BAD_REQUEST = 400;
-const TOO_SLOW = 408;
-const TOO_MANY_REQUESTS = 429;
 
 // One deadline for the whole request, CSV windows and Caseworking's part too,
 // kept below GPA's own timeout so GAS answers first.
 const REQUEST_MS = 10_000;
-
-const SERVICES = { GAS: "The Grant Application Service", CW: "Caseworking" };
-
-// ── Answers that aren't rows ──
-
-// The payload is the whole answer; the error's own message names only why.
-// Each is an answer to what was asked, logged as one, never as a failure.
-const answerWith = (statusCode, payload, logLevel = "info") => {
-  const error = new Boom.Boom(payload.reason, {
-    statusCode,
-    data: { logLevel },
-  });
-
-  error.output.payload = { statusCode, ...payload };
-
-  return error;
-};
-
-const queryInvalid = (error) =>
-  answerWith(BAD_REQUEST, { reason: "QUERY_INVALID", error });
-
-// The indexed paths that would narrow the query, never one it already tests:
-// with none left, simpler conditions are the way.
-const narrowWith = (source, where) => {
-  const paths = narrowingPaths(source, where, { untested: true });
-
-  return paths.length
-    ? `Narrow it with an indexed path: ${paths.join(", ")}`
-    : "Narrow it with fewer or simpler conditions";
-};
-
-const NO_DETAIL = { why: TOO_MANY_COMBINATIONS, path: null };
-
-const REFUSED = {
-  TOO_MANY_TO_COUNT: ({ source, who, where }) =>
-    `${who} has too many records to count. ${narrowWith(source, where)}`,
-  TOO_MANY_TO_SORT: ({ source, who, where }) =>
-    `${who} has too many records to sort. ${narrowWith(source, where)}`,
-  TOO_BIG: ({ source, who, detail }) =>
-    `${who} has too many ${detail?.noun ?? source.noun.many} to read in full`,
-  GROUP_NEEDS_EXACT: ({ source, query, detail }) =>
-    windowedMessage("GROUP_NEEDS_EXACT", {
-      source,
-      query,
-      detail: detail ?? NO_DETAIL,
-    }),
-  ORDER_NEEDS_EXACT: ({ source, query, detail }) =>
-    windowedMessage("ORDER_NEEDS_EXACT", {
-      source,
-      query,
-      detail: detail ?? NO_DETAIL,
-    }),
-  BAD_POSITION: () => "These results can’t be continued. Run the query again",
-  INVALID: () => "This query can’t be read",
-  PATH_NOT_ALLOWED: ({ who }) =>
-    `${who} can’t read a malformed path in this query`,
-};
-
-const ANSWERS = {
-  BUSY: ({ service }) =>
-    answerWith(TOO_MANY_REQUESTS, {
-      reason: "QUERY_BUSY",
-      refusal: "BUSY",
-      message:
-        "You already have a query running. Wait for it to finish, then try again.",
-      service,
-    }),
-  FULL: ({ who, service }) =>
-    answerWith(TOO_MANY_REQUESTS, {
-      reason: "QUERY_BUSY",
-      refusal: "FULL",
-      message: `${who} is running as many queries as it can. Try again in a moment.`,
-      service,
-    }),
-  TOO_SLOW: ({ source, who, where, service }) =>
-    answerWith(TOO_SLOW, {
-      reason: "QUERY_TOO_SLOW",
-      message: `${who} took too long. ${narrowWith(source, where)}`,
-      service,
-    }),
-  TOO_COSTLY: ({ source, who, where, service }) =>
-    answerWith(TOO_SLOW, {
-      reason: "QUERY_TOO_SLOW",
-      message: `${who} would take too long. ${narrowWith(source, where)}`,
-      service,
-    }),
-};
-
-const refused = (code, refusal) =>
-  Object.hasOwn(ANSWERS, code)
-    ? ANSWERS[code](refusal)
-    : answerWith(BAD_REQUEST, {
-        reason: "QUERY_REFUSED",
-        message: REFUSED[code](refusal),
-        service: refusal.service,
-      });
-
-// A refusal answers with the service that refused it, GAS or Caseworking.
-const NO_QUERY = { mode: null, where: null };
-
-const answerOfError = (source, query) => (error) => {
-  const code = refusalOf(error);
-  const service = error.service ?? "GAS";
-
-  throw code
-    ? refused(code, {
-        source,
-        query,
-        where: query.where,
-        service,
-        who: SERVICES[service],
-        detail: error.detail,
-      })
-    : error;
-};
 
 // ── Reading the parts ──
 
@@ -167,21 +71,87 @@ const cwPart = (query, run) => {
   });
 };
 
-const readAnswer = async ({ query, run, csv, target, shows }) => {
-  const answered =
-    csv && target
-      ? await readCsvWindows(query, run, target)
-      : { parts: await partsOf(query, run) };
+const partsAnswered = async ({ query, run, csv, target }) =>
+  csv && target
+    ? readCsvWindows(query, run, target)
+    : { parts: await partsOf(query, run) };
+
+// A page's starts are fetched with its rows, and Show it's document; a
+// stream's documents as it is written.
+const documentsOf = (answer, { query, run, stream, shorter }) => {
+  if (!query.documents) {
+    return withoutDocuments(answer);
+  }
+
+  if (stream) {
+    return answer;
+  }
+
+  return query.documents.mode === STARTS
+    ? withStarts(answer, { query, run, shorter })
+    : withShownDocument(answer, { query, run });
+};
+
+// The cells allowance is shared by every window of one request; a download
+// holds its own.
+const cellsAllowanceFor = (csv, budget) =>
+  csv ? cellsAllowanceOf(DOWNLOAD_BYTES) : budget.cells;
+
+// Show it's answer is its one row, and says whether the record is gone.
+const shownAnswer = (answer, show) => (show ? shownOnly(answer, show) : answer);
+
+const withShownGone = (answer, query) => {
+  const { cut, ...shown } = answer;
 
   return {
-    ...answerFrom({
-      source: run.source,
-      query: { ...query, limit: shows },
-      parts: answered.parts,
-      merged: answered.merged,
-      partial: answered.partial,
+    ...shown,
+    documents: {
+      ...(answer.documents ?? { whole: query.documents.whole, bytes: 0 }),
+      gone: isShownGone(answer),
+    },
+  };
+};
+
+const withShown = (answer, { show, query }) =>
+  show ? withShownGone(answer, query) : answer;
+
+const readAnswer = async (asked) => {
+  const { query, run, csv, target, shows, typed, raise, budget } = asked;
+
+  const answered = await partsAnswered({ query, run, csv, target });
+  const allowance = cellsAllowanceFor(csv, budget);
+  const answerOf = (limit) =>
+    shownAnswer(
+      answerFrom({
+        source: run.source,
+        query: { ...query, limit },
+        parts: answered.parts,
+        merged: answered.merged,
+        partial: answered.partial,
+        allowance,
+        cut: csv,
+      }),
+      asked.show,
+    );
+  const answer = answerOf(shows);
+  const withDocs = withShown(
+    await documentsOf(answer, {
+      ...asked,
+      query: asked.fetchQuery,
+      shorter: answerOf,
     }),
+    asked,
+  );
+
+  budget.cells = less(budget.cells, costOfAll(withDocs.rows, rowCostOf));
+
+  return {
+    ...withoutDownloadFacts(withDocs),
     unseen: unseenPaths(run.source, query),
+    limits: limitsOf(query, raise),
+    ...(csv && {
+      download: downloadOf(answered, answer, { typed, shows }),
+    }),
   };
 };
 
@@ -200,17 +170,29 @@ const outcomeOf = (error, result) =>
 const auditedOutcome = (run, error, result) =>
   run.gone?.aborted ? "ABORTED" : outcomeOf(error, result);
 
+// The rows a query gave: a stream's, those it sent.
+const resultCountOf = (result) => result.sent ?? result.rows.length;
+
+// The file a read was for: a download streamed is Download JSON's.
+const downloadFormatOf = ({ csv, stream }) => {
+  if (!csv) {
+    return null;
+  }
+
+  return stream ? "JSON" : "CSV";
+};
+
 // That a person queried a source, how it ended and what it gave them; never
-// what was asked.
-const buildExploreAudit = ({ run, csv }, result, error) =>
+// what was asked. `download` names the file it was read for, if any.
+const buildExploreAudit = ({ run, csv, stream }, result, error) =>
   buildAuditEvent({
     entity: auditEntities.EXPLORE_SOURCE,
     action: auditActions.EXPLORE_QUERY,
     entityid: run.source.name,
     details: {
       source: run.source.name,
-      resultCount: result ? result.rows.length : null,
-      csv,
+      resultCount: result ? resultCountOf(result) : null,
+      download: downloadFormatOf({ csv, stream }),
       outcome: auditedOutcome(run, error, result),
     },
     security: PMC_0706_SECURITY,
@@ -218,6 +200,8 @@ const buildExploreAudit = ({ run, csv }, result, error) =>
   });
 
 const auditedAnswer = auditedRead(readAnswer, buildExploreAudit);
+
+const auditedDownload = auditedStream(readAnswer, buildExploreAudit);
 
 // ── The query ──
 
@@ -277,38 +261,103 @@ const queryPositions = (csv, target) =>
     ? { positions: null }
     : { positions: asQueryPositions(target), window: true };
 
-const read = async ({ body, actor, signal }, checkedQuery, meter) => {
+// With documents or starts, the Query says what a document is, and rows
+// carry their records' sizes; a download's cells may fill it.
+const askedQueryOf = (body, { query, shape }, csv) => ({
+  ...query,
+  ...(body.documents && { documents: shape }),
+  ...(body.starts && { documents: { ...shape, mode: STARTS } }),
+  ...(csv && { cellBytes: DOWNLOAD_BYTES }),
+});
+
+// What one read asks, page, CSV or stream alike.
+const showRefused = (message) =>
+  answerWith(BAD_REQUEST, { reason: "QUERY_REFUSED", message, service: "GAS" });
+
+// Show it reads the run's row again with its record's document: by its
+// `_id`, its own filter kept to test the record on as fetched.
+const shownOf = (body, checkedQuery) => {
+  if (!body.show) {
+    return { body, checkedQuery, show: null };
+  }
+
+  const { query, error } = showQueryOf(checkedQuery, body.show);
+
+  if (error) {
+    throw showRefused(error);
+  }
+
+  return {
+    body: { ...body, documents: true },
+    checkedQuery: { ...checkedQuery, query },
+    show: { ...body.show, filter: checkedQuery.query.where },
+  };
+};
+
+// What the fetch tests each record on: the run's own filter for Show it.
+const fetchQueryOf = (query, show) =>
+  show ? { ...query, where: show.filter } : query;
+
+const askedRead = (args, asked, meter) => {
+  const { actor, signal, budget } = args;
+  const { body, checkedQuery, show } = shownOf(args.body, asked);
   const { query, source, tree, vocabulary } = checkedQuery;
   const target = targetOf(body);
-  const { limit, shows } = limitOf({
-    body,
-    query,
-    typed: isLimitTyped(tree),
-    target,
-  });
+  const typed = isLimitTyped(tree);
+  const { limit, shows } = limitOf({ body, query, typed, target });
   const csv = Boolean(body.csv);
-  const stop = stopper(signal, meter);
 
-  logger.info(`Explore query on ${source.name}`);
+  const queryToRead = {
+    ...askedQueryOf(body, checkedQuery, csv),
+    limit,
+    ...queryPositions(csv, target),
+  };
 
-  const result = await auditedAnswer({
-    query: {
-      ...query,
-      limit,
-      ...queryPositions(csv, target),
-    },
-    run: runOf({ source, vocabulary, actor, meter, stop, signal }),
+  return {
+    query: queryToRead,
+    fetchQuery: fetchQueryOf(queryToRead, show),
+    show,
+    run: runOf({
+      source,
+      vocabulary,
+      actor,
+      meter,
+      stop: stopper(signal, meter),
+      signal,
+    }),
     csv,
     target,
     shows,
-  })
+    typed,
+    raise: raiseOf(tree),
+    budget,
+    stream: Boolean(body.stream),
+  };
+};
+
+// A failed read stops what else is still reading, and is answered as the
+// service that refused it says.
+const answeredRead = (reading, asked, { source, query, spans }) =>
+  reading
     .catch((error) => {
-      stop.abort();
+      asked.run.stop.abort();
       throw error;
     })
-    .catch(answerOfError(source, query));
+    .catch(answerOfError(source, query, spans));
 
-  logger.info(`Finished: Explore query (${result.rows.length} rows)`);
+const documentsLine = (result) =>
+  result.documents ? `, documents.bytes ${result.documents.bytes}` : "";
+
+const read = async (args, checkedQuery, meter) => {
+  const asked = askedRead(args, checkedQuery, meter);
+
+  logger.info(`Explore query on ${checkedQuery.source.name}`);
+
+  const result = await answeredRead(auditedAnswer(asked), asked, checkedQuery);
+
+  logger.info(
+    `Finished: Explore query (${result.rows.length} rows${documentsLine(result)})`,
+  );
 
   return result;
 };
@@ -332,7 +381,7 @@ const stoppedBy = (error) => {
 };
 
 // `windows` reads the first window, then each from where the last ended,
-// each audited as one query.
+// each audited as one query, with its documents.
 const readWindows = (args, checkedQuery, meter) => {
   const { body } = args;
 
@@ -356,10 +405,74 @@ const readWindows = (args, checkedQuery, meter) => {
     readAnswer: (windowBody) =>
       read({ ...args, body: windowBody }, checkedQuery, meter),
     stoppedBy,
+    hasCellsLeft: () => !isSpent(args.budget.cells),
   });
 };
 
-const answer = async (args) => {
+// What one request may hold, shared by its windows: the cells.
+const budgetOf = () => ({ cells: cellsAllowanceOf(undefined) });
+
+// ── Download JSON, streamed ──
+
+const streamLine = (ending) =>
+  `Finished: Explore download (${ending.sent} rows${ending.done ? "" : ", cut off"})`;
+
+// Why a download ended short of its end line, or a caller that went away
+// at any point: one outcome, ABORTED, however far it got.
+const brokenOff = () => new Error("Explore download ended before its end");
+
+const callerGone = () => new Error("Explore download's caller went away");
+
+const unfinished = (ending) => (ending.done ? null : brokenOff());
+
+const endingError = (ending, run) => {
+  if (run.gone?.aborted) {
+    return callerGone();
+  }
+
+  return ending.error ?? unfinished(ending);
+};
+
+// The download read as a CSV is, then streamed: a refusal comes before the
+// first byte, audited as any read's; the caller is handed the stream once
+// the rows are read, and the room stays taken until it ends, when it is
+// audited with the rows it sent.
+const streamRead = async (args, checkedQuery, meter, handed) => {
+  const asked = askedRead(args, checkedQuery, meter);
+
+  logger.info(`Explore download on ${checkedQuery.source.name}`);
+
+  const download = auditedDownload(asked);
+  const answer = await answeredRead(download.read(), asked, checkedQuery);
+  const ending = downloadEnding();
+  const ended = Promise.withResolvers();
+  const lines = downloadLines(answer, {
+    query: asked.fetchQuery,
+    run: asked.run,
+    ending,
+  });
+
+  handed.resolve({
+    stream: ndjsonOf(lines, async () => {
+      const error = endingError(ending, asked.run);
+
+      await download.ended(
+        { sent: ending.sent, partial: ending.stopped !== null },
+        error,
+      );
+      logger.info(streamLine(ending));
+      ended.resolve();
+    }),
+  });
+
+  await ended.promise;
+};
+
+// ── One query ──
+
+// The query checked, then, unless only its check was asked, read where its
+// source lives within its room: as one answer, or streamed.
+const answerQuery = async (args, handed) => {
   const meter = meterFor(Date.now() + REQUEST_MS);
   const checkedQuery = await checked(args.body.query, meter);
   const { source } = checkedQuery;
@@ -368,7 +481,13 @@ const answer = async (args) => {
     return { ok: true, source: source.name };
   }
 
-  return withRoom(poolOf(source), () => readWindows(args, checkedQuery, meter));
+  const reading = { ...args, budget: budgetOf() };
+
+  return withRoom(poolOf(source), () =>
+    args.body.stream
+      ? streamRead(reading, checkedQuery, meter, handed)
+      : readWindows(reading, checkedQuery, meter),
+  );
 };
 
 // The editor's vocabulary, beside an answer or a refusal alike; null when it
@@ -393,11 +512,16 @@ const withVocabulary = (answering, vocabulary) =>
   );
 
 // One query, checked, then read where its source lives; refused while the
-// same operator's last one still runs.
-export const exploreQueryUseCase = (args) =>
-  withVocabulary(
-    oneOperatorAtATime(args.actorId, () => answer(args)).catch(
-      answerOfError(null, NO_QUERY),
-    ),
-    vocabularyFor(),
-  );
+// same operator's last one still runs. A stream is handed over as soon as
+// its rows are read, its room held until it ends; a check is answered as
+// any.
+export const exploreQueryUseCase = (args) => {
+  const handed = Promise.withResolvers();
+
+  oneOperatorAtATime(args.actorId, () => answerQuery(args, handed))
+    .catch(answerOfError(null, NO_QUERY))
+    .then((answered) => answered && handed.resolve(answered))
+    .catch((error) => handed.reject(error));
+
+  return withVocabulary(handed.promise, vocabularyFor());
+};

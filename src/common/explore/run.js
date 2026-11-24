@@ -1,10 +1,20 @@
 import { COUNT_CAP, readTimeoutMs } from "../buckets/engine.js";
 import { EXACT_READ, WINDOWED_READ, planBox } from "./plan.js";
-import { compareRows, mergeGroups } from "./merge.js";
-import { eachStep, meterFor } from "./meter.js";
+import { fetchPart } from "./document-fetch.js";
+import {
+  cellsAllowanceOf,
+  costOfAll,
+  fitter,
+  groupCostOf,
+  isWithin,
+  rowCostOf,
+} from "./cells-allowance.js";
+import { compareRows, cutAt, keptExact, mergeGroups } from "./merge.js";
+import { eachStep, meterFor, step } from "./meter.js";
+import { DOCUMENTS_MODE } from "./query-schema.js";
 import { refusedPathsOf } from "./query-rules.js";
 import { refuseQuery } from "./refusal.js";
-import { grouper } from "./rows.js";
+import { grouper, withCells } from "./rows.js";
 import {
   GROUP_CAP,
   boxContext,
@@ -246,8 +256,8 @@ const idRows = async (context, docs, query, meter) => {
     docs,
     meter,
     shapeCost(query),
-    eachUnwound(context.unwound, query, meter, (one) =>
-      found.take(one, context.box),
+    eachUnwound(context.unwound, query, meter, (one, at) =>
+      found.take(one, context.box, at),
     ),
   );
 
@@ -322,11 +332,176 @@ const runBig = async (source, query, meter, charge) => {
     : runWindowed(boxes, query, meter);
 };
 
+// ── The cells allowance ──
+
+const tooLarge = () => refuseQuery("CELLS_TOO_LARGE");
+
+const checkCost = (cost, query) => {
+  if (!isWithin(cost, cellsAllowanceOf(query.cellBytes))) {
+    throw tooLarge();
+  }
+};
+
+// Their work was charged as the rows were read, so making them only lets
+// other requests in as it goes. A row's cells are made once.
+const cellsMaker = (meter) => {
+  const made = new Map();
+
+  return async (row) => {
+    if (!made.has(row)) {
+      await step(meter, 0, true);
+      made.set(row, withCells(row));
+    }
+
+    return made.get(row);
+  };
+};
+
+const madeRows = async (rows, make) => {
+  const made = [];
+
+  for (const row of rows) {
+    made.push(await make(row));
+  }
+
+  return made;
+};
+
+const madeBoxes = async (boxes, make) => {
+  const made = [];
+
+  for (const box of boxes) {
+    made.push({ ...box, rows: await madeRows(box.rows, make) });
+  }
+
+  return made;
+};
+
+const finishedGroups = (part, query) => {
+  checkCost(costOfAll(part.groups, groupCostOf), query);
+
+  return part;
+};
+
+// Rows across the boxes in the Query's order, each with where it stands
+// in it, as the answer merges them.
+const inMergeOrder = (boxes, orderBy) => {
+  const order = compareRows(orderBy);
+
+  return boxes
+    .flatMap((box) =>
+      box.rows.map((row) => ({
+        row,
+        at: { key: { ...row.key, box: box.id }, order: row.order },
+      })),
+    )
+    .sort((a, b) => order(a.at, b.at));
+};
+
+// How many of `listed`, in turn, fit the allowance. Cells are made in that
+// order and no further, so what is made follows the allowance, not the
+// rows read.
+const fittingOf = async (listed, query, make) => {
+  const fits = fitter(cellsAllowanceOf(query.cellBytes));
+
+  for (const [n, { row }] of listed.entries()) {
+    if (!fits(await make(row))) {
+      return n;
+    }
+  }
+
+  return listed.length;
+};
+
+const finishedWindowed = async (part, query, meter) => {
+  const make = cellsMaker(meter);
+  const listed = inMergeOrder(part.boxes, query.orderBy);
+  const n = await fittingOf(listed, query, make);
+  const kept =
+    n === listed.length ? part.boxes : cutAt(part.boxes, listed[n - 1].at.key);
+
+  return { ...part, boxes: await madeBoxes(kept, make) };
+};
+
+// A Query with cells of its own is a download's.
+const isDownload = (query) => query.cellBytes !== undefined;
+
+const keptOf = (boxes, rows) => {
+  const kept = new Set(rows);
+
+  return boxes.map((box) => ({
+    ...box,
+    rows: box.rows.filter((row) => kept.has(row)),
+  }));
+};
+
+// A download's exact read ends at its last whole row that fits, in the
+// answer's order, and says where it stands (`cutAfter`), so the answer
+// ends every part's rows there.
+const cutExact = async (boxes, query, make) => {
+  const listed = inMergeOrder(boxes, query.orderBy);
+  const n = await fittingOf(listed, query, make);
+
+  return n === listed.length
+    ? { boxes }
+    : {
+        boxes: keptOf(
+          boxes,
+          listed.slice(0, n).map(({ row }) => row),
+        ),
+        cutAfter: listed[n - 1].at,
+      };
+};
+
+const finishedExact = async (part, query, meter) => {
+  const make = cellsMaker(meter);
+  const kept = keptExact(part.boxes, query);
+
+  if (isDownload(query)) {
+    const cut = await cutExact(kept, query, make);
+
+    return { ...part, ...cut, boxes: await madeBoxes(cut.boxes, make) };
+  }
+
+  const boxes = await madeBoxes(kept, make);
+
+  checkCost(
+    costOfAll(
+      boxes.flatMap(({ rows }) => rows),
+      rowCostOf,
+    ),
+    query,
+  );
+
+  return { ...part, boxes };
+};
+
+// The cells of the rows a part keeps, made only now, as mongod works out a
+// projection only for what it returns, then held to the cells allowance:
+// a windowed read ends early within it, an exact one is refused past it,
+// or, for a download, ends at its last whole row. Groups travel whole,
+// within it too.
+const finished = (part, query, meter) => {
+  if (part.groups) {
+    return finishedGroups(part, query);
+  }
+
+  return part.read === WINDOWED_READ
+    ? finishedWindowed(part, query, meter)
+    : finishedExact(part, query, meter);
+};
+
+const readPart = (source, query, meter, charge) =>
+  source.size === "small"
+    ? runFull(source, query, meter, charge)
+    : runBig(source, query, meter, charge);
+
 // One service's part of a Query on one of its sources: rows per box, or the
-// groups it counted. `source` carries its buckets, resolved; `meter` the
-// request's deadline and work budget. A Query that reads a malformed path is
-// refused here, before any read, whoever checked it first. An unwinding
-// read charges every list element it walks.
+// groups it counted; or, in the `documents` mode, the documents of the rows
+// asked for. `source` carries its buckets, resolved; `meter` the request's
+// deadline and work budget. A Query that reads a malformed path is refused
+// here, before any read, whoever checked it first. An unwinding read
+// charges every list element it walks.
 export const runPart = async (
   source,
   query,
@@ -336,9 +511,11 @@ export const runPart = async (
     throw refuseQuery("PATH_NOT_ALLOWED");
   }
 
+  if (query.mode === DOCUMENTS_MODE) {
+    return fetchPart(source, query, meter);
+  }
+
   const charge = chargeOf(query, meter);
 
-  return source.size === "small"
-    ? runFull(source, query, meter, charge)
-    : runBig(source, query, meter, charge);
+  return finished(await readPart(source, query, meter, charge), query, meter);
 };

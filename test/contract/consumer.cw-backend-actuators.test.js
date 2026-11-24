@@ -531,7 +531,7 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
 
   describe("the Explore actuators", () => {
     const QUERY = {
-      v: 3,
+      v: 4,
       source: "cases",
       mode: "rows",
       columns: [

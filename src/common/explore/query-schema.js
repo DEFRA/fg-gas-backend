@@ -5,7 +5,7 @@ import { isDateText } from "./evaluate.js";
 import { MAX_PATTERN_LENGTH, usablePatterns } from "./pattern.js";
 import { MAX_PATH_LENGTH, parsePath } from "./paths.js";
 
-export const QUERY_VERSION = 3;
+export const QUERY_VERSION = 4;
 
 export const OPS = [
   "eq",
@@ -23,6 +23,7 @@ export const OPS = [
 export const FUNCTIONS = ["count", "sum", "min", "max"];
 export const TYPES = ["text", "number", "boolean", "date", "objectId"];
 export const MODES = ["rows", "groups", "count", "distinct"];
+export const DOCUMENTS_MODE = "documents";
 
 export const MAX_COLUMNS = 20;
 export const MAX_TESTS = 30;
@@ -35,6 +36,34 @@ export const MAX_UNWINDS = 4;
 // The cells one answer may hold, columns × rows: more can't be shaped and
 // sent without holding the service.
 export const MAX_CELLS = 20_000;
+
+// The most rows one answer holds for its columns.
+export const rowCapOf = (columns) =>
+  Math.min(MAX_LIMIT, Math.floor(MAX_CELLS / columns.length));
+
+const MIB = 1024 * 1024;
+
+// The largest document mongod stores.
+export const MAX_DOCUMENT_BYTES = 16 * MIB;
+
+// An answer of exactly one row may print its document up to these.
+export const ONE_DOCUMENT_ALLOWANCE = Object.freeze({
+  bytes: 16 * MIB,
+  values: 250_000,
+});
+
+// The cells one page draws: each cell's text up to its first
+// DRAWN_CELL_LENGTH code points, near as GPA draws it (a longer one shows
+// only its start).
+export const CELLS_ALLOWANCE = 2 * MIB;
+export const DRAWN_CELL_LENGTH = 1000;
+
+// The JSON of the cells one page holds whole, its rows' sort values with
+// them, whatever they draw.
+export const CELLS_HELD_BYTES = 8 * MIB;
+
+// The bytes one download holds, CSV or JSON.
+export const DOWNLOAD_BYTES = 256 * MIB;
 const MAX_LISTED_PATHS = 2000;
 
 // Error keys are cut by code points (error-key.js), so a key may be longer
@@ -190,12 +219,77 @@ const unwindStep = Joi.object({
 // $unwind makes rows of a record's list, for rows and groups only.
 const UNWOUND = ["rows", "groups"];
 
+// What a document is, for the query's projection: the record whole (no
+// projection) or as projected, with `_id` or without (`_id: 0`); and in the
+// `starts` mode, that only each record's start is sent (document-start.js).
+// A `documents` fetch of whole documents also says the bytes it may send in
+// all.
+export const STARTS = "starts";
+
+const shape = {
+  whole: Joi.boolean().required(),
+  id: Joi.boolean().required(),
+  mode: Joi.valid(STARTS),
+};
+
+const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
+
+// A record's `_id` as the BSON of { _id }, typed: at most what an index key
+// holds.
+const MAX_ID_TEXT = 1400;
+
+export const idText = Joi.string().max(MAX_ID_TEXT).pattern(BASE64);
+
+const MAX_BOX_LENGTH = 64;
+const KIB = 1024;
+const UNWIND_POSITION_BYTES = 21;
+
+// A `documents` fetch's row as JSON at most: its box, its `_id` and a
+// position of up to 20 characters at each unwind, with their keys.
+const FETCH_ROW_BYTES =
+  MAX_BOX_LENGTH + MAX_ID_TEXT + MAX_UNWINDS * UNWIND_POSITION_BYTES + 32;
+
+// The most a Query's body takes: a Query, and a `documents` fetch's rows
+// beside it.
+export const MAX_QUERY_BYTES = 1024 * KIB + MAX_LIMIT * FETCH_ROW_BYTES;
+
+const positionsAt = Joi.array()
+  .items(Joi.number().integer().min(0).allow(null))
+  .max(MAX_UNWINDS);
+
+const fetchRow = Joi.object({
+  box: Joi.string().max(MAX_BOX_LENGTH).pattern(BOX).required(),
+  id: idText.required(),
+  at: positionsAt.required(),
+});
+
+const documentsOf = Joi.when("mode", {
+  is: DOCUMENTS_MODE,
+  then: Joi.object({
+    ...shape,
+    bytes: Joi.when("mode", {
+      is: STARTS,
+      then: Joi.forbidden(),
+      otherwise: Joi.number().integer().min(1).max(DOWNLOAD_BYTES).required(),
+    }),
+  }).required(),
+  otherwise: Joi.object(shape),
+});
+
 export const querySchema = Joi.object({
   v: Joi.number().valid(QUERY_VERSION).required(),
   source: name.required(),
   mode: Joi.string()
-    .valid(...MODES)
+    .valid(...MODES, DOCUMENTS_MODE)
     .required(),
+  documents: documentsOf,
+  cellBytes: Joi.number().integer().min(1).max(DOWNLOAD_BYTES),
+  // A `documents` fetch: the rows whose documents it sends, by box.
+  rows: Joi.when("mode", {
+    is: DOCUMENTS_MODE,
+    then: Joi.array().items(fetchRow).max(Joi.ref("limit")).required(),
+    otherwise: Joi.forbidden(),
+  }),
   columns: Joi.alternatives().conditional("mode", {
     is: "count",
     then: Joi.array().items(COUNTED).length(1).required(),
@@ -203,7 +297,7 @@ export const querySchema = Joi.object({
   }),
   where: where.allow(null).required(),
   unwind: Joi.alternatives().conditional("mode", {
-    is: Joi.valid(...UNWOUND),
+    is: Joi.valid(...UNWOUND, DOCUMENTS_MODE),
     then: Joi.array().items(unwindStep).max(MAX_UNWINDS).required(),
     otherwise: Joi.array().length(0).required(),
   }),
@@ -260,7 +354,7 @@ const key = Joi.object({
   i: Joi.string().required(),
 });
 
-// A list inside a list is shown as stored, up to the depth a cell keeps.
+// A list inside a list is shown as stored, whole.
 const cell = Joi.alternatives(
   Joi.string().allow(""),
   Joi.number(),
@@ -270,8 +364,8 @@ const cell = Joi.alternatives(
   .allow(null)
   .id("cell");
 
-// A value sent with its type, for sorting and merging only (evaluate.js
-// orderedOf).
+// A value sent with its type, for sorting, merging and a group's document
+// (evaluate.js orderedOf).
 const ordered = Joi.alternatives(
   Joi.string().allow(""),
   Joi.number(),
@@ -280,7 +374,6 @@ const ordered = Joi.alternatives(
     n: Joi.string().valid("NaN", "Infinity", "-Infinity").required(),
   }),
   Joi.object({ b: Joi.boolean().required() }),
-  Joi.object({ c: Joi.boolean().valid(true).required() }),
   Joi.object({
     x: Joi.string()
       .custom((text, helpers) =>
@@ -290,6 +383,19 @@ const ordered = Joi.alternatives(
   }),
   Joi.object({ d: Joi.string().isoDate().required() }),
   Joi.object({ o: Joi.string().hex().length(24).required() }),
+  Joi.object({ i: Joi.number().integer().required() }),
+  Joi.object({
+    f: Joi.alternatives(
+      Joi.number(),
+      Joi.string().valid("NaN", "Infinity", "-Infinity", "-0"),
+    ).required(),
+  }),
+  Joi.object({
+    l: Joi.string()
+      .pattern(/^-?\d{1,19}$/)
+      .required(),
+  }),
+  Joi.object({ e: Joi.string().pattern(BASE64).required() }),
   Joi.object({
     k: Joi.array()
       .items(Joi.array().ordered(Joi.string().allow(""), Joi.link("#ordered")))
@@ -299,11 +405,21 @@ const ordered = Joi.alternatives(
   .allow(null)
   .id("ordered");
 
+// A record's row: what it shows, and its typed `_id`, unwind positions and
+// BSON size, by which its document is fetched.
 const row = Joi.object({
   key: key.required(),
   open: Joi.object().unknown(true).allow(null).required(),
   cells: Joi.object().pattern(Joi.string(), cell).required(),
   order: ordered.required(),
+  id: idText,
+  at: positionsAt,
+  size: Joi.number().integer().min(0).max(MAX_DOCUMENT_BYTES).allow(null),
+});
+
+const skippedRecord = Joi.object({
+  open: Joi.object().unknown(true).allow(null).required(),
+  id: idText.required(),
 });
 
 const count = Joi.object({
@@ -320,7 +436,9 @@ const box = Joi.object({
   // A window that ran out of work and ended early, at `to`, and the records
   // in it too large to search at all, skipped.
   partial: Joi.boolean(),
-  skipped: Joi.number().integer().min(0),
+  // Ended early by the cells allowance rather than out of work.
+  cut: Joi.boolean(),
+  skipped: Joi.array().items(skippedRecord).max(MAX_LIMIT),
 });
 
 const group = Joi.object({
@@ -332,11 +450,24 @@ const group = Joi.object({
   aggs: Joi.object().pattern(Joi.string(), ordered).required(),
 });
 
-// One service's part of a run: rows per box, and the groups it counted.
+// Where a row stands in the Query's order, across the boxes.
+const rowAt = Joi.object({
+  key: key.keys({ box: Joi.string().pattern(BOX).required() }).required(),
+  order: ordered.required(),
+});
+
+// One service's part of a run: rows per box, and the groups it counted. A
+// download's exact read cut by its cells allowance says where its last row
+// stands (`cutAfter`).
 export const partSchema = Joi.object({
   read: Joi.string().valid("exact", "windowed", "full").required(),
   boxes: Joi.array().items(box).required(),
   groups: Joi.array().items(group).allow(null).required(),
+  cutAfter: Joi.when("read", {
+    is: "windowed",
+    then: Joi.forbidden(),
+    otherwise: rowAt,
+  }),
 }).label("ExplorePart");
 
 const knownPath = Joi.object({
