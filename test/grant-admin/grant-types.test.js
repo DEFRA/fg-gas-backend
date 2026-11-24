@@ -1,10 +1,8 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { GrantDocument } from "../../src/grants/models/grant-document.js";
-import { seedConfigVersion } from "../helpers/applications.js";
-import { resetCwStub, setCwStub } from "../helpers/cw-stub.js";
-import { createTestGrant } from "../helpers/grants.js";
+import { holdCwRoles, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
+import { seedAdministeredGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
 const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
@@ -26,27 +24,9 @@ beforeEach(async () => {
   await resetCwStub();
 });
 
-// The config version first: seeding one copies an already stored version of
-// the grant onto it, which the replace then overwrites with this version's own.
-const seedGrant = async (code, { role, description, version = "1.0.0" }) => {
-  await seedConfigVersion(db, code, version);
-  await db.collection("grants").replaceOne(
-    { code, version },
-    {
-      ...new GrantDocument(
-        createTestGrant({
-          code,
-          version,
-          metadata: { description, startDate: "2023-01-01T00:00:00Z" },
-          admin: role ? { role } : undefined,
-        }),
-      ),
-    },
-    { upsert: true },
-  );
-};
+const seedGrant = (code, options) => seedAdministeredGrant(db, code, options);
 
-const holdRoles = (roles) => setCwStub({ users: { roles: { [OID]: roles } } });
+const holdRoles = (roles) => holdCwRoles(OID, roles);
 
 const listGrantTypes = async () => {
   const { payload } = await wreck.get("/grant-admin/grants", {

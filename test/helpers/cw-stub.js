@@ -720,6 +720,9 @@ export const setCwStub = (patch) =>
     body: JSON.stringify(patch),
   });
 
+export const holdCwRoles = (entraId, roles) =>
+  setCwStub({ users: { roles: { [entraId]: roles } } });
+
 export const cwStubRequests = async () => (await call(REQUESTS_PATH)).requests;
 
 // Every admin answer that carries the shell reads the catalogue as well, so a
