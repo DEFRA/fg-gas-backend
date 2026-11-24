@@ -41,6 +41,7 @@ const OPERATORS = {
   $lte: (value, operand) => value <= operand,
   $gte: (value, operand) => value >= operand,
   $nin: (value, operand) => !operand.includes(value),
+  $exists: (value, operand) => (value !== undefined) === operand,
   $in: (value, operand) => operand.includes(value),
 };
 

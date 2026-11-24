@@ -15,6 +15,8 @@ let saveGrant;
 let findNextMessage;
 let purgeById;
 let OutboxSubscriber;
+let saveEvents;
+let sequenceExistingReceipts;
 let submitApplicationUseCase;
 let seedConfigVersion;
 let findByClientRefAndCode;
@@ -42,6 +44,9 @@ beforeAll(async () => {
   grantResolution =
     await import("../use-cases/resolve-current-grant.use-case.js");
   ({ save: saveGrant } = await import("../repositories/grant.repository.js"));
+  ({ saveEvents } = await import("../../events/save-events.js"));
+  ({ up: sequenceExistingReceipts } =
+    await import("../../../migrations/20261124121000-sequence-existing-application-receipts.js"));
   ({ findNextMessage, purgeById } =
     await import("../../events/repositories/outbox.repository.js"));
   ({ OutboxSubscriber } =
@@ -159,18 +164,20 @@ describe("Application status reporting", () => {
     // writer's clock can put the withdrawal before both submission reports.
     await application.move("APPLICATION_WITHDRAWN");
     await db.collection("outbox").updateOne(
-      { segregationRef, applicationReportingSequence: -1 },
+      { segregationRef, deliverySequence: -1 },
       {
-        $unset: { applicationReportingSequence: "" },
+        $unset: { deliverySequence: "" },
         $set: { publicationDate: new Date(1) },
       },
     );
     await db
       .collection("outbox")
       .updateOne(
-        { segregationRef, applicationReportingSequence: 1 },
+        { segregationRef, deliverySequence: 1 },
         { $set: { publicationDate: new Date(0) } },
       );
+
+    await sequenceExistingReceipts(db);
 
     const subscriber = new OutboxSubscriber();
     const deliver = vi
@@ -250,13 +257,13 @@ describe("Application status reporting", () => {
     const heldRef = `application-1-${heldCode}`;
     const readyRef = `application-1-${readyCode}`;
     const outbox = db.collection("outbox");
-    const receiptFilter = { applicationReportingSequence: -1 };
+    const receiptFilter = { deliverySequence: -1 };
     const dead = await outbox.findOneAndUpdate(
       { ...receiptFilter, segregationRef: heldRef },
       { $set: { status: "DEAD_LETTER" } },
     );
     await outbox.updateOne(
-      { segregationRef: heldRef, applicationReportingSequence: 0 },
+      { segregationRef: heldRef, deliverySequence: 0 },
       { $set: { publicationDate: new Date(0) } },
     );
     const ready = await outbox.findOneAndUpdate(
@@ -303,6 +310,59 @@ describe("Application status reporting", () => {
       }),
       heldRef,
     );
+  });
+
+  it("orders by publication metadata regardless of the event payload", async () => {
+    const segregationRef = "metadata-only-ordering";
+    const target = "test-topic";
+    const { defineEventType, OUTBOX } =
+      await import("../../events/event-types.js");
+    const type = "test.ordered-delivery";
+    defineEventType({
+      name: "TestOrderedDelivery",
+      sentAs: type,
+      boxes: [OUTBOX],
+    });
+    await saveEvents([
+      {
+        segregationRef,
+        target,
+        deliverySequence: 2,
+        event: { type, id: "second" },
+      },
+      {
+        segregationRef,
+        target,
+        deliverySequence: 1,
+        event: { type, id: "first" },
+      },
+      {
+        segregationRef,
+        target,
+        event: {
+          id: "unordered",
+          eventData: { eventType: "APPLICATION_STATUS_CHANGED" },
+        },
+      },
+    ]);
+
+    const subscriber = new OutboxSubscriber();
+    const deliver = vi
+      .spyOn(subscriber, "deliver")
+      .mockRejectedValueOnce(new Error("temporary publishing failure"))
+      .mockResolvedValue(undefined);
+    const process = () =>
+      subscriber.processWithLock("metadata-test", segregationRef);
+    const deliveredIds = () => deliver.mock.calls.map(([, event]) => event.id);
+
+    await process();
+    await process();
+    expect(deliveredIds()).toEqual(["first", "unordered"]);
+    await subscriber.processFailedEvents();
+    await subscriber.processResubmittedEvents();
+    await process();
+    await process();
+    expect(deliveredIds()).toEqual(["first", "unordered", "first", "second"]);
   });
 
   it("reports each committed status, including reversals, once", async () => {

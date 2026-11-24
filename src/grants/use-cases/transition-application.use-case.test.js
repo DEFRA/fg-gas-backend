@@ -90,7 +90,7 @@ describe("transitionApplicationUseCase", () => {
       [
         {
           target: config.sns.reportingEventsTopicArn,
-          applicationReportingSequence: 1,
+          deliverySequence: 1,
           segregationRef: "application-1-test-grant",
           event: expect.objectContaining({
             eventData: expect.objectContaining({

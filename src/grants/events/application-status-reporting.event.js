@@ -49,6 +49,6 @@ export const createApplicationStatusReportingPublication = ({
     event,
     target: config.sns.reportingEventsTopicArn,
     segregationRef: `${clientRef}-${code}`,
-    applicationReportingSequence: sequence,
+    deliverySequence: sequence,
   };
 };

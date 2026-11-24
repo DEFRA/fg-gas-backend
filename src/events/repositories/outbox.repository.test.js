@@ -90,11 +90,7 @@ describe("outbox.repository", () => {
           completionAttempts: { $lt: config.outbox.outboxMaxRetries },
           segregationRef: { $nin: ["locked_ref"] },
           $or: [
-            {
-              "event.eventData.eventType": {
-                $nin: ["APPLICATION_CREATED", "APPLICATION_STATUS_CHANGED"],
-              },
-            },
+            { deliverySequence: { $exists: false } },
             { segregationRef: { $in: [null, ""] } },
           ],
         },

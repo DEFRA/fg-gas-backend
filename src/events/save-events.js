@@ -7,7 +7,7 @@ const toOutbox = ({
   target,
   segregationRef,
   refs,
-  applicationReportingSequence,
+  deliverySequence,
 }) => {
   const orderingKey = segregationRef ?? Outbox.getSegregationRef(event);
 
@@ -15,13 +15,14 @@ const toOutbox = ({
     event,
     target,
     segregationRef: orderingKey,
-    applicationReportingSequence,
+    deliverySequence,
     ...outboxStamps(event, { segregationRef: orderingKey, refs }),
   });
 };
 
 // Publications may supply an explicit segregation reference when the generic
 // event-data rules cannot derive one, and refs the envelope does not carry.
+// Set deliverySequence to deliver in sequence within that segregation reference.
 export const saveEvents = async (publications, session) => {
   const entries = publications.map(toOutbox);
 

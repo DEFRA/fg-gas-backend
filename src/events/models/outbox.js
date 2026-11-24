@@ -29,6 +29,7 @@ export class Outbox {
     target: Joi.string().required(),
     event: Joi.object().required(),
     segregationRef: Joi.string().required(),
+    deliverySequence: Joi.number().integer().strict().optional(),
   });
 
   // eslint-disable-next-line complexity
@@ -77,8 +78,8 @@ export class Outbox {
     this.claimedAt = null;
     this.claimExpiresAt = null;
     this.segregationRef = props.segregationRef;
-    if (props.applicationReportingSequence !== undefined) {
-      this.applicationReportingSequence = props.applicationReportingSequence;
+    if (props.deliverySequence !== undefined) {
+      this.deliverySequence = props.deliverySequence;
     }
     Object.assign(this, stampsOf(props));
   }
@@ -135,8 +136,8 @@ export class Outbox {
       claimedBy: this.claimedBy,
       claimExpiresAt: this.claimExpiresAt,
       segregationRef: this.segregationRef,
-      ...(this.applicationReportingSequence !== undefined && {
-        applicationReportingSequence: this.applicationReportingSequence,
+      ...(this.deliverySequence !== undefined && {
+        deliverySequence: this.deliverySequence,
       }),
       eventType: this.eventType,
       refs: this.refs,
@@ -166,7 +167,7 @@ export class Outbox {
       claimedBy: doc.claimedBy,
       claimExpiresAt: doc.claimExpiresAt,
       segregationRef: doc.segregationRef,
-      applicationReportingSequence: doc.applicationReportingSequence,
+      deliverySequence: doc.deliverySequence,
       eventType: doc.eventType,
       refs: doc.refs,
     });

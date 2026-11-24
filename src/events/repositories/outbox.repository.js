@@ -46,13 +46,10 @@ export const deadLetterEvent = async (event) => {
   return results;
 };
 
-const reportEventType = "event.eventData.eventType";
-const applicationReportTypes = [
-  "APPLICATION_CREATED",
-  "APPLICATION_STATUS_CHANGED",
-];
-const unsentApplicationReports = {
-  [reportEventType]: { $in: applicationReportTypes },
+// Ordered delivery is opt-in metadata on the outbox row. The event envelope
+// is passed through to its destination without interpreting its fields.
+const unsentOrderedEvents = {
+  deliverySequence: { $exists: true },
   status: {
     $in: [
       OutboxStatus.PUBLISHED,
@@ -68,19 +65,19 @@ const readyToClaim = {
   claimedBy: null,
   completionAttempts: { $lt: MAX_RETRIES },
 };
-const applicationReportOrder = {
-  applicationReportingSequence: 1,
+const deliveryOrder = {
+  deliverySequence: 1,
   publicationDate: 1,
   _id: 1,
 };
 
-const firstUnsentApplicationReport = (segregationRef) =>
+const firstUnsentOrderedEvent = (segregationRef) =>
   db.collection(collection).findOne(
     {
       segregationRef,
-      ...unsentApplicationReports,
+      ...unsentOrderedEvents,
     },
-    { sort: applicationReportOrder, readPreference: "primary" },
+    { sort: deliveryOrder, readPreference: "primary" },
   );
 
 const canClaim = (doc) =>
@@ -94,7 +91,7 @@ const nextUnordered = (lockIds) =>
       ...readyToClaim,
       segregationRef: { $nin: lockIds },
       $or: [
-        { [reportEventType]: { $nin: applicationReportTypes } },
+        { deliverySequence: { $exists: false } },
         // Preserve the subscriber's dead-letter handling for malformed rows.
         { segregationRef: { $in: [null, ""] } },
       ],
@@ -102,18 +99,18 @@ const nextUnordered = (lockIds) =>
     { sort: { publicationDate: 1 } },
   );
 
-const nextApplicationReport = (lockIds) =>
+const nextOrderedEvent = (lockIds) =>
   db
     .collection(collection)
     .aggregate(
       [
         {
           $match: {
-            ...unsentApplicationReports,
+            ...unsentOrderedEvents,
             segregationRef: { $nin: [...lockIds, null, ""] },
           },
         },
-        { $sort: { segregationRef: 1, ...applicationReportOrder } },
+        { $sort: { segregationRef: 1, ...deliveryOrder } },
         {
           $group: {
             _id: "$segregationRef",
@@ -139,17 +136,16 @@ const nextApplicationReport = (lockIds) =>
     .next();
 
 export const findNextMessage = async (lockIds) => {
-  const [unordered, applicationReport] = await Promise.all([
+  const [unordered, ordered] = await Promise.all([
     nextUnordered(lockIds),
-    nextApplicationReport(lockIds),
+    nextOrderedEvent(lockIds),
   ]);
 
   if (
-    applicationReport &&
-    (!unordered ||
-      applicationReport.publicationDate <= unordered.publicationDate)
+    ordered &&
+    (!unordered || ordered.publicationDate <= unordered.publicationDate)
   ) {
-    return applicationReport;
+    return ordered;
   }
   return unordered;
 };
@@ -170,7 +166,7 @@ const claim = (claimedBy, filter) =>
 
 export const claimEvents = async (claimedBy, segregationRef) => {
   const first =
-    segregationRef && (await firstUnsentApplicationReport(segregationRef));
+    segregationRef && (await firstUnsentOrderedEvent(segregationRef));
   if (canClaim(first)) {
     const doc = await claim(claimedBy, { _id: first._id });
     return doc ? [Outbox.fromDocument(doc)] : [];
@@ -188,7 +184,7 @@ const claimUnorderedEvents = async (claimedBy, segregationRef) => {
   for (let i = 0; i < NUMBER_OF_RECORDS; i++) {
     const doc = await claim(claimedBy, {
       segregationRef,
-      [reportEventType]: { $nin: applicationReportTypes },
+      deliverySequence: { $exists: false },
     });
     docs.push(doc);
   }

@@ -1,6 +1,6 @@
 const index = {
   segregationRef: 1,
-  applicationReportingSequence: 1,
+  deliverySequence: 1,
   publicationDate: 1,
   _id: 1,
 };
@@ -17,9 +17,7 @@ export const up = async (db) => {
           "DEAD_LETTER",
         ],
       },
-      "event.eventData.eventType": {
-        $in: ["APPLICATION_CREATED", "APPLICATION_STATUS_CHANGED"],
-      },
+      deliverySequence: { $exists: true },
     },
   });
 };
