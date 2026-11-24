@@ -1,5 +1,5 @@
 import { STORED } from "./bucket.js";
-import { readStoredValues, readTimeoutMs } from "./engine.js";
+import { collectionOf, readStoredValues, readTimeoutMs } from "./engine.js";
 import { factsOf } from "./plan.js";
 
 const storedFacts = (bucket) =>
@@ -12,7 +12,12 @@ const readAllStoredValues = async (bucket) =>
     await Promise.all(
       storedFacts(bucket).map(async (name) => [
         name,
-        await readStoredValues(bucket, name, readTimeoutMs()),
+        await readStoredValues(
+          bucket,
+          name,
+          readTimeoutMs(),
+          collectionOf({ bucket }),
+        ),
       ]),
     ),
   );

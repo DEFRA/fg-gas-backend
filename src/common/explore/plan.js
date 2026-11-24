@@ -7,6 +7,7 @@ import {
   TOO_MANY_COMBINATIONS,
   WITHOUT_PARTNER,
   classifyTests,
+  isIdRead,
   topLevelOf,
 } from "./index-tests.js";
 
@@ -276,28 +277,83 @@ export const rawEquality = (bucket) => {
   return raw.get(bucket);
 };
 
+const planOf = (bucket, box) => ({
+  bucket,
+  box,
+  where: {},
+  ref: null,
+  refKind: null,
+  recheck: null,
+  from: null,
+  to: null,
+  none: false,
+});
+
+// The tests an id read takes from the index: those that keep it to the box,
+// as a box test and a time range do.
+const ID_READ_KINDS = new Set(["time", "box"]);
+
+const isIdReadTaken = ({ why, field }) =>
+  !why && ID_READ_KINDS.has(field.index);
+
+// What a box's read is: `plan` as the tests filled it, `enginePlan` the
+// bucket line it reads.
+const plannedOf = (plan, engineQuery, read) => ({
+  none: plan.none || isEmptyRange(plan),
+  bucket: plan.bucket,
+  query: engineQuery,
+  plan: read.enginePlan,
+  recheck: plan.recheck,
+  residual: read.residual,
+  read: read.why ? WINDOWED_READ : EXACT_READ,
+  why: read.why,
+  settles: read.settles,
+  ids: read.ids,
+});
+
+// An id read: the records of at most MAX_IDS ObjectIds, read by `_id`,
+// within the bucket line's filled facts and the query's time range. A record
+// with no time is read, as a plain exact read reads it. It is exact, never
+// settles, and every test is the evaluator's on what it reads.
+const idPlanned = (plan, { source, query, readerOf, tests, ids }) => {
+  tests
+    .filter(isIdReadTaken)
+    .forEach(({ test, field }) =>
+      TAKE[field.index](plan, test, source, readerOf),
+    );
+
+  return plannedOf(plan, engineQueryOf(plan, query), {
+    enginePlan: choosePlan(plan.bucket, [], false),
+    residual: query.where,
+    why: null,
+    settles: false,
+    ids,
+  });
+};
+
 // One box's reads: the top-level AND's index tests go to the bucket engine,
 // whose plan decides whether the read is exact; every other test is a
 // residual the evaluator applies to each record read. `why` says why a read
-// isn't exact.
+// isn't exact. With id tests it is an id read instead (idPlanned).
 export const planBox = (source, box, query, readerOf) => {
   const bucket = rawEquality(box.bucket);
-  const plan = {
-    bucket,
-    box,
-    where: {},
-    ref: null,
-    refKind: null,
-    recheck: null,
-    from: null,
-    to: null,
-    none: false,
-  };
+  const plan = planOf(bucket, box);
   const paths = describePaths(source, box.bucket);
-  const { tests } = classifyTests(
+  const { tests, taken } = classifyTests(
     topLevelOf(query.where),
     (path) => paths.get(path) ?? null,
   );
+
+  if (isIdRead(taken)) {
+    return idPlanned(plan, {
+      source,
+      query,
+      readerOf,
+      tests,
+      ids: taken.ids,
+    });
+  }
+
   const residual = tests
     .filter(route(plan, source, readerOf))
     .map(({ test }) => test);
@@ -308,17 +364,12 @@ export const planBox = (source, box, query, readerOf) => {
     plan.ref !== null,
     widthsOf(bucket, engineQuery),
   );
-  const why = whyOf(tests, enginePlan);
 
-  return {
-    none: plan.none || isEmptyRange(plan),
-    bucket,
-    query: engineQuery,
-    plan: enginePlan,
-    recheck: plan.recheck,
+  return plannedOf(plan, engineQuery, {
+    enginePlan,
     residual: residualOf(residual),
-    read: why ? WINDOWED_READ : EXACT_READ,
-    why,
+    why: whyOf(tests, enginePlan),
     settles: settles(enginePlan, residual),
-  };
+    ids: null,
+  });
 };

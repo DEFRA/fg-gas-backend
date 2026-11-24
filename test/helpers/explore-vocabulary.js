@@ -9,7 +9,7 @@ const known = (path, type, extra = {}) => ({
   ...extra,
 });
 
-const source = (name, size, { roots, paths, star, time, ...rest }) => ({
+const source = (name, size, { paths, star, time, ...rest }) => ({
   name,
   label: name,
   service: "GAS",
@@ -17,7 +17,6 @@ const source = (name, size, { roots, paths, star, time, ...rest }) => ({
   noun: { one: name.slice(0, -1), many: name },
   star,
   time,
-  roots,
   answersAt: null,
   paths: new Map(paths.map((entry) => [entry.path, entry])),
   ...rest,
@@ -28,20 +27,11 @@ export const exploreVocabulary = () => ({
     [
       "applications",
       source("applications", "big", {
-        roots: [
-          "clientRef",
-          "code",
-          "currentConfigVersion",
-          "currentStatus",
-          "createdAt",
-          "identifiers",
-          "phases",
-          "refs",
-        ],
         answersAt: "phases.answers",
         time: "createdAt",
         star: ["clientRef", "code", "currentStatus", "createdAt"],
         paths: [
+          known("_id", "objectId", { index: "id" }),
           known("clientRef", "text", { index: "ref", scans: 1 }),
           known("identifiers.sbi", "text", { index: "ref", scans: 1 }),
           known("refs", "text", { index: "refs", scans: 1 }),
@@ -62,17 +52,11 @@ export const exploreVocabulary = () => ({
     [
       "cases",
       source("cases", "big", {
-        roots: [
-          "caseRef",
-          "workflowCode",
-          "currentStatus",
-          "createdAt",
-          "payload",
-        ],
         answersAt: "payload.answers",
         time: "createdAt",
         star: ["caseRef", "workflowCode", "currentStatus", "createdAt"],
         paths: [
+          known("_id", "objectId", { index: "id" }),
           known("caseRef", "text", { index: "ref", scans: 1 }),
           known("workflowCode", "text", { index: "fact" }),
           known("currentStatus", "text"),
@@ -84,18 +68,10 @@ export const exploreVocabulary = () => ({
     [
       "events",
       source("events", "big", {
-        roots: [
-          "eventType",
-          "status",
-          "publicationDate",
-          "lastError",
-          "refs",
-          "service",
-          "box",
-        ],
         time: "publicationDate",
         star: ["publicationDate", "eventType", "status"],
         paths: [
+          known("_id", "objectId", { index: "id" }),
           known("eventType", "text", { index: "fact", closed: true }),
           known("status", "text", { index: "fact", closed: true }),
           known("service", "text", { index: "box", closed: true }),
@@ -103,16 +79,17 @@ export const exploreVocabulary = () => ({
           known("refs", "text", { index: "refs", scans: 1 }),
           known("publicationDate", "date", { index: "time", stored: "date" }),
           known("lastError.message", "text"),
+          known("errorKey", "text"),
         ],
       }),
     ],
     [
       "agreements",
       source("agreements", "small", {
-        roots: ["agreementNumber", "state", "totalAmountPence"],
         time: "createdAt",
         star: ["agreementNumber", "state", "totalAmountPence"],
         paths: [
+          known("_id", "text"),
           known("agreementNumber", "text"),
           known("state", "text"),
           known("totalAmountPence", "number"),
@@ -122,7 +99,6 @@ export const exploreVocabulary = () => ({
     [
       "payments",
       source("payments", "small", {
-        roots: ["sbi", "payments", "totalAmountPence"],
         time: "createdAt",
         star: ["sbi", "payments.status", "totalAmountPence"],
         paths: [

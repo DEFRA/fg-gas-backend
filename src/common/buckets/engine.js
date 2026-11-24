@@ -436,9 +436,8 @@ export const readCount = async (read, cap = COUNT_CAP) => {
 const leadLine = (bucket, fact) =>
   bucket.indexes.find((line) => line[0] === fact);
 
-export const readStoredValues = async (bucket, fact, maxTimeMS) => {
-  const groups = await db
-    .collection(bucket.collection)
+export const readStoredValues = async (bucket, fact, maxTimeMS, collection) => {
+  const groups = await collection
     .aggregate([{ $group: { _id: `$${fact}` } }, { $limit: MAX_VALUES + 1 }], {
       hint: keyOf(bucket, leadLine(bucket, fact)),
       maxTimeMS,
@@ -456,7 +455,7 @@ export const readStoredValues = async (bucket, fact, maxTimeMS) => {
 
 const valuesOf = (bucket, fact, maxTimeMS) =>
   bucket.facts[fact].values === STORED
-    ? readStoredValues(bucket, fact, maxTimeMS)
+    ? readStoredValues(bucket, fact, maxTimeMS, collectionOf({ bucket }))
     : bucket.facts[fact].values.map(({ value }) => value);
 
 const planOf = ({ bucket, query }) =>

@@ -1,5 +1,4 @@
 import { SECONDARY } from "../buckets/engine.js";
-import { db } from "../mongo-client.js";
 import { compileWhere } from "./evaluate.js";
 import {
   projectionOf,
@@ -11,6 +10,7 @@ import { FULL_READ } from "./plan.js";
 import { compareRows } from "./merge.js";
 import { eachStep, timeLeftOf } from "./meter.js";
 import { testsOf } from "./query-schema.js";
+import { readCollection } from "./read-only.js";
 import { refuseQuery } from "./refusal.js";
 import { grouper, rowMaker, unwinder } from "./rows.js";
 import {
@@ -46,14 +46,17 @@ const localPaths = (source, paths) => {
   ];
 };
 
+// A path naming the attached record itself reads the whole of it.
 const attachProjection = ({ as, on }, paths) =>
-  projectionOf([
-    ...on.map(([, foreign]) => foreign),
-    ...paths
-      .filter(isAttached([as]))
-      .map((path) => path.slice(as.length + 1))
-      .filter(Boolean),
-  ]);
+  paths.includes(as)
+    ? undefined
+    : projectionOf([
+        ...on.map(([, foreign]) => foreign),
+        ...paths
+          .filter(isAttached([as]))
+          .map((path) => path.slice(as.length + 1))
+          .filter(Boolean),
+      ]);
 
 const valueAt = (doc, path) =>
   path.split(".").reduce((value, name) => value?.[name], doc);
@@ -80,8 +83,7 @@ const attachedFilter = (attach, docs) => {
 // Each attached record read is charged as a record, and too many are refused
 // in the attached records' own name.
 const readAttached = async (attach, paths, meter, only) => {
-  const docs = await db
-    .collection(attach.collection)
+  const docs = await readCollection(attach.collection)
     .find(attachedFilter(attach, only), {
       projection: attachProjection(attach, paths),
       maxTimeMS: Math.max(1, timeLeftOf(meter)),
@@ -130,7 +132,7 @@ const withAttached = async (source, docs, paths, meter, only = null) => {
 };
 
 const readLocal = async (source, box, paths, meter) => {
-  const collection = db.collection(box.collection);
+  const collection = readCollection(box.collection);
   const maxTimeMS = Math.max(1, timeLeftOf(meter));
   const size = await collection
     .estimatedDocumentCount({ maxTimeMS, readPreference: SECONDARY })
@@ -223,9 +225,9 @@ const readFull = async (source, box, query, meter, readers) => {
     : withAttached(source, docs, paths, meter, true);
 };
 
-export const runFull = async (source, query, meter, lens) => {
+export const runFull = async (source, query, meter, charge) => {
   const box = fullBox(source);
-  const readers = readersFor(source, lens);
+  const readers = readersFor(source, { charge });
   const docs = await readFull(source, box, query, meter, readers);
 
   if (query.mode === "count") {

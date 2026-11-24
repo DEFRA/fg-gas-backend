@@ -1,30 +1,4 @@
 import { agreementsCollection } from "../repositories/agreement.repository.js";
-const agreementRoots = [
-  "agreementNumber",
-  "version",
-  "code",
-  "clientRef",
-  "configVersion",
-  "correlationId",
-  "identifiers",
-  "state",
-  "name",
-  "schemeCode",
-  "createdAt",
-  "updatedAt",
-  "acceptedAt",
-  "startDate",
-  "endDate",
-  "totalAmountPence",
-  "actions",
-  "items",
-  "parcels",
-  "application",
-  "applicant",
-  "paymentSchedule",
-  "payload",
-  "supplementaryData",
-];
 
 export const agreementsSource = {
   name: "agreements",
@@ -36,11 +10,11 @@ export const agreementsSource = {
   time: "createdAt",
   noun: { one: "agreement", many: "agreements" },
   star: ["agreementNumber", "clientRef", "state", "totalAmountPence"],
-  roots: agreementRoots,
   answersAt: null,
   open: (doc) => ({ kind: "application", code: doc.code, ref: doc.clientRef }),
   openPaths: ["code", "clientRef"],
   paths: [
+    { path: "_id", type: "text" },
     { path: "agreementNumber", type: "text" },
     { path: "clientRef", type: "text" },
     { path: "code", type: "text" },

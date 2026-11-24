@@ -19,7 +19,6 @@ import {
   isText,
   order,
   readAt,
-  readableOf,
   sameTypeOrder,
   typeOf,
   typedOf,
@@ -41,14 +40,17 @@ export {
 
 // ── Matching ──
 
+const KEYS = {
+  date: (value) => `date:${value.getTime()}`,
+  objectId: (value) => `objectId:${value.toHexString()}`,
+  object: () => null,
+};
+
+// An ObjectId is keyed by its hex, apart from the text of it.
 const keyOf = (value) => {
   const type = typeOf(value);
 
-  if (type === "date") {
-    return `date:${value.getTime()}`;
-  }
-
-  return type === "object" || type === "objectId" ? null : `${type}:${value}`;
+  return Object.hasOwn(KEYS, type) ? KEYS[type](value) : `${type}:${value}`;
 };
 
 const keysOfStored = (value, dates) => {
@@ -58,7 +60,8 @@ const keysOfStored = (value, dates) => {
 };
 
 // Equality to any of the typed values: the same type and value, a date also
-// stored as ISO text, and null for a value that is null or missing.
+// stored as ISO text, and null for a value that is null or missing. An
+// ObjectId never equals its hex as text.
 const equalsAny = (typed) => {
   const keys = new Set(typed.map(keyOf).filter(Boolean));
   const nulls = typed.includes(null);
@@ -87,7 +90,8 @@ const comparison =
       return n !== null && COMPARE[op](n);
     });
 
-// A pattern tests stored text only, and is charged the work it takes.
+// A pattern tests stored text only, never an ObjectId or any other value,
+// and is charged the work it takes.
 const patternOf =
   ([{ test }], charge) =>
   ({ values }) =>
@@ -230,8 +234,7 @@ const soleObject = (value) =>
     : value;
 
 // A value as a cell shows it: as stored, a date as an ISO instant, a list as
-// a list of at most MAX_CELL_VALUES, and an object inline, as much of it as
-// `reader` may read.
+// a list of at most MAX_CELL_VALUES, and an object inline.
 export const shapeValue = (value, reader = null) =>
   value === undefined
     ? null
@@ -268,7 +271,6 @@ const compareEntries = (a, b) => {
 const SAME_TYPE = {
   array: (a, b) => compareEntries(a.map(entryOfElement), b.map(entryOfElement)),
   object: (a, b) => compareEntries(Object.entries(a), Object.entries(b)),
-  objectId: (a, b) => order(String(a), String(b)),
 };
 
 const entryOfElement = (element) => ["", element];
@@ -331,15 +333,11 @@ export const compareBson = (a, b) => {
   return byType || type === "null" ? byType : compareSameType(a, b, x, y);
 };
 
-// An ObjectId is keyed by its hex, apart from the text of it.
-const scalarKeyOf = (value) =>
-  typeOf(value) === "objectId"
-    ? `objectId:${String(value)}`
-    : keyOf(asTime(value));
+const scalarKeyOf = (value) => keyOf(asTime(value));
 
 // What makes two values one group: the same type and value, as Mongo's
 // $group has it, a time one however it is stored. Objects and lists are
-// keyed by a digest of what they hold, keys in their stored order, numbers
+// keyed by a digest of all they hold, keys in their stored order, numbers
 // by value, a time however stored; the group's value travels apart from its
 // key (orderedOf).
 const canonicalOf = (value) => {
@@ -377,18 +375,15 @@ const keyOfPresent = (present) =>
     ? `decimal:${exactOf(present)}`
     : keyOfPlain(plainBson(present));
 
-// `reader` takes out of an object what may not be read below its path first.
-export const groupKeyOf = (value, reader) =>
-  value === undefined || value === null
-    ? null
-    : keyOfPresent(readableOf(value, reader));
+export const groupKeyOf = (value) =>
+  value === undefined || value === null ? null : keyOfPresent(value);
 
 // ── Values as they travel ──
 
 // A value kept with its type through JSON, so a sort and a merge across
 // boxes and services compare it as Mongo does: text and numbers as they are,
-// a list as a list, and a boolean, time, ObjectId or object tagged. Only
-// what may be read of an object travels, and at most MAX_CELL_VALUES values:
+// a list as a list, and a boolean, time, ObjectId or object tagged. At most
+// MAX_CELL_VALUES values travel:
 // a value cut short ends in a tag that says so, shown as …, and a longer one compares
 // by what is kept. It is only ever shown as the value's cell.
 const NON_FINITE = { NaN, Infinity, "-Infinity": -Infinity };
@@ -460,10 +455,8 @@ const orderedNested = (value, depth, room) =>
     ? orderedList(value, depth, room)
     : orderedObject(value, depth, room);
 
-export const orderedOf = (value, reader) =>
-  value === undefined
-    ? null
-    : orderedAt(readableOf(value, reader), 1, { left: MAX_CELL_VALUES });
+export const orderedOf = (value) =>
+  value === undefined ? null : orderedAt(value, 1, { left: MAX_CELL_VALUES });
 
 const TAGS = {
   c: () => CUT,
@@ -538,19 +531,17 @@ const EXTREMES = { min: (n) => n < 0, max: (n) => n > 0 };
 
 const isCounted = (value) => value !== undefined && value !== null;
 
-// The least or greatest in Mongo's order, nulls and missing left out,
-// objects compared only by what may be read of them.
-const extremeOf = (fn, values, reader) =>
+// The least or greatest in Mongo's order, nulls and missing left out.
+const extremeOf = (fn, values) =>
   values
     .filter(isCounted)
-    .map((value) => [value, readableOf(value, reader)])
     .reduce(
-      (best, entry) =>
-        best === undefined || EXTREMES[fn](compareBson(entry[1], best[1]))
-          ? entry
+      (best, value) =>
+        best === undefined || EXTREMES[fn](compareBson(value, best))
+          ? value
           : best,
       undefined,
-    )?.[0];
+    );
 
 const elementsOf = (value) => (Array.isArray(value) ? value : [value]);
 
@@ -559,19 +550,19 @@ const elementsOf = (value) => (Array.isArray(value) ? value : [value]);
 const EXPRESSIONS = {
   count: (value) => (Array.isArray(value) ? value.length : null),
   sum: (value) => sumOf(elementsOf(value)),
-  min: (value, reader) => extremeOf("min", elementsOf(value), reader),
-  max: (value, reader) => extremeOf("max", elementsOf(value), reader),
+  min: (value) => extremeOf("min", elementsOf(value)),
+  max: (value) => extremeOf("max", elementsOf(value)),
 };
 
 const workedOut = (fn, doc, reader, ctx) =>
-  EXPRESSIONS[fn](valueAt(doc, reader, ctx), reader);
+  EXPRESSIONS[fn](valueAt(doc, reader, ctx));
 
 // An expression's cell, and the value it sorts by.
 export const expressionOf = (fn, doc, reader, ctx = {}) =>
   shapeValue(soleObject(workedOut(fn, doc, reader, ctx)), reader);
 
 export const orderedExpressionOf = (fn, doc, reader, ctx = {}) =>
-  orderedOf(workedOut(fn, doc, reader, ctx), reader);
+  orderedOf(workedOut(fn, doc, reader, ctx));
 
 // $sum, $min and $max in $group, over each record's whole value, as raw
 // values until the group is sent; count(*) counts records. A sum is sent as
@@ -579,22 +570,21 @@ export const orderedExpressionOf = (fn, doc, reader, ctx = {}) =>
 const ACCUMULATE = {
   count: (sofar = 0) => sofar + 1,
   sum: (sofar, value) => added(sofar ?? NO_SUM, value),
-  min: (sofar, value, reader) => extremeOf("min", [sofar, value], reader),
-  max: (sofar, value, reader) => extremeOf("max", [sofar, value], reader),
+  min: (sofar, value) => extremeOf("min", [sofar, value]),
+  max: (sofar, value) => extremeOf("max", [sofar, value]),
 };
 
-export const accumulate = (fn, sofar, value, reader) =>
-  ACCUMULATE[fn](sofar, value, reader);
+export const accumulate = (fn, sofar, value) => ACCUMULATE[fn](sofar, value);
 
 // A sum's parts that aren't finite are tagged, as JSON has no NaN.
 const SENT_PARTIAL = {
   count: (raw = 0) => raw,
   sum: (raw = NO_SUM) => raw.map(ORDERED.number),
-  min: (raw, reader) => orderedOf(raw, reader),
-  max: (raw, reader) => orderedOf(raw, reader),
+  min: (raw) => orderedOf(raw),
+  max: (raw) => orderedOf(raw),
 };
 
-export const sentPartial = (fn, raw, reader) => SENT_PARTIAL[fn](raw, reader);
+export const sentPartial = (fn, raw) => SENT_PARTIAL[fn](raw);
 
 const isSent = (partial) => partial !== null;
 
@@ -659,8 +649,7 @@ export const shownOrdered = (ordered) => shapeValue(orderedValue(ordered));
 // lowest first, its greatest highest first.
 export const orderValueOf = (doc, reader, desc, ctx = {}) =>
   orderedOf(
-    extremeOf(desc ? "max" : "min", valuesOf(doc, reader, ctx), reader) ?? null,
-    reader,
+    extremeOf(desc ? "max" : "min", valuesOf(doc, reader, ctx)) ?? null,
   );
 
 // ── $unwind ──
