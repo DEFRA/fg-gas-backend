@@ -44,7 +44,7 @@ const GAS_BOXES = {
 
 // A missing row is a 404 and one that cannot be edited a 409; a redrivable one
 // that refused the write was edited, purged or redriven since.
-const refusalFor = (box, id, status) => {
+const refusalFor = (box, id, status = null) => {
   if (status === null) {
     return Boom.notFound(`gas ${box} event "${id}" not found`);
   }
@@ -65,11 +65,26 @@ const isEditable = (stored, revision) =>
   REDRIVABLE_STATUSES.includes(stored?.status) &&
   payloadRevisionOf(stored) === revision;
 
+const isTerminalPurge = (box, stored) =>
+  box === "outbox" &&
+  stored?.status === "PURGED" &&
+  stored.deliverySequence !== undefined;
+
 const findEditable = async (box, id, revision, session) => {
   const stored = await GAS_BOXES[box].find(id, session);
 
+  if (isTerminalPurge(box, stored)) {
+    throw editConflict(
+      `gas ${box}`,
+      id,
+      stored.status,
+      statusDisplay(stored.status).statusLabel,
+      `gas outbox event "${id}" cannot be edited after an ordered delivery purge`,
+    );
+  }
+
   if (!isEditable(stored, revision)) {
-    throw refusalFor(box, id, stored?.status ?? null);
+    throw refusalFor(box, id, stored?.status);
   }
 
   return stored;

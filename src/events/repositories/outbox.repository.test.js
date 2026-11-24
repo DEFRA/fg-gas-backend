@@ -73,7 +73,12 @@ describe("outbox.repository", () => {
         segregationRef: "ref_1",
       };
       const findOne = vi.fn().mockResolvedValue(mockDocument);
-      db.collection.mockReturnValue({ findOne });
+      db.collection.mockReturnValue({
+        findOne,
+        aggregate: vi
+          .fn()
+          .mockReturnValue({ next: vi.fn().mockResolvedValue(null) }),
+      });
 
       const result = await findNextMessage(["locked_ref"]);
 
@@ -84,6 +89,10 @@ describe("outbox.repository", () => {
           claimedBy: null,
           completionAttempts: { $lt: config.outbox.outboxMaxRetries },
           segregationRef: { $nin: ["locked_ref"] },
+          $or: [
+            { deliverySequence: { $exists: false } },
+            { segregationRef: { $in: [null, ""] } },
+          ],
         },
         { sort: { publicationDate: 1 } },
       );
@@ -91,7 +100,12 @@ describe("outbox.repository", () => {
 
     it("should return null when no document is found", async () => {
       const findOne = vi.fn().mockResolvedValue(null);
-      db.collection.mockReturnValue({ findOne });
+      db.collection.mockReturnValue({
+        findOne,
+        aggregate: vi
+          .fn()
+          .mockReturnValue({ next: vi.fn().mockResolvedValue(null) }),
+      });
       vi.spyOn(logger, "info");
 
       const result = await findNextMessage(["ref_1", "ref_2"]);
@@ -161,6 +175,17 @@ describe("outbox.repository", () => {
       const results = await claimEvents(claimedBy);
       expect(results[0]).toBeInstanceOf(Outbox);
       expect(results).toHaveLength(1);
+    });
+
+    it("stops claiming unordered events when none are ready", async () => {
+      const findOneAndUpdate = vi.fn().mockResolvedValue(null);
+      db.collection.mockReturnValue({
+        findOne: vi.fn().mockResolvedValue(null),
+        findOneAndUpdate,
+      });
+
+      expect(await claimEvents("worker", "test-group")).toEqual([]);
+      expect(findOneAndUpdate).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -321,7 +346,7 @@ describe("outbox.repository", () => {
 
       expect(updateMany).toHaveBeenCalledWith(
         {
-          status: OutboxStatus.RESUBMITTED,
+          status: { $in: [OutboxStatus.RESUBMITTED, OutboxStatus.STAGED] },
         },
         {
           $set: {
@@ -433,6 +458,10 @@ describe("outbox.repository detail and redrive", () => {
       {
         _id: new ObjectId(ID),
         status: { $in: [OutboxStatus.DEAD_LETTER, OutboxStatus.PURGED] },
+        $or: [
+          { status: OutboxStatus.DEAD_LETTER },
+          { deliverySequence: { $exists: false } },
+        ],
       },
       [
         {
@@ -607,7 +636,13 @@ describe("outbox.repository payload edits", () => {
     expect(findOne).toHaveBeenCalledWith(
       { _id: new ObjectId(ID) },
       {
-        projection: { status: 1, event: 1, payloadRevision: 1, lastEdit: 1 },
+        projection: {
+          status: 1,
+          event: 1,
+          payloadRevision: 1,
+          lastEdit: 1,
+          deliverySequence: 1,
+        },
         session,
       },
     );
@@ -621,6 +656,10 @@ describe("outbox.repository payload edits", () => {
     expect(updateOne.mock.calls[0][0]).toEqual({
       _id: new ObjectId(ID),
       status: { $in: [OutboxStatus.DEAD_LETTER, OutboxStatus.PURGED] },
+      $or: [
+        { status: OutboxStatus.DEAD_LETTER },
+        { deliverySequence: { $exists: false } },
+      ],
       payloadRevision: { $in: [null, 0] },
     });
   });

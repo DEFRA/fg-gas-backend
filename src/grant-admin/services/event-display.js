@@ -1,9 +1,9 @@
-import { eventStatusValues } from "../../events/event-status-values.js";
+import { outboxStatusValues } from "../../events/event-status-values.js";
 
 const RETRYING = new Set(["FAILED", "RESUBMITTED"]);
 
 const statusValues = new Map(
-  eventStatusValues.map((status) => [status.value, status]),
+  outboxStatusValues.map((status) => [status.value, status]),
 );
 
 const MS_PER_SECOND = 1000;

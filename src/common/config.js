@@ -73,6 +73,7 @@ const schema = Joi.object({
   OUTBOX_EXPIRES_MS: Joi.number(),
   OUTBOX_CLAIM_MAX_RECORDS: Joi.number(),
   OUTBOX_POLL_MS: Joi.number(),
+  OUTBOX_SEQUENCED_DELIVERY_ENABLED: Joi.boolean().optional().default(false),
   INBOX_MAX_RETRIES: Joi.number(),
   INBOX_EXPIRES_MS: Joi.number(),
   INBOX_CLAIM_MAX_RECORDS: Joi.number(),
@@ -196,6 +197,7 @@ export const config = {
     outboxExpiresMs: vars.OUTBOX_EXPIRES_MS,
     outboxClaimMaxRecords: vars.OUTBOX_CLAIM_MAX_RECORDS,
     outboxPollMs: vars.OUTBOX_POLL_MS,
+    sequencedDeliveryEnabled: vars.OUTBOX_SEQUENCED_DELIVERY_ENABLED,
   },
   inbox: {
     inboxMaxRetries: vars.INBOX_MAX_RETRIES,

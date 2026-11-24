@@ -1,20 +1,33 @@
-import { Outbox } from "./models/outbox.js";
+import { config } from "../common/config.js";
+import { Outbox, OutboxStatus } from "./models/outbox.js";
 import { insertMany } from "./repositories/outbox.repository.js";
 import { outboxStamps } from "./stamps.js";
 
-const toOutbox = ({ event, target, segregationRef, refs }) => {
+const toOutbox = ({
+  event,
+  target,
+  segregationRef,
+  refs,
+  deliverySequence,
+}) => {
   const orderingKey = segregationRef ?? Outbox.getSegregationRef(event);
 
   return new Outbox({
     event,
     target,
     segregationRef: orderingKey,
+    deliverySequence,
+    status:
+      deliverySequence !== undefined && !config.outbox.sequencedDeliveryEnabled
+        ? OutboxStatus.STAGED
+        : OutboxStatus.PUBLISHED,
     ...outboxStamps(event, { segregationRef: orderingKey, refs }),
   });
 };
 
 // Publications may supply an explicit segregation reference when the generic
 // event-data rules cannot derive one, and refs the envelope does not carry.
+// Set deliverySequence to deliver in sequence within that segregation reference.
 export const saveEvents = async (publications, session) => {
   const entries = publications.map(toOutbox);
 

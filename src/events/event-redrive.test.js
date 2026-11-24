@@ -41,6 +41,7 @@ const OPERATORS = {
   $lte: (value, operand) => value <= operand,
   $gte: (value, operand) => value >= operand,
   $nin: (value, operand) => !operand.includes(value),
+  $exists: (value, operand) => (value !== undefined) === operand,
   $in: (value, operand) => operand.includes(value),
 };
 
@@ -59,10 +60,13 @@ const matchesCondition = (value, condition) =>
 
 // `_id` is an ObjectId and identity-compares; the filter already selected by id.
 const matchesFilter = (doc, filter) => {
-  const { _id, ...rest } = filter;
+  const { _id, $or, ...rest } = filter;
 
-  return Object.entries(rest).every(([key, condition]) =>
-    matchesCondition(doc[key], condition),
+  return (
+    (!$or || $or.some((clause) => matchesFilter(doc, clause))) &&
+    Object.entries(rest).every(([key, condition]) =>
+      matchesCondition(doc[key], condition),
+    )
   );
 };
 
@@ -120,7 +124,10 @@ const applyUpdate = (doc, update) =>
 
 const capture = async (method, run, answer = null) => {
   const spy = vi.fn().mockResolvedValue(answer);
-  db.collection.mockReturnValue({ [method]: spy });
+  db.collection.mockReturnValue({
+    findOne: vi.fn().mockResolvedValue(null),
+    [method]: spy,
+  });
 
   await run();
 
@@ -236,8 +243,7 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
     ).toBe(false);
   });
 
-  // The promise the purge confirm makes: "You can redrive it until then."
-  it("matches a purged row too, so a purge can be undone until it is deleted", () => {
+  it("matches a purged unsequenced row, so it can be redriven until deletion", () => {
     expect(
       matchesFilter({ ...aDeadLetter(), status: "PURGED" }, redriveFilter),
     ).toBe(true);

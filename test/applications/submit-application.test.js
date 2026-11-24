@@ -191,7 +191,7 @@ describe("POST /grants/{code}/applications", () => {
     });
   });
 
-  it("queues a Water application report once when a submission is retried", async () => {
+  it("queues each Water submission report once when a submission is retried", async () => {
     const code = "water-management";
     const clientRef = `wmg-${randomUUID()}`;
     await insertGrant({ ...grant1, code });
@@ -230,8 +230,9 @@ describe("POST /grants/{code}/applications", () => {
         target: env.GAS__SNS__REPORTING_EVENTS_TOPIC_ARN,
         "event.eventData.applicationId": clientRef,
       })
+      .sort({ publicationDate: 1, _id: 1 })
       .toArray();
-    expect(reports).toHaveLength(1);
+    expect(reports).toHaveLength(2);
     expect(reports[0]).toMatchObject({
       eventType: "ApplicationCreatedReport",
       event: {
@@ -243,6 +244,18 @@ describe("POST /grants/{code}/applications", () => {
             totalScore: 80,
             estimatedMaxGrant: 28400,
           },
+        },
+      },
+    });
+    expect(reports[1]).toMatchObject({
+      eventType: "ApplicationStatusChangedReport",
+      event: {
+        eventData: {
+          eventType: "APPLICATION_STATUS_CHANGED",
+          applicationId: clientRef,
+          applicationType: code,
+          applicationStatus: application.currentStatus,
+          statusDate: application.createdAt,
         },
       },
     });

@@ -1,5 +1,5 @@
 import { defineBucket, toIso } from "../../common/buckets/bucket.js";
-import { eventStatusValues } from "../event-status-values.js";
+import { outboxStatusValues } from "../event-status-values.js";
 import { REDRIVABLE_STATUSES } from "../event-redrive.js";
 import { NO_ERROR_KEY } from "../../common/buckets/error-key.js";
 import { OUTBOX, eventTypeValues } from "../event-types.js";
@@ -8,7 +8,7 @@ const orNull = (value) => value ?? null;
 
 // Read when the bucket is made, so every event type has loaded.
 const facts = () => ({
-  status: { label: "Status", param: "status", values: eventStatusValues },
+  status: { label: "Status", param: "status", values: outboxStatusValues },
   eventType: {
     label: "Event",
     param: "event",

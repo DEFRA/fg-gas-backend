@@ -139,10 +139,13 @@ describe("applyExternalStateChange", () => {
         Boom.notFound('Application with clientRef "NON-EXISTENT" not found'),
       );
 
-      expect(findByClientRefAndCode).toHaveBeenCalledWith({
-        clientRef: "NON-EXISTENT",
-        code: "foo",
-      });
+      expect(findByClientRefAndCode).toHaveBeenCalledWith(
+        {
+          clientRef: "NON-EXISTENT",
+          code: "foo",
+        },
+        {},
+      );
       expect(update).not.toHaveBeenCalled();
     });
   });
@@ -165,10 +168,13 @@ describe("applyExternalStateChange", () => {
         Boom.notFound('Grant with code "test-grant" not found'),
       );
 
-      expect(findByClientRefAndCode).toHaveBeenCalledWith({
-        clientRef: "APP-123",
-        code: "foo",
-      });
+      expect(findByClientRefAndCode).toHaveBeenCalledWith(
+        {
+          clientRef: "APP-123",
+          code: "foo",
+        },
+        {},
+      );
       expect(resolveGrantForApplication).toHaveBeenCalledWith(mockApplication);
       expect(update).not.toHaveBeenCalled();
     });

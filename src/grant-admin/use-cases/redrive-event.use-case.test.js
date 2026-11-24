@@ -120,6 +120,21 @@ describe("redriveEventUseCase gas", () => {
     });
   });
 
+  it("explains why a purged ordered event cannot be redriven", async () => {
+    redriveGasOutbox.mockResolvedValue(false);
+    gasOutboxStatus.mockResolvedValue("PURGED");
+
+    await expect(call({ box: "outbox" })).rejects.toMatchObject({
+      output: {
+        statusCode: 409,
+        payload: {
+          status: "PURGED",
+          message: expect.stringContaining("cannot be redriven"),
+        },
+      },
+    });
+  });
+
   it("loses cleanly to a concurrent state change", async () => {
     redriveGasOutbox.mockResolvedValue(false);
     gasOutboxStatus.mockResolvedValue("PROCESSING");

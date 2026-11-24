@@ -3,7 +3,10 @@ import { createTestApplication } from "../../../test/helpers/applications.js";
 import { createTestGrant } from "../../../test/helpers/grants.js";
 import { config } from "../../common/config.js";
 import { saveEvents } from "../../events/index.js";
-import { update } from "../repositories/application.repository.js";
+import {
+  nextApplicationReportingSequence,
+  update,
+} from "../repositories/application.repository.js";
 import { createStatusTransitionUpdateUseCase } from "./create-status-transition-update.use-case.js";
 import { transitionApplicationUseCase } from "./transition-application.use-case.js";
 
@@ -35,6 +38,10 @@ const phases = [
           },
         ],
       },
+      {
+        code: "FURTHER_ASSESSMENT",
+        statuses: [{ code: currentPosition.status }],
+      },
     ],
   },
 ];
@@ -58,6 +65,7 @@ describe("transitionApplicationUseCase", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    nextApplicationReportingSequence.mockResolvedValue(1);
     publishStatusTransition = vi.fn();
     createStatusTransitionUpdateUseCase.mockReturnValue(
       publishStatusTransition,
@@ -78,8 +86,41 @@ describe("transitionApplicationUseCase", () => {
       newFullyQualifiedStatus: "PRE_AWARD:ASSESSMENT:IN_REVIEW",
     });
     expect(publishStatusTransition).toHaveBeenCalledWith(session);
-    expect(saveEvents).not.toHaveBeenCalled();
+    expect(saveEvents).toHaveBeenCalledExactlyOnceWith(
+      [
+        {
+          target: config.sns.reportingEventsTopicArn,
+          deliverySequence: 1,
+          segregationRef: "application-1-test-grant",
+          event: expect.objectContaining({
+            eventData: expect.objectContaining({
+              eventType: "APPLICATION_STATUS_CHANGED",
+              applicationType: "test-grant",
+              applicationId: "application-1",
+              applicationStatus: targetPosition.status,
+            }),
+          }),
+        },
+      ],
+      session,
+    );
   });
+
+  it.each([123, { id: "operator" }, "  "])(
+    "reports the transition when the optional user ID is unusable (%j)",
+    async (userId) => {
+      await transitionApplicationUseCase(
+        {
+          ...transitionFixture(),
+          sideEffectContext: { eventData: { userId } },
+        },
+        session,
+      );
+
+      const [[publications]] = saveEvents.mock.calls;
+      expect(publications[0].event.eventData).not.toHaveProperty("userId");
+    },
+  );
 
   it("publishes the Claims-originated Case Working status command", async () => {
     await transitionApplicationUseCase(
@@ -108,6 +149,21 @@ describe("transitionApplicationUseCase", () => {
       session,
     );
     expect(saveEvents.mock.calls[0][0][0].segregationRef).toBeUndefined();
+  });
+
+  it("persists a stage change without reporting an unchanged status code", async () => {
+    const transition = transitionFixture();
+    const targetPosition = { ...currentPosition, stage: "FURTHER_ASSESSMENT" };
+
+    await transitionApplicationUseCase(
+      { ...transition, targetPosition },
+      session,
+    );
+
+    expect(transition.application.currentPosition()).toEqual(targetPosition);
+    expect(update).toHaveBeenCalledWith(transition.application, session);
+    expect(publishStatusTransition).toHaveBeenCalledWith(session);
+    expect(saveEvents).not.toHaveBeenCalled();
   });
 
   it("keeps a move to the current position as a true no-op", async () => {

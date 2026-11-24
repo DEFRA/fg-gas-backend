@@ -46,58 +46,155 @@ export const deadLetterEvent = async (event) => {
   return results;
 };
 
-export const findNextMessage = async (lockIds) => {
-  const doc = await db.collection(collection).findOne(
+// Ordered delivery is opt-in metadata on the outbox row. The event envelope
+// is passed through to its destination without interpreting its fields.
+const unsentOrderedEvents = {
+  deliverySequence: { $exists: true },
+  status: {
+    $in: [
+      OutboxStatus.PUBLISHED,
+      OutboxStatus.STAGED,
+      OutboxStatus.PROCESSING,
+      OutboxStatus.FAILED,
+      OutboxStatus.RESUBMITTED,
+      OutboxStatus.DEAD_LETTER,
+    ],
+  },
+};
+const readyToClaim = {
+  status: OutboxStatus.PUBLISHED,
+  claimedBy: null,
+  completionAttempts: { $lt: MAX_RETRIES },
+};
+const deliveryOrder = {
+  deliverySequence: 1,
+  publicationDate: 1,
+  _id: 1,
+};
+
+const firstUnsentOrderedEvent = (segregationRef) =>
+  db.collection(collection).findOne(
     {
-      status: OutboxStatus.PUBLISHED,
-      claimedBy: null,
-      completionAttempts: { $lt: MAX_RETRIES },
+      segregationRef,
+      ...unsentOrderedEvents,
+    },
+    { sort: deliveryOrder, readPreference: "primary" },
+  );
+
+const canClaim = (doc) =>
+  doc?.status === OutboxStatus.PUBLISHED &&
+  !doc.claimedBy &&
+  doc.completionAttempts < MAX_RETRIES;
+
+const nextUnordered = (lockIds) =>
+  db.collection(collection).findOne(
+    {
+      ...readyToClaim,
       segregationRef: { $nin: lockIds },
+      $or: [
+        { deliverySequence: { $exists: false } },
+        // Preserve the subscriber's dead-letter handling for malformed rows.
+        { segregationRef: { $in: [null, ""] } },
+      ],
     },
     { sort: { publicationDate: 1 } },
   );
-  return doc;
+
+const nextOrderedEvent = (lockIds) =>
+  db
+    .collection(collection)
+    .aggregate(
+      [
+        {
+          $match: {
+            ...unsentOrderedEvents,
+            segregationRef: { $nin: [...lockIds, null, ""] },
+          },
+        },
+        { $sort: { segregationRef: 1, ...deliveryOrder } },
+        {
+          $group: {
+            _id: "$segregationRef",
+            head: {
+              $first: {
+                _id: "$_id",
+                segregationRef: "$segregationRef",
+                publicationDate: "$publicationDate",
+                status: "$status",
+                claimedBy: "$claimedBy",
+                completionAttempts: "$completionAttempts",
+              },
+            },
+          },
+        },
+        { $replaceWith: "$head" },
+        { $match: readyToClaim },
+        { $sort: { publicationDate: 1, _id: 1 } },
+        { $limit: 1 },
+      ],
+      { readPreference: "primary" },
+    )
+    .next();
+
+export const findNextMessage = async (lockIds) => {
+  const [unordered, ordered] = await Promise.all([
+    nextUnordered(lockIds),
+    nextOrderedEvent(lockIds),
+  ]);
+
+  if (
+    ordered &&
+    (!unordered || ordered.publicationDate <= unordered.publicationDate)
+  ) {
+    return ordered;
+  }
+  return unordered;
 };
 
+const claim = (claimedBy, filter) =>
+  db.collection(collection).findOneAndUpdate(
+    { ...readyToClaim, ...filter },
+    {
+      $set: {
+        status: OutboxStatus.PROCESSING,
+        claimedBy,
+        claimedAt: new Date(),
+        claimExpiresAt: new Date(Date.now() + EXPIRES_IN_MS),
+      },
+    },
+    { sort: { publicationDate: 1, _id: 1 }, returnDocument: "after" },
+  );
+
 export const claimEvents = async (claimedBy, segregationRef) => {
+  const first =
+    segregationRef && (await firstUnsentOrderedEvent(segregationRef));
+  if (canClaim(first)) {
+    const doc = await claim(claimedBy, { _id: first._id });
+    return doc ? [Outbox.fromDocument(doc)] : [];
+  }
+  return claimUnorderedEvents(claimedBy, segregationRef);
+};
+
+const claimUnorderedEvents = async (claimedBy, segregationRef) => {
   const docs = [];
 
   logger.info(
     `Outbox repository claim events with segregationRef: ${segregationRef}`,
   );
 
+  const filter = { segregationRef, deliverySequence: { $exists: false } };
   for (let i = 0; i < NUMBER_OF_RECORDS; i++) {
-    const doc = await db.collection(collection).findOneAndUpdate(
-      {
-        status: {
-          $eq: OutboxStatus.PUBLISHED,
-        },
-        claimedBy: {
-          $eq: null,
-        },
-        completionAttempts: {
-          $lt: MAX_RETRIES,
-        },
-        segregationRef,
-      },
-      {
-        $set: {
-          status: OutboxStatus.PROCESSING,
-          claimedBy,
-          claimedAt: new Date(),
-          claimExpiresAt: new Date(Date.now() + EXPIRES_IN_MS),
-        },
-      },
-      { sort: { publicationDate: 1 }, returnDocument: "after" },
-    );
+    const doc = await claim(claimedBy, filter); // NOSONAR: Keep atomic claims in delivery order.
+    if (!doc) {
+      break;
+    }
     docs.push(doc);
   }
-  const documents = docs.filter((d) => d !== null);
 
   logger.info(
-    `Outbox repository claim events (segregationRef ${segregationRef}) end with number of docs ${documents.length}`,
+    `Outbox repository claim events (segregationRef ${segregationRef}) end with number of docs ${docs.length}`,
   );
-  return documents.map((doc) => Outbox.fromDocument(doc));
+  return docs.map((doc) => Outbox.fromDocument(doc));
 };
 
 export const update = async (event, claimedBy) => {
@@ -163,10 +260,11 @@ export const updateFailedEvents = async () => {
 };
 
 export const updateResubmittedEvents = async () => {
+  const status = config.outbox.sequencedDeliveryEnabled
+    ? { $in: [OutboxStatus.RESUBMITTED, OutboxStatus.STAGED] }
+    : OutboxStatus.RESUBMITTED;
   const results = await db.collection(collection).updateMany(
-    {
-      status: OutboxStatus.RESUBMITTED,
-    },
+    { status },
     {
       $set: {
         status: OutboxStatus.PUBLISHED,
@@ -236,16 +334,20 @@ export const findStatusById = async (id, session) => {
   return doc ? doc.status : null;
 };
 
-// True when a redrivable row - a dead letter, or one an operator purged - was
-// redriven.
+// Purging a sequenced row releases its successors and makes that row terminal.
+const redrivableOutbox = {
+  status: { $in: REDRIVABLE_STATUSES },
+  $or: [{ status: DEAD_LETTER }, { deliverySequence: { $exists: false } }],
+};
 export const redriveById = async (id, { by, session } = {}) => {
-  const { matchedCount } = await db
-    .collection(collection)
-    .updateOne(
-      { _id: toId(id), status: { $in: REDRIVABLE_STATUSES } },
-      redriveUpdate(OutboxStatus.RESUBMITTED, { by }),
-      { session },
-    );
+  const { matchedCount } = await db.collection(collection).updateOne(
+    {
+      _id: toId(id),
+      ...redrivableOutbox,
+    },
+    redriveUpdate(OutboxStatus.RESUBMITTED, { by }),
+    { session },
+  );
 
   return matchedCount > 0;
 };
@@ -273,7 +375,13 @@ export const findEditableById = (id, session) =>
   db.collection(collection).findOne(
     { _id: toId(id) },
     {
-      projection: { status: 1, event: 1, payloadRevision: 1, lastEdit: 1 },
+      projection: {
+        status: 1,
+        event: 1,
+        payloadRevision: 1,
+        lastEdit: 1,
+        deliverySequence: 1,
+      },
       session,
     },
   );
@@ -288,7 +396,7 @@ export const editPayloadById = async (
   const { matchedCount } = await db.collection(collection).updateOne(
     {
       _id: toId(id),
-      status: { $in: REDRIVABLE_STATUSES },
+      ...redrivableOutbox,
       payloadRevision: revisionFilter(revision),
     },
     editUpdate({

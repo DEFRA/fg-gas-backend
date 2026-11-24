@@ -6,8 +6,7 @@ const RESET_ATTEMPTS = 0;
 
 export const DEAD_LETTER = "DEAD_LETTER";
 
-// A purged row stays redrivable until its deletion date, which is what the
-// purge confirm promises.
+// Purged sequenced outbox events are terminal because purge releases successors.
 export const REDRIVABLE_STATUSES = [DEAD_LETTER, "PURGED"];
 
 export const REDRIVABLE_DESCRIPTION = `redrivable (${REDRIVABLE_STATUSES.join(" or ")})`;
@@ -42,9 +41,10 @@ export const redriveUpdate = (resubmittedStatus, { by, at } = {}) => [
 ];
 
 // The status labels are passed in: this module is shared with the pollers.
-export const redriveConflict = (box, id, status, statusLabel) => {
+export const redriveConflict = (box, id, status, statusLabel, message) => {
   const error = Boom.conflict(
-    `${box} event "${id}" is ${status}, not ${REDRIVABLE_DESCRIPTION}`,
+    message ??
+      `${box} event "${id}" is ${status}, not ${REDRIVABLE_DESCRIPTION}`,
   );
 
   error.output.payload.status = status;

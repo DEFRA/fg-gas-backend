@@ -2,8 +2,13 @@ import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { saveEvents } from "../../events/index.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
+import { createApplicationStatusReportingPublication } from "../events/application-status-reporting.event.js";
 import { ApplicationStatus } from "../models/application.js";
-import { update } from "../repositories/application.repository.js";
+import {
+  findByClientRefAndCode,
+  nextApplicationReportingSequence,
+  update,
+} from "../repositories/application.repository.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
 import { addAgreementUseCase } from "./add-agreement.use-case.js";
 import { applyAgreementTerminationUseCase } from "./apply-agreement-termination.use-case.js";
@@ -113,10 +118,38 @@ const publishCaseWorkingUpdateIfRequested = async (
   }
 };
 
-const runTransitionProcesses = async (processes, context, session) => {
-  for (const handler of getHandlersForAllProcesses(processes)) {
+const runTransitionProcesses = async (handlers, context, session) => {
+  for (const handler of handlers) {
     await handler(context, session);
   }
+};
+
+const transitionUserId = (context) => {
+  const userId = context?.eventData?.userId;
+  return typeof userId === "string" ? userId.trim() : undefined;
+};
+
+const reportApplicationStatusChange = async (
+  { application, previousStatus, reload, userId },
+  session,
+) => {
+  const { code, clientRef } = application;
+  // A transition process can set the final status in this transaction.
+  const saved = reload
+    ? await findByClientRefAndCode({ code, clientRef }, session)
+    : application;
+
+  if (saved.currentStatus === previousStatus) {
+    return;
+  }
+
+  const sequence = await nextApplicationReportingSequence(saved, session);
+  const publication = createApplicationStatusReportingPublication({
+    application: saved,
+    userId,
+    sequence,
+  });
+  await saveEvents([publication], session);
 };
 
 export const transitionApplicationUseCase = async (
@@ -154,5 +187,16 @@ export const transitionApplicationUseCase = async (
     session,
   );
 
-  await runTransitionProcesses(move.processes, sideEffectContext, session);
+  const handlers = getHandlersForAllProcesses(move.processes);
+  await runTransitionProcesses(handlers, sideEffectContext, session);
+
+  await reportApplicationStatusChange(
+    {
+      application,
+      previousStatus: previousPosition.status,
+      reload: handlers.length > 0,
+      userId: transitionUserId(sideEffectContext),
+    },
+    session,
+  );
 };

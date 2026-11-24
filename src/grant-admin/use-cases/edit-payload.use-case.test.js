@@ -99,6 +99,23 @@ describe("editPayloadUseCase gas", () => {
     expect(findEditableGasInbox).toHaveBeenCalledWith(ID, outer);
   });
 
+  it("refuses to edit the payload of a purged sequenced outbox event", async () => {
+    findEditableGasOutbox.mockResolvedValue(
+      aStoredRow({ status: "PURGED", deliverySequence: 0 }),
+    );
+
+    await expect(call({ box: "outbox" })).rejects.toMatchObject({
+      output: {
+        statusCode: 409,
+        payload: {
+          status: "PURGED",
+          message: expect.stringContaining("cannot be edited"),
+        },
+      },
+    });
+    expect(editGasOutbox).not.toHaveBeenCalled();
+  });
+
   it("reads the row and writes the edit fenced on the revision it was made from", async () => {
     findEditableGasInbox.mockResolvedValue(aStoredRow());
     editGasInbox.mockResolvedValue(true);

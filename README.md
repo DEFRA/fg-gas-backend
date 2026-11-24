@@ -122,6 +122,26 @@ Content-Type: application/json
 }
 ```
 
+### Application status reporting
+
+On a new submission GAS queues `APPLICATION_CREATED` followed by
+`APPLICATION_STATUS_CHANGED` with the initial GAS status code. Later changes
+queue one status event with the resulting GAS status code.
+The event is saved in the same transaction as the application change.
+The outbox publishes each application's reports in sequence and holds later
+reports until the earlier one succeeds or an operator purges it.
+
+Reporting for a replacement application starts at its first subsequent status
+change, under the replacement application reference.
+
+For the first CDP rollout, deploy with `OUTBOX_SEQUENCED_DELIVERY_ENABLED=false`
+(the default). GAS stages sequenced events while the previous workers are rolling
+off. Once CDP shows only upgraded instances, set the flag to `true` and redeploy.
+Upgraded workers release staged events in sequence, including any staged by
+peers still running with the flag off. Purging a sequenced event permanently
+skips it and releases its successors. Redrive a dead letter before purging
+when the original event should still be delivered.
+
 ### Configure claim-approval transitions
 
 A grant can optionally move an Application when a Claim that does not require

@@ -163,13 +163,40 @@ export const findByClientRef = async (clientRef) => {
   return toApplication(doc);
 };
 
-export const updateCurrentConfigVersion = async (clientRef, code, version) => {
+export const updateCurrentConfigVersion = async (
+  clientRef,
+  code,
+  version,
+  session,
+) => {
   await db
     .collection(collection)
     .updateOne(
       { clientRef, code },
       { $set: { currentConfigVersion: version } },
+      { session },
     );
+};
+
+export const nextApplicationReportingSequence = async (
+  { clientRef, code },
+  session,
+) => {
+  const doc = await db.collection(collection).findOneAndUpdate(
+    { clientRef, code },
+    { $inc: { applicationReportingSequence: 1 } },
+    {
+      session,
+      returnDocument: "after",
+      projection: { applicationReportingSequence: 1 },
+    },
+  );
+  if (!doc) {
+    throw Boom.notFound(
+      `Application "${clientRef}" for grant "${code}" not found`,
+    );
+  }
+  return doc.applicationReportingSequence;
 };
 
 export const lockForUpdate = async ({ clientRef, code }, session) => {

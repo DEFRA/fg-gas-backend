@@ -22,6 +22,17 @@ const GAS_BOXES = {
   outbox: { redrive: redriveGasOutbox, status: gasOutboxStatus },
 };
 
+const redriveRefused = (box, id, status) =>
+  redriveConflict(
+    `gas ${box}`,
+    id,
+    status,
+    statusDisplay(status).statusLabel,
+    box === "outbox" && status === "PURGED"
+      ? `gas outbox event "${id}" cannot be redriven after an ordered delivery purge`
+      : undefined,
+  );
+
 // Nothing matched: one extra read tells a missing row (404) from a moved one (409).
 const redriveGasEvent = async (box, id, actor, session) => {
   const source = GAS_BOXES[box];
@@ -35,12 +46,7 @@ const redriveGasEvent = async (box, id, actor, session) => {
     throw Boom.notFound(`gas ${box} event "${id}" not found`);
   }
 
-  throw redriveConflict(
-    `gas ${box}`,
-    id,
-    status,
-    statusDisplay(status).statusLabel,
-  );
+  throw redriveRefused(box, id, status);
 };
 
 const redriveCaseworkingEvent = async (box, id, actor) => {

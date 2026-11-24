@@ -15,6 +15,10 @@ export const reportingApplicationCreated = defineEventType({
     applicationRefsOf(eventData?.applicationType, eventData?.applicationId),
 });
 
+// Later status sequences start at 1 when Grants increments the application counter.
+export const RECEIPT_SEQUENCE = -1;
+export const INITIAL_STATUS_SEQUENCE = 0;
+
 const formatApplicantName = (name) => {
   if (typeof name === "string") {
     return name.trim();
@@ -64,6 +68,7 @@ export const createApplicationReportingPublications = (application) => {
     {
       target: config.sns.reportingEventsTopicArn,
       segregationRef: `${clientRef}-${code}`,
+      deliverySequence: RECEIPT_SEQUENCE,
       event,
     },
   ];
