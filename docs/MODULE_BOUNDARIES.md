@@ -177,8 +177,11 @@ retry, dead-letter and redrive path as handler failures.
   Consumers enforce the logical identity with a database uniqueness boundary so
   redelivery, concurrent delivery and transaction callback retries converge on
   one result.
-- `segregationRef` is the ordering key. Events sharing it are processed in
-  order; unrelated keys may progress independently.
+- `segregationRef` identifies a delivery group. Producers that need strict
+  order across retries supply a `deliverySequence` on each publication in
+  that group. The outbox claims the lowest unfinished sequence first. Later
+  sequenced rows wait until that row completes or is purged. Other groups
+  and unsequenced rows can continue.
 - A failed delivery remains durable, moves through the existing retry,
   dead-letter and redrive states, and retains its failure history. Redrive
   reuses the original contract rather than rebuilding current state.
@@ -192,15 +195,26 @@ retry, dead-letter and redrive path as handler failures.
 ### Event and command ownership
 
 The producing context owns each event or command contract and constructs it from
-its domain state. Use cases hand ordered publications to `saveEvents` as
-`{ event, target, segregationRef? }` values in the caller's transaction. They do
-not construct `Outbox` records or call the outbox repository directly.
+its domain state. Use cases hand publications to `saveEvents` as
+`{ event, target, segregationRef?, deliverySequence? }` values in the caller's
+transaction. They do not construct `Outbox` records or call the outbox
+repository directly.
 
 The Events module exclusively owns Outbox construction, persistence and default
 segregation-reference derivation. A producer may supply `segregationRef` when it
 needs a domain-specific processing lane or ordering boundary instead of the
-derived default. Consumers own their handlers and register against the producer's
-exact contract type; consuming a contract does not transfer ownership of its
+derived default. When order must match committed state changes, the producer
+allocates the sequence in the same transaction as the change and publication.
+
+Outbox scheduling uses the stored delivery metadata. Keep event and command
+payloads opaque to the scheduler. The scheduler must never infer ordering or
+retry policy from a payload field such as `eventData.eventType`, a domain event
+name, or a destination topic. For example, Grants supplies the sequence when
+it publishes application reports. The shared outbox applies the same rules to
+any sequenced publication.
+
+Consumers own their handlers and register against the producer's exact
+contract type. Consuming a contract does not transfer ownership of its
 vocabulary.
 
 ESLint enforces this persistence boundary throughout the Agreements, Grants and
