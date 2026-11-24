@@ -73,7 +73,12 @@ describe("outbox.repository", () => {
         segregationRef: "ref_1",
       };
       const findOne = vi.fn().mockResolvedValue(mockDocument);
-      db.collection.mockReturnValue({ findOne });
+      db.collection.mockReturnValue({
+        findOne,
+        aggregate: vi
+          .fn()
+          .mockReturnValue({ next: vi.fn().mockResolvedValue(null) }),
+      });
 
       const result = await findNextMessage(["locked_ref"]);
 
@@ -84,6 +89,14 @@ describe("outbox.repository", () => {
           claimedBy: null,
           completionAttempts: { $lt: config.outbox.outboxMaxRetries },
           segregationRef: { $nin: ["locked_ref"] },
+          $or: [
+            {
+              "event.eventData.eventType": {
+                $nin: ["APPLICATION_CREATED", "APPLICATION_STATUS_CHANGED"],
+              },
+            },
+            { segregationRef: { $in: [null, ""] } },
+          ],
         },
         { sort: { publicationDate: 1 } },
       );
@@ -91,7 +104,12 @@ describe("outbox.repository", () => {
 
     it("should return null when no document is found", async () => {
       const findOne = vi.fn().mockResolvedValue(null);
-      db.collection.mockReturnValue({ findOne });
+      db.collection.mockReturnValue({
+        findOne,
+        aggregate: vi
+          .fn()
+          .mockReturnValue({ next: vi.fn().mockResolvedValue(null) }),
+      });
       vi.spyOn(logger, "info");
 
       const result = await findNextMessage(["ref_1", "ref_2"]);

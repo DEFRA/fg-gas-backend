@@ -51,8 +51,18 @@ const applicationReportTypes = [
   "APPLICATION_CREATED",
   "APPLICATION_STATUS_CHANGED",
 ];
-const isApplicationReport = (doc) =>
-  applicationReportTypes.includes(doc.event?.eventData?.eventType);
+const unsentApplicationReports = {
+  [reportEventType]: { $in: applicationReportTypes },
+  status: {
+    $in: [
+      OutboxStatus.PUBLISHED,
+      OutboxStatus.PROCESSING,
+      OutboxStatus.FAILED,
+      OutboxStatus.RESUBMITTED,
+      OutboxStatus.DEAD_LETTER,
+    ],
+  },
+};
 const readyToClaim = {
   status: OutboxStatus.PUBLISHED,
   claimedBy: null,
@@ -68,8 +78,7 @@ const firstUnsentApplicationReport = (segregationRef) =>
   db.collection(collection).findOne(
     {
       segregationRef,
-      [reportEventType]: { $in: applicationReportTypes },
-      status: { $nin: [OutboxStatus.COMPLETED, OutboxStatus.PURGED] },
+      ...unsentApplicationReports,
     },
     { sort: applicationReportOrder, readPreference: "primary" },
   );
@@ -79,40 +88,70 @@ const canClaim = (doc) =>
   !doc.claimedBy &&
   doc.completionAttempts < MAX_RETRIES;
 
-const nextPublished = (lockIds, blockedReports) =>
+const nextUnordered = (lockIds) =>
   db.collection(collection).findOne(
     {
       ...readyToClaim,
       segregationRef: { $nin: lockIds },
-      ...(blockedReports.length > 0 && {
-        $nor: [
-          {
-            segregationRef: { $in: blockedReports },
-            [reportEventType]: { $in: applicationReportTypes },
-          },
-        ],
-      }),
+      $or: [
+        { [reportEventType]: { $nin: applicationReportTypes } },
+        // Preserve the subscriber's dead-letter handling for malformed rows.
+        { segregationRef: { $in: [null, ""] } },
+      ],
     },
     { sort: { publicationDate: 1 } },
   );
 
-const needsApplicationOrder = (doc) =>
-  Boolean(doc?.segregationRef) && isApplicationReport(doc);
+const nextApplicationReport = (lockIds) =>
+  db
+    .collection(collection)
+    .aggregate(
+      [
+        {
+          $match: {
+            ...unsentApplicationReports,
+            segregationRef: { $nin: [...lockIds, null, ""] },
+          },
+        },
+        { $sort: { segregationRef: 1, ...applicationReportOrder } },
+        {
+          $group: {
+            _id: "$segregationRef",
+            head: {
+              $first: {
+                _id: "$_id",
+                segregationRef: "$segregationRef",
+                publicationDate: "$publicationDate",
+                status: "$status",
+                claimedBy: "$claimedBy",
+                completionAttempts: "$completionAttempts",
+              },
+            },
+          },
+        },
+        { $replaceWith: "$head" },
+        { $match: readyToClaim },
+        { $sort: { publicationDate: 1, _id: 1 } },
+        { $limit: 1 },
+      ],
+      { readPreference: "primary" },
+    )
+    .next();
 
 export const findNextMessage = async (lockIds) => {
-  const blockedReports = [];
-  while (true) {
-    const doc = await nextPublished(lockIds, blockedReports);
-    if (!needsApplicationOrder(doc)) {
-      return doc;
-    }
+  const [unordered, applicationReport] = await Promise.all([
+    nextUnordered(lockIds),
+    nextApplicationReport(lockIds),
+  ]);
 
-    const first = await firstUnsentApplicationReport(doc.segregationRef);
-    if (canClaim(first)) {
-      return first;
-    }
-    blockedReports.push(doc.segregationRef);
+  if (
+    applicationReport &&
+    (!unordered ||
+      applicationReport.publicationDate <= unordered.publicationDate)
+  ) {
+    return applicationReport;
   }
+  return unordered;
 };
 
 const claim = (claimedBy, filter) =>

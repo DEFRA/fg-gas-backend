@@ -8,6 +8,15 @@ const index = {
 export const up = async (db) => {
   await db.collection("outbox").createIndex(index, {
     partialFilterExpression: {
+      status: {
+        $in: [
+          "PUBLISHED",
+          "PROCESSING",
+          "FAILED",
+          "RESUBMITTED",
+          "DEAD_LETTER",
+        ],
+      },
       "event.eventData.eventType": {
         $in: ["APPLICATION_CREATED", "APPLICATION_STATUS_CHANGED"],
       },

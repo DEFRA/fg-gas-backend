@@ -13,6 +13,7 @@ let db;
 let save;
 let saveGrant;
 let findNextMessage;
+let purgeById;
 let OutboxSubscriber;
 let submitApplicationUseCase;
 let seedConfigVersion;
@@ -41,7 +42,7 @@ beforeAll(async () => {
   grantResolution =
     await import("../use-cases/resolve-current-grant.use-case.js");
   ({ save: saveGrant } = await import("../repositories/grant.repository.js"));
-  ({ findNextMessage } =
+  ({ findNextMessage, purgeById } =
     await import("../../events/repositories/outbox.repository.js"));
   ({ OutboxSubscriber } =
     await import("../../events/subscribers/outbox.subscriber.js"));
@@ -184,9 +185,10 @@ describe("Application status reporting", () => {
       });
     const next = () => findNextMessage(otherGroups);
 
-    expect((await next()).event.eventData.eventType).toBe(
-      "APPLICATION_CREATED",
-    );
+    const first = await db
+      .collection("outbox")
+      .findOne({ _id: (await next())._id });
+    expect(first.event.eventData.eventType).toBe("APPLICATION_CREATED");
     await process();
     expect(deliver).toHaveBeenCalledTimes(1);
     await process();
@@ -195,7 +197,11 @@ describe("Application status reporting", () => {
         eventData ? [eventData] : [],
       );
     expect(deliveredReports()).toHaveLength(1);
-    expect((await next())?.event.eventData).toBeUndefined();
+    const candidate = await next();
+    if (candidate) {
+      const row = await db.collection("outbox").findOne({ _id: candidate._id });
+      expect(row.event.eventData).toBeUndefined();
+    }
     await subscriber.processFailedEvents();
     await process();
     expect(deliveredReports()).toHaveLength(1);
@@ -204,7 +210,7 @@ describe("Application status reporting", () => {
     await process();
     await process();
     await process();
-    expect((await next())?.event.eventData).toBeUndefined();
+    expect((await next())?.event?.eventData).toBeUndefined();
 
     const [failedReceipt, ...published] = deliveredReports();
     expect(failedReceipt).toEqual(published[0]);
@@ -226,6 +232,69 @@ describe("Application status reporting", () => {
     expect(published).toHaveLength(3);
     expect(withdrawal.applicationStatus).toBe("APPLICATION_WITHDRAWN");
     expect(withdrawal).not.toHaveProperty("previousApplicationStatus");
+  });
+
+  it("holds a dead-lettered stream while other events proceed and releases it on purge", async () => {
+    const heldCode = "reporting-dead-letter";
+    const readyCode = "reporting-independent";
+    await scenario(heldCode, [], { submit: true });
+    await scenario(readyCode, [], { submit: true });
+    const heldRef = `application-1-${heldCode}`;
+    const readyRef = `application-1-${readyCode}`;
+    const outbox = db.collection("outbox");
+    const receiptFilter = { applicationReportingSequence: -1 };
+    const dead = await outbox.findOneAndUpdate(
+      { ...receiptFilter, segregationRef: heldRef },
+      { $set: { status: "DEAD_LETTER" } },
+    );
+    await outbox.updateOne(
+      { segregationRef: heldRef, applicationReportingSequence: 0 },
+      { $set: { publicationDate: new Date(0) } },
+    );
+    const ready = await outbox.findOneAndUpdate(
+      { ...receiptFilter, segregationRef: readyRef },
+      { $set: { publicationDate: new Date(1) } },
+      { returnDocument: "after" },
+    );
+    const excluded = await outbox.distinct("segregationRef", {
+      segregationRef: { $nin: [heldRef, readyRef] },
+    });
+    expect((await findNextMessage(excluded))._id).toEqual(ready._id);
+
+    const subscriber = new OutboxSubscriber();
+    const deliver = vi
+      .spyOn(subscriber, "deliver")
+      .mockResolvedValue(undefined);
+    await subscriber.processWithLock("held-test", heldRef);
+    expect(deliver).toHaveBeenCalled();
+    expect(
+      deliver.mock.calls.every(([, event]) => event.eventData === undefined),
+    ).toBe(true);
+    deliver.mockClear();
+
+    await subscriber.processWithLock("ready-test", readyRef);
+    expect(deliver).toHaveBeenCalledExactlyOnceWith(
+      ready.target,
+      expect.objectContaining({
+        eventData: expect.objectContaining({
+          eventType: "APPLICATION_CREATED",
+        }),
+      }),
+      readyRef,
+    );
+    deliver.mockClear();
+
+    expect(await purgeById(dead._id.toHexString())).toBe(true);
+    await subscriber.processWithLock("purged-test", heldRef);
+    expect(deliver).toHaveBeenCalledExactlyOnceWith(
+      dead.target,
+      expect.objectContaining({
+        eventData: expect.objectContaining({
+          eventType: "APPLICATION_STATUS_CHANGED",
+        }),
+      }),
+      heldRef,
+    );
   });
 
   it("reports each committed status, including reversals, once", async () => {

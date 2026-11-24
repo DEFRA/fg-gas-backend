@@ -134,6 +134,12 @@ reports until the earlier one succeeds or an operator purges it.
 Reporting for a replacement application starts at its first subsequent status
 change, under the replacement application reference.
 
+When first deploying ordered reporting, stop GAS instances running the previous
+outbox worker before starting instances that write sequenced reports. An older
+worker can claim a later report while an earlier report is still pending.
+Receipts already queued by the previous release are processed before sequenced
+reports for the same application.
+
 ### Configure claim-approval transitions
 
 A grant can optionally move an Application when a Claim that does not require
