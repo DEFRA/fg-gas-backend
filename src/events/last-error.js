@@ -18,8 +18,8 @@ import { DEAD_LETTER } from "./event-redrive.js";
 // key nobody declared still cannot reach the wire.
 //
 // `attemptHistory` entries carry a stack too, capped harder: the detail page
-// reveals one per attempt, and ten of them live on every document. At 4KB
-// apiece a worst-case history is 40KB of frames - nothing against Mongo's
+// reveals one per attempt, and 25 of them live on every document. At 4KB
+// apiece a worst-case history is 100KB of frames - nothing against Mongo's
 // 16MB limit, and the cap is what keeps it that way.
 const MAX_MESSAGE_LENGTH = 1024;
 
@@ -29,20 +29,20 @@ const MAX_MESSAGE_LENGTH = 1024;
 const MAX_STACK_LENGTH = 8192;
 
 // Attempt stacks are capped harder than `lastError`'s, for the same reason
-// their messages are: ten entries live on every document, so this is the
+// their messages are: 25 entries live on every document, so this is the
 // figure that decides a worst-case history's size. 4KB apiece leaves the
-// frames that locate a failure and puts the ceiling at 40KB.
+// frames that locate a failure and puts the ceiling at 100KB.
 const MAX_ATTEMPT_STACK_LENGTH = 4096;
 
-// Attempt-history messages are truncated harder than `lastError`: ten entries
+// Attempt-history messages are truncated harder than `lastError`: 25 entries
 // live on every document, so 512 keeps a worst-case history well inside a sane
 // document size while still leaving a readable message.
 const MAX_ATTEMPT_MESSAGE_LENGTH = 512;
 
-// Only the ten most recent attempts are kept. Long enough to see a retry
-// pattern, short enough that a row that has failed thousands of times is still
-// a small document.
-export const MAX_ATTEMPT_HISTORY = 10;
+// Only the 25 most recent attempts are kept, across redrives. Long enough to
+// see a retry pattern through a few redrives, short enough that a row that has
+// failed thousands of times is still a small document.
+export const MAX_ATTEMPT_HISTORY = 25;
 
 const DEFAULT_NAME = "Error";
 
@@ -61,7 +61,7 @@ const messageOf = (error, maxLength) =>
 const stackOf = (error, maxLength) =>
   String(error.stack ?? "").slice(0, maxLength) || null;
 
-export const toLastError = (error) => {
+export const toLastError = (error, at = new Date().toISOString()) => {
   if (!error) {
     return null;
   }
@@ -69,7 +69,7 @@ export const toLastError = (error) => {
   return {
     name: nameOf(error),
     message: messageOf(error, MAX_MESSAGE_LENGTH),
-    at: new Date().toISOString(),
+    at,
     stack: stackOf(error, MAX_STACK_LENGTH),
   };
 };
@@ -97,13 +97,13 @@ export const claimExpiredError = () => ({
 // One entry of `attemptHistory` - the same three fields as `lastError` in the
 // order the detail view renders them, built with the same truncation so a
 // history entry can never carry more than the `lastError` it came from.
-export const toAttemptEntry = (error) => {
+export const toAttemptEntry = (error, at = new Date().toISOString()) => {
   if (!error) {
     return null;
   }
 
   return {
-    at: new Date().toISOString(),
+    at,
     name: nameOf(error),
     message: messageOf(error, MAX_ATTEMPT_MESSAGE_LENGTH),
     stack: stackOf(error, MAX_ATTEMPT_STACK_LENGTH),
@@ -131,7 +131,7 @@ const asArray = (history) => (Array.isArray(history) ? history : []);
 export const normaliseAttemptHistory = (history) =>
   asArray(history).slice(-MAX_ATTEMPT_HISTORY);
 
-// In-memory append, used by the models: oldest first, capped at the ten most
+// In-memory append, used by the models: oldest first, capped at the 25 most
 // recent. No entry (a resubmission sweep calling `markAsFailed()` with no
 // exception) appends nothing, exactly as it leaves `lastError` alone.
 export const appendAttempt = (history, entry) => {
@@ -143,7 +143,7 @@ export const appendAttempt = (history, entry) => {
 };
 
 // The same append as a Mongo update fragment, for the repository sweeps that
-// touch many rows with one `updateMany` and never load a model. `$slice: -10`
+// touch many rows with one `updateMany` and never load a model. `$slice`
 // applies the cap server-side, so the sweep never has to read a row first.
 export const pushAttemptUpdate = (entry) => ({
   attemptHistory: { $each: [entry], $slice: -MAX_ATTEMPT_HISTORY },

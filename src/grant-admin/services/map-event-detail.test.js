@@ -505,14 +505,14 @@ describe("toEventDetail attemptHistory", () => {
     ).toEqual([{ at: null, name: "Error", message: "", stack: null }]);
   });
 
-  it("caps a stored history past ten entries", () => {
-    const attemptHistory = Array.from({ length: 13 }, (_, i) =>
+  it("caps a stored history past 25 entries", () => {
+    const attemptHistory = Array.from({ length: 28 }, (_, i) =>
       anEntry(`${i}`),
     );
 
     const history = detailFor(anInboxDoc({ attemptHistory })).attemptHistory;
 
-    expect(history).toHaveLength(10);
+    expect(history).toHaveLength(25);
     expect(history.at(0).message).toBe("3");
   });
 
@@ -531,6 +531,27 @@ describe("toEventDetail attemptHistory", () => {
     ).attemptHistory;
 
     expect(history.map(({ message }) => message)).toEqual(["after"]);
+  });
+
+  it("keeps the attempts before the redrive in the history, newest first", () => {
+    const detail = detailFor(
+      anInboxDoc({
+        attemptHistory: [
+          anEntry("before"),
+          { ...anEntry("after"), at: "2026-06-16T11:00:00.001Z" },
+        ],
+        lastRedrive: { at: "2026-06-16T11:00:00.000Z", by: "Ada Lovelace" },
+      }),
+    );
+
+    expect(detail.attemptHistory.map(({ message }) => message)).toEqual([
+      "after",
+    ]);
+    expect(
+      detail.history
+        .filter(({ kind }) => kind !== "received")
+        .map(({ kind, message }) => message ?? kind),
+    ).toEqual(["after", "redriven", "dead-lettered", "before"]);
   });
 
   it("is [] on a redriven row nobody has retried yet", () => {

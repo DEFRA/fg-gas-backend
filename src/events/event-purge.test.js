@@ -6,6 +6,7 @@ import {
   purgeConflict,
   purgeUpdate,
 } from "./event-purge.js";
+import { appendAction } from "./event-history.js";
 
 const ID = "665f1c2e9a1b2c3d4e5f6a7b";
 const NOW = new Date("2026-09-21T09:00:00.000Z");
@@ -21,6 +22,16 @@ const anUpdate = (overrides = {}) =>
     retentionDays: RETENTION_DAYS,
     ...overrides,
   });
+
+const setOf = (overrides) => {
+  const [{ $set }] = anUpdate(overrides);
+
+  return {
+    ...$set,
+    lastPurge: $set.lastPurge.$literal,
+    expireAt: $set.expireAt.$literal,
+  };
+};
 
 describe("PURGE_REASON_CODES", () => {
   it("is the fixed vocabulary the admin offers, in the order it offers it", () => {
@@ -52,23 +63,33 @@ describe("purgeUpdate", () => {
   });
 
   it("sets the status, the record and the deadline, and nothing else", () => {
-    expect(Object.keys(anUpdate().$set)).toEqual([
+    expect(Object.keys(setOf())).toEqual([
       "status",
       "lastPurge",
       "expireAt",
+      "payloadRevision",
+      "history",
     ]);
   });
 
   it("moves the payload revision on, so an editor opened before it is stale", () => {
-    expect(anUpdate().$inc).toEqual({ payloadRevision: 1 });
+    expect(setOf().payloadRevision).toEqual({
+      $add: [{ $ifNull: ["$payloadRevision", 0] }, 1],
+    });
+  });
+
+  it("appends the purge to the history, as the record it stores", () => {
+    expect(setOf().history).toEqual(
+      appendAction({ kind: "purged", ...setOf().lastPurge }),
+    );
   });
 
   it("moves the row to the status it was given", () => {
-    expect(anUpdate().$set.status).toBe("PURGED");
+    expect(setOf().status).toBe("PURGED");
   });
 
   it("records who purged it, why, and what they said about it", () => {
-    expect(anUpdate().$set.lastPurge).toEqual({
+    expect(setOf().lastPurge).toEqual({
       at: "2026-09-21T09:00:00.000Z",
       by: "donatas",
       reasonCode: "BROKEN_PAYLOAD",
@@ -78,41 +99,41 @@ describe("purgeUpdate", () => {
 
   // Storage keeps a null actor; only the display layer names it `System`.
   it("stores a null actor where nobody named themselves", () => {
-    expect(anUpdate({ by: undefined }).$set.lastPurge.by).toBeNull();
+    expect(setOf({ by: undefined }).lastPurge.by).toBeNull();
     expect(JSON.stringify(anUpdate({ by: null }))).not.toContain("System");
   });
 
   it("stores a null note where none was given", () => {
-    expect(anUpdate({ note: undefined }).$set.lastPurge.note).toBeNull();
-    expect(anUpdate({ note: null }).$set.lastPurge.note).toBeNull();
+    expect(setOf({ note: undefined }).lastPurge.note).toBeNull();
+    expect(setOf({ note: null }).lastPurge.note).toBeNull();
   });
 
   it("records the moment as an ISO string", () => {
-    expect(typeof anUpdate().$set.lastPurge.at).toBe("string");
+    expect(typeof setOf().lastPurge.at).toBe("string");
   });
 
   // The TTL index compares BSON Dates; a string is simply never deleted.
   it("sets the deadline as a BSON Date, retention days out", () => {
-    expect(anUpdate().$set.expireAt).toBeInstanceOf(Date);
-    expect(anUpdate().$set.expireAt).toEqual(DELETION_DATE);
+    expect(setOf().expireAt).toBeInstanceOf(Date);
+    expect(setOf().expireAt).toEqual(DELETION_DATE);
   });
 
   it("counts the deadline from a shorter retention when one is configured", () => {
-    expect(anUpdate({ retentionDays: 30 }).$set.expireAt).toEqual(
+    expect(setOf({ retentionDays: 30 }).expireAt).toEqual(
       new Date("2026-10-21T09:00:00.000Z"),
     );
   });
 
   it("counts the deadline from the moment it recorded", () => {
     const at = new Date("2026-01-01T00:00:00.000Z");
-    const { lastPurge, expireAt } = anUpdate({ at }).$set;
+    const { lastPurge, expireAt } = setOf({ at });
 
     expect(lastPurge.at).toBe("2026-01-01T00:00:00.000Z");
     expect(expireAt).toEqual(new Date("2026-04-01T00:00:00.000Z"));
   });
 
   it("takes the clock when it is given no moment", () => {
-    expect(anUpdate().$set.lastPurge.at).toBe(NOW.toISOString());
+    expect(setOf().lastPurge.at).toBe(NOW.toISOString());
   });
 
   // A purge is not a redaction: what a redrive needs has to survive it.

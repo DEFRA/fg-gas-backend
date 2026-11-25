@@ -201,7 +201,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
       ["inbox", () => inbox, aDeadInboxDoc],
       ["outbox", () => outbox, aDeadOutboxDoc],
     ])(
-      "clears the %s row's attempt history as it resets the count",
+      "keeps the %s row's attempts as it resets the count, and records the redrive",
       async (box, collectionOf, aDoc) => {
         const doc = aDoc({ status: "DEAD_LETTER" });
         await collectionOf().insertOne(doc);
@@ -211,12 +211,35 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
         // The poller may already have run the row again.
         const stored = await collectionOf().findOne({ _id: doc._id });
 
-        expect(JSON.stringify(stored.attemptHistory)).not.toContain(
-          "PRE-REDRIVE-FAILURE",
+        expect(stored.attemptHistory.slice(0, GAS_MAX_ATTEMPTS)).toEqual(
+          doc.attemptHistory,
         );
-        expect(stored.attemptHistory.length).toBe(stored.completionAttempts);
+        expect(stored.attemptHistory.length - GAS_MAX_ATTEMPTS).toBe(
+          stored.completionAttempts,
+        );
+        expect(stored.history.slice(0, 2)).toEqual([
+          { kind: "dead-lettered", at: doc.lastResubmissionDate },
+          { kind: "redriven", ...stored.lastRedrive },
+        ]);
       },
     );
+
+    it("stores a redrive only lastRedrive holds before a death stored since", async () => {
+      const lastRedrive = { at: "2026-06-16T10:04:00.000Z", by: "Bo" };
+      const death = { kind: "dead-lettered", at: "2026-06-16T10:05:00.000Z" };
+      const doc = aDeadInboxDoc({ lastRedrive, history: [death] });
+      await inbox.insertOne(doc);
+
+      await redrive("gas", "inbox", doc._id.toHexString());
+
+      const stored = await inbox.findOne({ _id: doc._id });
+
+      expect(stored.history.slice(0, 3)).toEqual([
+        { kind: "redriven", ...lastRedrive },
+        death,
+        { kind: "redriven", ...stored.lastRedrive },
+      ]);
+    });
 
     it("is picked up by the outbox poller and leaves RESUBMITTED", async () => {
       const doc = aDeadOutboxDoc();
@@ -232,7 +255,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
 
       expect(settled.status).toBe("COMPLETED");
       expect(settled.completionAttempts).toBe(0);
-      expect(settled.attemptHistory ?? []).toHaveLength(0);
+      expect(settled.attemptHistory).toEqual(doc.attemptHistory);
       expect(seen).not.toContain("DEAD_LETTER");
     }, 20000);
 
@@ -394,7 +417,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
 });
 
 describe("attempt history after a real redrive", () => {
-  it("holds only post-redrive attempts when the redriven row fails again", async () => {
+  it("serves only post-redrive attempts when the redriven row fails again, and keeps the rest in the history", async () => {
     const doc = aDeadInboxDoc();
     await inbox.insertOne(doc);
 
@@ -406,27 +429,33 @@ describe("attempt history after a real redrive", () => {
     const { doc: settled } = await waitFor(
       inbox,
       doc._id,
-      (row) => (row.attemptHistory ?? []).length > 0,
+      (row) => (row.attemptHistory ?? []).length > GAS_MAX_ATTEMPTS,
     );
 
-    expect(settled.attemptHistory.length).toBeGreaterThan(0);
     expect(settled.attemptHistory.at(-1)).toEqual({
       at: expect.any(String),
       name: expect.any(String),
       message: expect.any(String),
       stack: expect.any(String),
     });
-    expect(settled.attemptHistory.length).toBeLessThanOrEqual(GAS_MAX_ATTEMPTS);
-    expect(JSON.stringify(settled.attemptHistory)).not.toContain(
-      "PRE-REDRIVE-FAILURE",
+    expect(settled.attemptHistory.slice(0, GAS_MAX_ATTEMPTS)).toEqual(
+      doc.attemptHistory,
     );
-    expect(settled.attemptHistory).toHaveLength(settled.completionAttempts);
 
     const { payload } = await wreck.get(
       `/grant-admin/events/gas/inbox/${doc._id.toHexString()}`,
     );
 
     expect(payload.attemptHistory.length).toBeGreaterThan(0);
+    expect(JSON.stringify(payload.attemptHistory)).not.toContain(
+      "PRE-REDRIVE-FAILURE",
+    );
+    expect(
+      payload.history.filter(
+        ({ kind, message }) =>
+          kind === "attempt" && message === "PRE-REDRIVE-FAILURE",
+      ),
+    ).toHaveLength(GAS_MAX_ATTEMPTS);
     expect(payload.attemptHistory.at(-1).name).toBe(
       settled.attemptHistory.at(-1).name,
     );

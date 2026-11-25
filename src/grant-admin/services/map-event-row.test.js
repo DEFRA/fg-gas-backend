@@ -397,12 +397,12 @@ describe("toAttemptHistory", () => {
     ]);
   });
 
-  it("keeps only the ten most recent entries", () => {
+  it("keeps only the 25 most recent entries", () => {
     const history = toAttemptHistory(
-      Array.from({ length: 14 }, (_, i) => ({ message: `${i}` })),
+      Array.from({ length: 29 }, (_, i) => ({ message: `${i}` })),
     );
 
-    expect(history).toHaveLength(10);
+    expect(history).toHaveLength(25);
     expect(history.at(0).message).toBe("4");
   });
 });

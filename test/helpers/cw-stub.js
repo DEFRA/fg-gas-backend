@@ -36,6 +36,8 @@ const emptyBox = () => ({
   editConflictStatus: null,
   editStale: false,
   editRefusal: null,
+  // The status actuator's answer, or 404 when it is null.
+  status: null,
 });
 
 // The case actuators: `records` are the cases C2 and C3 know by
@@ -210,6 +212,25 @@ const handleDetail = async (name, id, request, response) => {
   return send(response, OK, { ...box.detail, _id: id });
 };
 
+// GET /actuators/events/{box}/{id}/status - no payload, only the counts.
+const handleStatus = async (name, request, response) => {
+  await record(name, request);
+
+  if (!isAuthorised(request)) {
+    return send(response, UNAUTHORIZED, { message: "bad token" });
+  }
+
+  const box = state[name];
+
+  if (box.mode !== "ok") {
+    return respondForMode(box, response);
+  }
+
+  return box.status
+    ? send(response, OK, box.status)
+    : send(response, NOT_FOUND, { message: "Not found" });
+};
+
 const conflict = (response, status, required) =>
   send(response, CONFLICT, {
     statusCode: CONFLICT,
@@ -319,7 +340,7 @@ const handleEdit = async (name, request, response) => {
 };
 
 const EVENT_PATH =
-  /^\/actuators\/events\/(inbox|outbox)\/([^/]+)(?:\/(redrive|purge|payload))?$/;
+  /^\/actuators\/events\/(inbox|outbox)\/([^/]+)(?:\/(redrive|purge|payload|status))?$/;
 
 const routeEvent = (pathname, request, response) => {
   const match = EVENT_PATH.exec(pathname);
@@ -332,6 +353,10 @@ const routeEvent = (pathname, request, response) => {
 
   if (action === "payload") {
     return handleEdit(name, request, response);
+  }
+
+  if (action === "status") {
+    return handleStatus(name, request, response);
   }
 
   if (action) {

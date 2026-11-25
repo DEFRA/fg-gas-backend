@@ -33,23 +33,47 @@ const refusalOf = (payload) => {
   }
 };
 
+// The stage's values without their `$literal` wrappers.
+const setOf = (edit) => {
+  const [{ $set }] = editUpdate(edit);
+
+  return Object.fromEntries(
+    Object.entries($set).map(([key, value]) => [key, value.$literal ?? value]),
+  );
+};
+
 describe("editUpdate", () => {
+  it("is one pipeline stage, so the history entry can read the payload it replaces", () => {
+    expect(editUpdate(anEdit())).toHaveLength(1);
+  });
+
   it("replaces the event, bumps the revision and records the edit", () => {
-    expect(editUpdate(anEdit({ revision: 2, original: undefined }))).toEqual({
-      $set: {
-        event: { id: "evt-1", data: { sheetId: "AA0109" } },
-        payloadRevision: 3,
-        lastEdit: {
-          at: AT.toISOString(),
-          by: "donatas",
-          note: "sheetId was sent as a number",
-        },
+    expect(setOf(anEdit({ revision: 2, original: undefined }))).toMatchObject({
+      event: { id: "evt-1", data: { sheetId: "AA0109" } },
+      payloadRevision: 3,
+      lastEdit: {
+        at: AT.toISOString(),
+        by: "donatas",
+        note: "sheetId was sent as a number",
       },
     });
   });
 
+  // A string value may start with `$`, which a pipeline reads as a field path.
+  it("sets every value as a literal", () => {
+    const [{ $set }] = editUpdate(
+      anEdit({ event: { id: "evt-1", data: { price: "$5" } } }),
+    );
+    const { history, ...values } = $set;
+
+    expect(Object.values(values).every((value) => "$literal" in value)).toBe(
+      true,
+    );
+    expect($set.event.$literal.data.price).toBe("$5");
+  });
+
   it("keeps the original on the first edit", () => {
-    expect(editUpdate(anEdit()).$set).toMatchObject({
+    expect(setOf(anEdit())).toMatchObject({
       payloadRevision: 1,
       originalPayload: { id: "evt-1", data: { sheetId: 679 } },
     });
@@ -57,48 +81,60 @@ describe("editUpdate", () => {
 
   it("leaves the original alone when none is given", () => {
     expect(
-      editUpdate(anEdit({ revision: 1, original: undefined })).$set,
+      setOf(anEdit({ revision: 1, original: undefined })),
     ).not.toHaveProperty("originalPayload");
   });
 
   // A purge or a redrive moves the revision on without an edit.
   it("keeps an original given past revision 0", () => {
-    expect(editUpdate(anEdit({ revision: 1 })).$set).toMatchObject({
+    expect(setOf(anEdit({ revision: 1 }))).toMatchObject({
       payloadRevision: 2,
       originalPayload: { id: "evt-1", data: { sheetId: 679 } },
     });
   });
 
   it("sets the inbox columns it is given in the same write", () => {
-    const { $set } = editUpdate(
+    const set = setOf(
       anEdit({
         inboxColumns: { type: "a.b", eventTime: "2026-09-23T10:00:00.000Z" },
       }),
     );
 
-    expect($set.type).toBe("a.b");
-    expect($set.eventTime).toBe("2026-09-23T10:00:00.000Z");
+    expect(set.type).toBe("a.b");
+    expect(set.eventTime).toBe("2026-09-23T10:00:00.000Z");
   });
 
   it("stores a null actor rather than inventing one", () => {
-    expect(editUpdate(anEdit({ by: undefined })).$set.lastEdit.by).toBeNull();
+    expect(setOf(anEdit({ by: undefined })).lastEdit.by).toBeNull();
   });
 
   it("stamps now when no time is given", () => {
     const before = Date.now();
-    const { at } = editUpdate(anEdit({ at: undefined })).$set.lastEdit;
+    const { at } = setOf(anEdit({ at: undefined })).lastEdit;
 
     expect(Date.parse(at)).toBeGreaterThanOrEqual(before);
   });
 
   // Written by the edit alone, so no poller save can touch them.
   it("touches neither the status nor the attempts", () => {
-    expect(Object.keys(editUpdate(anEdit()).$set)).toEqual([
+    expect(Object.keys(setOf(anEdit()))).toEqual([
       "event",
       "payloadRevision",
       "lastEdit",
       "originalPayload",
+      "history",
     ]);
+  });
+
+  it("appends an edit entry that matches the record", () => {
+    expect(JSON.stringify(setOf(anEdit()).history)).toContain(
+      JSON.stringify({
+        kind: "payload-edited",
+        at: AT.toISOString(),
+        by: "donatas",
+        note: "sheetId was sent as a number",
+      }),
+    );
   });
 });
 

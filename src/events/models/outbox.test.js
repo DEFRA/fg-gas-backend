@@ -2,6 +2,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
 import { Outbox, OutboxStatus } from "./outbox.js";
 
+const RealDate = Date;
+
+// Every `new Date()` reads a millisecond after the one before.
+const tickingClock = () => {
+  let tick = 0;
+  vi.stubGlobal(
+    "Date",
+    class extends RealDate {
+      constructor(...args) {
+        super(
+          ...(args.length > 0 ? args : [RealDate.UTC(2026, 5, 16) + tick++]),
+        );
+      }
+    },
+  );
+};
+
 describe("Outbox.validationSchema", () => {
   const validProps = {
     target: "arn:some:target",
@@ -346,16 +363,16 @@ describe("Outbox attemptHistory", () => {
     ]);
   });
 
-  it("keeps only the ten most recent entries", () => {
+  it("keeps only the 25 most recent entries", () => {
     const event = Outbox.createMock();
 
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 29; i++) {
       event.markAsFailed(new Error(`attempt-${i}`));
     }
 
-    expect(event.attemptHistory).toHaveLength(10);
+    expect(event.attemptHistory).toHaveLength(25);
     expect(event.attemptHistory.at(0).message).toBe("attempt-4");
-    expect(event.attemptHistory.at(-1).message).toBe("attempt-13");
+    expect(event.attemptHistory.at(-1).message).toBe("attempt-28");
   });
 
   it("truncates an entry's message to 512 characters", () => {
@@ -507,5 +524,21 @@ describe("outbox model stamps", () => {
       eventType: null,
       refs: [],
     });
+  });
+});
+
+describe("outbox model failure instant", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("stamps the attempt and the error with the failure's one instant, however the clock moves", () => {
+    const outbox = Outbox.createMock();
+    tickingClock();
+
+    outbox.markAsFailed(new Error("boom"));
+
+    expect(outbox.attemptHistory.at(-1).at).toBe(outbox.lastResubmissionDate);
+    expect(outbox.lastError.at).toBe(outbox.lastResubmissionDate);
   });
 });

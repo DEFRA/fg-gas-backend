@@ -105,6 +105,12 @@ export const findCwEvent = (box, id) =>
     failures: EVENT_FAILURES,
   });
 
+export const findCwEventStatus = (box, id) =>
+  cwRequest("get", `${eventPath(box, id)}/status`, labelFor(box, id), {
+    expected: DEAD_LETTER,
+    failures: EVENT_FAILURES,
+  });
+
 const withActor = (path, by) =>
   by ? `${path}?by=${encodeURIComponent(by)}` : path;
 

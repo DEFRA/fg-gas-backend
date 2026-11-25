@@ -2,6 +2,11 @@ import { ObjectId } from "mongodb";
 import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
 import { editUpdate, revisionFilter } from "../event-edit.js";
+import {
+  appendHistory,
+  deadLetteredEntry,
+  pushHistory,
+} from "../event-history.js";
 import { purgeUpdate } from "../event-purge.js";
 import {
   DEAD_LETTER,
@@ -24,16 +29,19 @@ const NUMBER_OF_RECORDS = config.inbox.inboxClaimMaxRecords;
 const EXPIRES_IN_MS = config.inbox.inboxExpiresMs;
 const RETENTION_DAYS = config.events.retentionDays;
 
+// Fenced on the status, so a second call cannot record a second death.
 export const deadLetterEvent = async (event) => {
   const results = await db.collection(collection).updateOne(
     {
       _id: event._id,
+      status: { $ne: InboxStatus.DEAD_LETTER },
     },
     [
       {
         $set: {
           status: InboxStatus.DEAD_LETTER,
           errorKey: deadLetterErrorKey,
+          history: appendHistory(deadLetteredEntry()),
           claimedAt: null,
           claimExpiresAt: null,
           claimedBy: null,
@@ -110,7 +118,7 @@ export const processExpiredEvents = async () => {
         claimedAt: null,
         claimExpiresAt: null,
       },
-      // Applied by Mongo: `$slice` keeps the ten most recent entries per row.
+      // Applied by Mongo: `$slice` keeps the 25 most recent entries per row.
       $push: pushAttemptUpdate(claimExpiredAttempt()),
       // An expired claim is a failed attempt, counted where it is recorded.
       $inc: { completionAttempts: 1 },
@@ -144,6 +152,7 @@ export const updateDeadEvents = async () => {
         $set: {
           status: InboxStatus.DEAD_LETTER,
           errorKey: deadLetterErrorKey,
+          history: appendHistory(deadLetteredEntry()),
           claimedAt: null,
           claimExpiresAt: null,
           claimedBy: null,
@@ -212,7 +221,10 @@ export const update = async (inbox, claimedBy) => {
 
   return db
     .collection(collection)
-    .updateOne({ _id, claimedBy }, { $set: updateDoc });
+    .updateOne(
+      { _id, claimedBy },
+      { $set: updateDoc, ...pushHistory(inbox.newHistory) },
+    );
 };
 
 const toId = (id) => ObjectId.createFromHexString(id);
@@ -225,6 +237,16 @@ export const findById = (id) =>
       { _id: toId(id) },
       { projection: { claimedBy: 0 }, maxTimeMS: config.adminReadTimeoutMs },
     );
+
+// What a watch on the row reads: its status and attempts, never its payload.
+export const findProgressById = (id) =>
+  db.collection(collection).findOne(
+    { _id: toId(id) },
+    {
+      projection: { _id: 0, status: 1, completionAttempts: 1 },
+      maxTimeMS: config.adminReadTimeoutMs,
+    },
+  );
 
 export const findStatusById = async (id, session) => {
   const doc = await db

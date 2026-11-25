@@ -120,6 +120,7 @@ describe("getEventRoute over HTTP", () => {
     lastResubmissionDate: null,
     attemptHistory: [],
     lastRedrive: null,
+    history: [],
     lastPurge: null,
     purgeDeletionDate: null,
     payloadRevision: 0,

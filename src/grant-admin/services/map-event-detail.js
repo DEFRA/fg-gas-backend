@@ -4,6 +4,7 @@ import { expiryFrom } from "../../events/event-retention.js";
 import { isPlainJson, withJsonNumbers } from "../../events/plain-json.js";
 import { actorName } from "./event-display.js";
 import { CASEWORKING, GAS } from "./event-sources.js";
+import { toEventHistory } from "./map-event-history.js";
 import {
   deriveTraceId,
   normaliseGasInbox,
@@ -127,6 +128,9 @@ export const toEventDetail = ({
       intermediate.lastRedrive,
     ),
     lastRedrive: intermediate.lastRedrive,
+    // Everything that happened to the row, newest first, attempts before the
+    // last redrive included.
+    history: toEventHistory(doc),
     ...(service === GAS &&
       box === "outbox" &&
       doc.deliverySequence !== undefined && {

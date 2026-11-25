@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { constants } from "node:http2";
+import { HISTORY_KINDS, appendEdit } from "./event-history.js";
 import { REDRIVABLE_STATUSES } from "./event-redrive.js";
 import { jsonKindOf } from "./plain-json.js";
 
@@ -45,6 +46,13 @@ const editRecord = ({ at, by, note }) => ({
 const originalFor = (original) =>
   original === undefined ? {} : { originalPayload: original };
 
+const asLiterals = (fields) =>
+  Object.fromEntries(
+    Object.entries(fields).map(([key, value]) => [key, { $literal: value }]),
+  );
+
+// A pipeline, so the history entry takes the payload as it stood until this
+// write. Every value is a `$literal`: a payload string may start with `$`.
 export const editUpdate = ({
   event,
   by,
@@ -53,15 +61,24 @@ export const editUpdate = ({
   original,
   inboxColumns,
   at,
-}) => ({
-  $set: {
-    event,
-    payloadRevision: revision + 1,
-    lastEdit: editRecord({ at, by, note }),
-    ...originalFor(original),
-    ...inboxColumns,
-  },
-});
+}) => {
+  const record = editRecord({ at, by, note });
+
+  return [
+    {
+      $set: {
+        ...asLiterals({
+          event,
+          payloadRevision: revision + 1,
+          lastEdit: record,
+          ...originalFor(original),
+          ...inboxColumns,
+        }),
+        history: appendEdit({ kind: HISTORY_KINDS.PAYLOAD_EDITED, ...record }),
+      },
+    },
+  ];
+};
 
 export const staleEdit = (box, id) =>
   Boom.preconditionFailed(

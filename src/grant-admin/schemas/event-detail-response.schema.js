@@ -15,6 +15,49 @@ const eventAttemptSchema = Joi.object({
   stack: Joi.string().allow(null).required(),
 }).label("EventAttempt");
 
+const atSchema = Joi.string().isoDate().allow(null).required();
+const bySchema = Joi.string().required().example("System");
+const noteSchema = Joi.string().allow(null, "").required();
+const payloadImageSchema = Joi.object().unknown(true).allow(null).required();
+
+const historyEntrySchemas = {
+  received: { at: atSchema },
+  attempt: {
+    at: atSchema,
+    number: Joi.number().integer().min(1).required(),
+    name: Joi.string().required().example("ClaimExpired"),
+    message: Joi.string().allow("").required(),
+    stack: Joi.string().allow(null).required(),
+  },
+  "dead-lettered": { at: atSchema },
+  purged: {
+    at: atSchema,
+    by: bySchema,
+    reasonCode: Joi.string().allow("").required().example("BROKEN_PAYLOAD"),
+    note: noteSchema,
+  },
+  // Both null where the edit's before-image was not kept.
+  "payload-edited": {
+    at: atSchema,
+    by: bySchema,
+    note: noteSchema,
+    before: payloadImageSchema,
+    after: payloadImageSchema,
+  },
+  redriven: { at: atSchema, by: bySchema },
+  delivered: { at: atSchema },
+};
+
+const eventHistoryEntrySchema = Joi.alternatives()
+  .conditional(".kind", {
+    switch: Object.entries(historyEntrySchemas).map(([kind, keys]) => ({
+      is: kind,
+      then: Joi.object({ kind: Joi.string().valid(kind).required(), ...keys }),
+    })),
+    otherwise: Joi.forbidden(),
+  })
+  .label("EventHistoryEntry");
+
 // `claimedBy` is a live claim token and must never be returned.
 export const eventDetailResponseSchema = eventRowWithAttemptsSchema
   .keys({
@@ -41,6 +84,8 @@ export const eventDetailResponseSchema = eventRowWithAttemptsSchema
     claimedBy: Joi.any().forbidden(),
     attemptHistory: Joi.array().items(eventAttemptSchema).required(),
     lastRedrive: eventLastRedriveSchema.allow(null).required(),
+    // Newest first.
+    history: Joi.array().items(eventHistoryEntrySchema).required(),
     lastPurge: eventLastPurgeSchema.allow(null).required(),
     // Present only where a purge is possible: the admin gates its button on
     // it. Null on anything but a dead letter.

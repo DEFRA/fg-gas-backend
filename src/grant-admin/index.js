@@ -19,6 +19,7 @@ import { getClaimRoute } from "./routes/get-claim.route.js";
 import { getClaimsRoute } from "./routes/get-claims.route.js";
 import { getEntitlementRoute } from "./routes/get-entitlement.route.js";
 import { getEventRoute } from "./routes/get-event.route.js";
+import { getEventStatusRoute } from "./routes/get-event-status.route.js";
 import { getAllowListRoute } from "./routes/get-allow-list.route.js";
 import { fetchGrantDefinitionsRoute } from "./routes/fetch-grant-definitions.route.js";
 import { fetchWorkflowDefinitionRoute } from "./routes/fetch-workflow-definition.route.js";
@@ -81,6 +82,7 @@ export const grantAdmin = {
       exploreQueryRoute,
       exploreVocabularyRoute,
       getEventRoute,
+      getEventStatusRoute,
       getAllowListRoute,
       getGrantSettingsRoute,
       saveGrantSettingsRoute,

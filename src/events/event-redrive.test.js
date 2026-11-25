@@ -26,6 +26,7 @@ import {
   REDRIVABLE_STATUSES,
   redriveConflict,
 } from "./event-redrive.js";
+import { appendAction } from "./event-history.js";
 import { withErrorKey } from "./last-error.js";
 
 vi.mock("../common/mongo-client.js");
@@ -89,6 +90,8 @@ const EXPRESSIONS = {
     evaluate(doc, value) ?? evaluate(doc, fallback),
   $add: (doc, values) =>
     values.reduce((sum, value) => sum + evaluate(doc, value), 0),
+  $concatArrays: (doc, arrays) =>
+    arrays.flatMap((array) => evaluate(doc, array)),
 };
 
 const isFieldPath = (expression) =>
@@ -101,6 +104,10 @@ const operatorOf = (expression) =>
 const evaluate = (doc, expression) => {
   if (isFieldPath(expression)) {
     return doc[expression.slice(1)];
+  }
+
+  if (Array.isArray(expression)) {
+    return expression.map((item) => evaluate(doc, item));
   }
 
   const operator = operatorOf(expression);
@@ -301,14 +308,24 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
     expect(redriven.completionAttempts).toBe(0);
   });
 
-  it("clears the attempt history along with the count", () => {
+  it("resets the count and keeps the attempts it counted", () => {
+    const attemptHistory = pastAttempts(box.maxRetries);
     const redriven = applyUpdate(
-      { ...aDeadLetter(), attemptHistory: pastAttempts(box.maxRetries) },
+      { ...aDeadLetter(), attemptHistory },
       redriveDoc,
     );
 
     expect(redriven.completionAttempts).toBe(0);
-    expect(redriven.attemptHistory).toEqual([]);
+    expect(redriven.attemptHistory).toEqual(attemptHistory);
+    expect(redriveDoc[0].$set).not.toHaveProperty("attemptHistory");
+  });
+
+  it("appends the redrive to the history, as the record it stores", () => {
+    const { history, lastRedrive } = redriveDoc[0].$set;
+
+    expect(history).toEqual(
+      appendAction({ kind: "redriven", ...lastRedrive.$literal }),
+    );
   });
 
   // Storage keeps a null actor; only the display layer names it `System`.
@@ -432,10 +449,12 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
     // Guards the "5/5 with four history entries" regression.
     expect(doc.status).toBe("DEAD_LETTER");
     expect(doc.completionAttempts).toBe(box.maxRetries);
-    expect(doc.attemptHistory).toHaveLength(box.maxRetries);
-    expect(doc.attemptHistory.every((entry) => entry.message === "boom")).toBe(
-      true,
-    );
+    expect(doc.attemptHistory).toHaveLength(box.maxRetries * 2);
+    expect(
+      doc.attemptHistory
+        .slice(-box.maxRetries)
+        .every((entry) => entry.message === "boom"),
+    ).toBe(true);
   });
 
   // The admin's futile-redrive warning compares the last two history entries.
@@ -447,9 +466,7 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
 
     expect(doc.status).toBe("DEAD_LETTER");
     expect(previous.message).toBe(last.message);
-    expect(JSON.stringify(doc.attemptHistory)).not.toContain(
-      "an earlier cause",
-    );
+    expect(doc.attemptHistory.at(0).message).toBe("an earlier cause");
   });
 });
 
