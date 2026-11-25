@@ -2,7 +2,7 @@ import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { holdCwRoles, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
-import { seedAdministeredGrant } from "../helpers/grants.js";
+import { publishGrantAlias, seedAdministeredGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
 const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
@@ -69,6 +69,17 @@ describe("GET /grant-admin/home", () => {
     });
 
     expect(await viewHome()).toEqual({ grantTypeCount: 0 });
+  });
+
+  it("counts a grant published under an alias once", async () => {
+    await seedGrant("frps-it", {
+      role: "ROLE_FRPS_ADMIN",
+      description: "Farm payments",
+    });
+    await publishGrantAlias(db, "farm-it", "frps-it");
+    await holdRoles(["ROLE_FRPS_ADMIN"]);
+
+    expect(await viewHome()).toEqual({ grantTypeCount: 1 });
   });
 
   it("answers 503 naming the roles lookup when Caseworking cannot say", async () => {

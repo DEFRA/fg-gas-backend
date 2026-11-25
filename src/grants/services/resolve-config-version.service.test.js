@@ -264,6 +264,47 @@ describe("resolveAndFetchGrant", () => {
     );
   });
 
+  it("rejects a concurrent duplicate insert whose grant cannot be read back", async () => {
+    const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
+    findLatestForMajor.mockResolvedValue(cv);
+    fetchConfigFile.mockResolvedValue(mockGrantDefinition);
+    saveFromDefinition.mockRejectedValue(Boom.conflict("already exists"));
+    findByCode.mockResolvedValue(null);
+
+    await expect(resolveAndFetchGrant(GRANT_CODE, VERSION)).rejects.toThrow(
+      `Grant ${GRANT_CODE}@${VERSION} conflicted on insert but is not stored`,
+    );
+
+    expect(updateFetchStatus).not.toHaveBeenCalledWith(
+      GRANT_CODE,
+      VERSION,
+      FetchStatus.Fetched,
+    );
+  });
+
+  it("latches permanent_error for a definition declaring another grant's code", async () => {
+    const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
+    findLatestForMajor.mockResolvedValue(cv);
+    fetchConfigFile.mockResolvedValue({
+      ...mockGrantDefinition,
+      code: "another-grant",
+    });
+    updateFetchStatus.mockResolvedValue();
+
+    const message = `Definition is for "another-grant", not "${GRANT_CODE}"`;
+    await expect(resolveAndFetchGrant(GRANT_CODE, VERSION)).rejects.toThrow(
+      message,
+    );
+
+    expect(saveFromDefinition).not.toHaveBeenCalled();
+    expect(updateFetchStatus).toHaveBeenCalledWith(
+      GRANT_CODE,
+      VERSION,
+      FetchStatus.PermanentError,
+      message,
+    );
+  });
+
   it("latches permanent_error for invalid definitions", async () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
     findLatestForMajor.mockResolvedValue(cv);
