@@ -18,7 +18,6 @@ export const caseUpdateStatus = defineEventType({
 });
 
 export class UpdateCaseStatusCommand extends CloudEvent {
-  // eslint-disable-next-line complexity
   constructor({
     newStatus,
     caseRef,

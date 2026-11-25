@@ -42,7 +42,6 @@ export const findDefinitionKey = (manifest, file, variant = "") => {
   return manifest.find((path) => path.endsWith(`/gas/${target}`)) ?? null;
 };
 
-// eslint-disable-next-line complexity
 const classifyS3Error = (err, key, bucket) => {
   const statusCode = err.$metadata?.httpStatusCode;
 

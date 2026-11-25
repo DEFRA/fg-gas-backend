@@ -93,7 +93,6 @@ export class OutboxSubscriber {
     }
   }
 
-  // eslint-disable-next-line complexity
   async processWithLock(claimToken, segregationRef) {
     logger.info(`Outbox process lock with segregationRef ${segregationRef}`);
     const lock = await setFifoLock(OutboxSubscriber.ACTOR, segregationRef);
