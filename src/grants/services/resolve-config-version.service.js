@@ -14,7 +14,7 @@ import {
   findByCodesAndVersions,
   saveFromDefinition,
 } from "../repositories/grant.repository.js";
-import { isDefinitionDefect } from "./definition-defect.js";
+import { assertForGrant, isDefinitionDefect } from "./definition-defect.js";
 
 const MAX_FETCH_ATTEMPTS = 5;
 const HTTP_CONFLICT = 409;
@@ -109,21 +109,33 @@ const latchInvalidDefinition = async (err, grantCode, resolvedVersion) => {
   );
 };
 
+const loadConcurrentlyStored = async (grantCode, resolvedVersion) => {
+  logger.info(
+    `Concurrent insert for ${grantCode}@${resolvedVersion}, loading existing`,
+  );
+  const grant = await findByCode(grantCode, resolvedVersion);
+  if (!grant) {
+    throw Boom.internal(
+      `Grant ${grantCode}@${resolvedVersion} conflicted on insert but is not stored`,
+    );
+  }
+
+  // The grant exists, so record Fetched here too in case the winning
+  // process crashed before updating the status; otherwise the row stays
+  // pending and every request re-fetches from S3.
+  await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
+  return grant;
+};
+
 const saveOrFallback = async (grantDefinition, grantCode, resolvedVersion) => {
   try {
+    assertForGrant(grantDefinition, grantCode);
     const grant = await saveFromDefinition(grantDefinition, resolvedVersion);
     await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
     return grant;
   } catch (err) {
     if (err.isBoom && err.output.statusCode === HTTP_CONFLICT) {
-      logger.info(
-        `Concurrent insert for ${grantCode}@${resolvedVersion}, loading existing`,
-      );
-      // The grant exists, so record Fetched here too in case the winning
-      // process crashed before updating the status; otherwise the row stays
-      // pending and every request re-fetches from S3.
-      await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
-      return findByCode(grantCode, resolvedVersion);
+      return loadConcurrentlyStored(grantCode, resolvedVersion);
     }
 
     await latchInvalidDefinition(err, grantCode, resolvedVersion);
