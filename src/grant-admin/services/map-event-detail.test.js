@@ -516,6 +516,48 @@ describe("toEventDetail attemptHistory", () => {
     expect(history.at(0).message).toBe("3");
   });
 
+  it("serves only the attempts since the last redrive", () => {
+    const attemptHistory = [
+      { ...anEntry("before"), at: "2026-06-16T10:05:00.000Z" },
+      { ...anEntry("at the redrive"), at: "2026-06-16T11:00:00.000Z" },
+      { ...anEntry("after"), at: "2026-06-16T11:00:00.001Z" },
+    ];
+
+    const history = detailFor(
+      anInboxDoc({
+        attemptHistory,
+        lastRedrive: { at: "2026-06-16T11:00:00.000Z", by: "Ada Lovelace" },
+      }),
+    ).attemptHistory;
+
+    expect(history.map(({ message }) => message)).toEqual(["after"]);
+  });
+
+  it("is [] on a redriven row nobody has retried yet", () => {
+    expect(
+      detailFor(
+        anInboxDoc({
+          attemptHistory: [anEntry("before")],
+          lastRedrive: { at: "2026-06-16T11:00:00.000Z", by: null },
+        }),
+      ).attemptHistory,
+    ).toEqual([]);
+  });
+
+  it("filters a Caseworking document's attempts by its own redrive", () => {
+    const detail = toEventDetail({
+      service: "caseworking",
+      box: "outbox",
+      doc: anOutboxDoc({
+        attemptHistory: [anEntry("before")],
+        lastRedrive: { at: "2026-06-16T11:00:00.000Z", by: null },
+      }),
+      maxAttempts: 7,
+    });
+
+    expect(detail.attemptHistory).toEqual([]);
+  });
+
   it("is on the outbox detail too", () => {
     const attemptHistory = [anEntry("one")];
 

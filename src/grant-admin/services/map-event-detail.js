@@ -86,6 +86,16 @@ const payloadFacts = (service, doc) => ({
   originalPayload: withJsonNumbers(doc.originalPayload ?? null),
 });
 
+// The attempts since the last redrive: the admin reads an empty list as a
+// redrive nobody has retried yet, so attempts kept from before it stay out.
+const attemptsSinceRedrive = (attempts, lastRedrive) => {
+  const redrivenAt = Date.parse(lastRedrive?.at);
+
+  return Number.isNaN(redrivenAt)
+    ? attempts
+    : attempts.filter((attempt) => Date.parse(attempt.at) > redrivenAt);
+};
+
 // GAS cannot recognise Caseworking's audit topic, so CW's own label is taken verbatim.
 const serviceLabels = (service, doc) =>
   service === CASEWORKING ? { derivedType: orNull(doc.type) } : {};
@@ -112,7 +122,10 @@ export const toEventDetail = ({
     ...payloadFacts(service, doc),
     traceId: deriveTraceId(intermediate.traceparent),
     segregationRef: orNull(doc.segregationRef),
-    attemptHistory: toAttemptHistory(doc.attemptHistory),
+    attemptHistory: attemptsSinceRedrive(
+      toAttemptHistory(doc.attemptHistory),
+      intermediate.lastRedrive,
+    ),
     lastRedrive: intermediate.lastRedrive,
     ...(service === GAS &&
       box === "outbox" &&
