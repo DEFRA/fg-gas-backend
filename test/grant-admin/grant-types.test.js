@@ -2,7 +2,11 @@ import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { holdCwRoles, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
-import { publishGrantAlias, seedAdministeredGrant } from "../helpers/grants.js";
+import {
+  publishGrantAlias,
+  putGrantDefinition,
+  seedAdministeredGrant,
+} from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
 const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
@@ -93,7 +97,11 @@ describe("GET /grant-admin/grants", () => {
       role: "ROLE_FRPS_ADMIN",
       description: "Farm payments",
     });
-    await publishGrantAlias(db, "farm-it", "frps-it");
+    const { s3Key, definition } = await publishGrantAlias(
+      db,
+      "farm-it",
+      "frps-it",
+    );
     await holdRoles(["ROLE_FRPS_ADMIN"]);
 
     const listed = { grantTypes: [{ code: "frps-it", name: "Farm payments" }] };
@@ -103,8 +111,11 @@ describe("GET /grant-admin/grants", () => {
       .findOne({ grantCode: "farm-it" });
     expect(alias.definitions.grant).toMatchObject({
       fetchStatus: "permanent_error",
-      fetchError: 'Grant definition for farm-it@1.0.0 declares code "frps-it"',
+      fetchError: 'Definition is for "frps-it", not "farm-it"',
     });
+
+    // A definition GAS would store and list, were it to fetch the alias again.
+    await putGrantDefinition(s3Key, { ...definition, code: "farm-it" });
     expect(await listGrantTypes()).toEqual(listed);
   });
 

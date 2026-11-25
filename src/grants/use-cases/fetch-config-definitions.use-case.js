@@ -18,7 +18,10 @@ import {
   configVersionNotFound,
   GRANT_VERSION_NOT_FOUND,
 } from "../services/config-version-not-found.js";
-import { isDefinitionDefect } from "../services/definition-defect.js";
+import {
+  assertForGrant,
+  isDefinitionDefect,
+} from "../services/definition-defect.js";
 import { loadConfigVersionFiles } from "./load-config-version-files.js";
 import { checkGrantDefinition } from "./check-grant-definition.js";
 
@@ -53,14 +56,6 @@ const failed = (file, reason, error) => ({
   reason,
   message: reason === "invalid" ? error.message.slice(0, MESSAGE_MAX) : null,
 });
-
-const assertForGrant = (grant, grantCode) => {
-  if (grant.code !== grantCode) {
-    throw Boom.badImplementation(
-      `Definition is for "${grant.code}", not "${grantCode}"`,
-    );
-  }
-};
 
 // Grants' own file is held to its arrival check, and must be the version's own grant:
 // an aliased release's definition would be stored under a code the version page never reads.

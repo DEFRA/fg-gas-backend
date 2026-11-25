@@ -1,3 +1,4 @@
+import { FetchStatus } from "../../common/fetch-status.js";
 import { logger } from "../../common/logger.js";
 import { GrantAdminAccess } from "../models/grant-admin-access.js";
 import { findLatestActiveForAll } from "../repositories/config-version.repository.js";
@@ -34,18 +35,36 @@ const loadEach = async (versions) => {
   return grants;
 };
 
+const isPermanentlyFailed = (version) =>
+  version.fetchStatus === FetchStatus.PermanentError;
+
+const logLeftOut = (version) =>
+  logger.warn(
+    `Left ${version.grantCode}@${version.version} out of the administered grants: ${version.fetchError}`,
+  );
+
+// The loader refuses a version recorded as permanently failed every time, so it
+// is left out before loading: one such grant then does not send every other
+// grant down the one-by-one path on each request. Left out after each grant's
+// latest active version is chosen, so no older version stands in for it.
+const findLoadableVersions = async () => {
+  const versions = await findLatestActiveForAll();
+  versions.filter(isPermanentlyFailed).forEach(logLeftOut);
+  return versions.filter((version) => !isPermanentlyFailed(version));
+};
+
 // Together while every grant loads; one by one, leaving out the grants that
 // cannot, once one does not. The versions are read again before loading one by
 // one, because the failed load has updated their fetch status.
 const loadCurrentGrants = async () => {
   try {
-    return await loadGrantsFromConfigVersions(await findLatestActiveForAll());
+    return await loadGrantsFromConfigVersions(await findLoadableVersions());
   } catch (error) {
     if (!isUnloadableGrant(error)) {
       throw error;
     }
 
-    return loadEach(await findLatestActiveForAll());
+    return loadEach(await findLoadableVersions());
   }
 };
 

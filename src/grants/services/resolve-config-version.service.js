@@ -14,7 +14,7 @@ import {
   findByCodesAndVersions,
   saveFromDefinition,
 } from "../repositories/grant.repository.js";
-import { isDefinitionDefect } from "./definition-defect.js";
+import { assertForGrant, isDefinitionDefect } from "./definition-defect.js";
 
 const MAX_FETCH_ATTEMPTS = 5;
 const HTTP_CONFLICT = 409;
@@ -109,18 +109,6 @@ const latchInvalidDefinition = async (err, grantCode, resolvedVersion) => {
   );
 };
 
-// The config broker also publishes a grant's release under each of its
-// aliases, all pointing at the same definition. The definition is stored under
-// its own code, so a version published under any other code can never be read
-// back as a grant of that code.
-const assertDefinesGrant = (grantDefinition, grantCode, resolvedVersion) => {
-  if (grantDefinition.code !== grantCode) {
-    throw Boom.badImplementation(
-      `Grant definition for ${grantCode}@${resolvedVersion} declares code "${grantDefinition.code}"`,
-    );
-  }
-};
-
 const loadConcurrentlyStored = async (grantCode, resolvedVersion) => {
   logger.info(
     `Concurrent insert for ${grantCode}@${resolvedVersion}, loading existing`,
@@ -141,7 +129,7 @@ const loadConcurrentlyStored = async (grantCode, resolvedVersion) => {
 
 const saveOrFallback = async (grantDefinition, grantCode, resolvedVersion) => {
   try {
-    assertDefinesGrant(grantDefinition, grantCode, resolvedVersion);
+    assertForGrant(grantDefinition, grantCode);
     const grant = await saveFromDefinition(grantDefinition, resolvedVersion);
     await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
     return grant;

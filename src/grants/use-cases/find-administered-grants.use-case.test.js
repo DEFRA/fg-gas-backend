@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestGrant } from "../../../test/helpers/grants.js";
 import { logger } from "../../common/logger.js";
-import { ConfigVersion } from "../models/config-version.js";
+import { ConfigVersion, FetchStatus } from "../models/config-version.js";
 import { findLatestActiveForAll } from "../repositories/config-version.repository.js";
 import { loadGrantsFromConfigVersions } from "../services/resolve-config-version.service.js";
 import { findAdministeredGrantsUseCase } from "./find-administered-grants.use-case.js";
@@ -114,6 +114,44 @@ describe("findAdministeredGrantsUseCase", () => {
     );
   });
 
+  describe("when a grant's current version has permanently failed", () => {
+    const woodland = ConfigVersion.createMock({
+      grantCode: "woodland",
+      version: "1.0.0",
+    });
+    const alias = ConfigVersion.createMock({
+      grantCode: "farm-payments",
+      version: "1.11.3",
+      fetchStatus: FetchStatus.PermanentError,
+      fetchError: 'Definition is for "frps-private-beta", not "farm-payments"',
+    });
+
+    beforeEach(() => {
+      findLatestActiveForAll.mockResolvedValue([woodland, alias]);
+      loadGrantsFromConfigVersions.mockResolvedValue([
+        aGrant("woodland", { role: "ROLE_WOODLAND_ADMIN" }),
+      ]);
+    });
+
+    it("loads the other grants together, without it", async () => {
+      expect(await findAdministeredGrantsUseCase({ findUserRoles })).toEqual([
+        { code: "woodland", description: "woodland description" },
+      ]);
+      expect(findLatestActiveForAll).toHaveBeenCalledTimes(1);
+      expect(loadGrantsFromConfigVersions).toHaveBeenCalledTimes(1);
+      expect(loadGrantsFromConfigVersions).toHaveBeenCalledWith([woodland]);
+    });
+
+    it("logs the version it leaves out, and why", async () => {
+      await findAdministeredGrantsUseCase({ findUserRoles });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Left farm-payments@1.11.3 out of the administered grants: Definition is for "frps-private-beta", not "farm-payments"',
+      );
+    });
+  });
+
   describe("when a grant cannot be loaded", () => {
     const woodland = ConfigVersion.createMock({
       grantCode: "woodland",
@@ -187,6 +225,30 @@ describe("findAdministeredGrantsUseCase", () => {
       expect(loadGrantsFromConfigVersions).toHaveBeenLastCalledWith([
         brokenAfterFailure,
       ]);
+    });
+
+    it("does not load one by one a version the failed load recorded as permanently failed", async () => {
+      const brokenForGood = ConfigVersion.createMock({
+        grantCode: "broken",
+        version: "2.0.0",
+        fetchStatus: FetchStatus.PermanentError,
+        fetchError: "invalid grant",
+      });
+      findLatestActiveForAll
+        .mockResolvedValueOnce([woodland, broken])
+        .mockResolvedValueOnce([woodland, brokenForGood]);
+      loadGrantsFromConfigVersions.mockImplementation(
+        failingFor("broken", Boom.badImplementation("invalid grant")),
+      );
+
+      expect(await findAdministeredGrantsUseCase({ findUserRoles })).toEqual([
+        { code: "woodland", description: "woodland description" },
+      ]);
+      expect(loadGrantsFromConfigVersions).toHaveBeenCalledTimes(2);
+      expect(loadGrantsFromConfigVersions).toHaveBeenLastCalledWith([woodland]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Left broken@2.0.0 out of the administered grants: invalid grant",
+      );
     });
 
     it("propagates a failure that is not the grant's own", async () => {

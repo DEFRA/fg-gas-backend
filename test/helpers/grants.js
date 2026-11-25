@@ -99,16 +99,8 @@ export const seedAdministeredGrant = async (
   );
 };
 
-// As the config broker publishes a grant's release under an alias: a pending
-// config version of the alias code, pointing at the grant's own definition.
-export const publishGrantAlias = async (db, alias, code, version = "1.0.0") => {
-  const s3Key = `${code}/${version}/gas/gas.json`;
-  const {
-    _id,
-    version: _stored,
-    ...definition
-  } = await db.collection("grants").findOne({ code, version });
-  await new S3Client({
+export const putGrantDefinition = (s3Key, definition) =>
+  new S3Client({
     region: config.region,
     endpoint: config.awsEndpointUrl,
     forcePathStyle: true,
@@ -120,6 +112,18 @@ export const publishGrantAlias = async (db, alias, code, version = "1.0.0") => {
       ContentType: "application/json",
     }),
   );
+
+// As the config broker publishes a grant's release under an alias: a pending
+// config version of the alias code, pointing at the grant's own definition.
+// Answers where that definition is and what it says.
+export const publishGrantAlias = async (db, alias, code, version = "1.0.0") => {
+  const s3Key = `${code}/${version}/gas/gas.json`;
+  const {
+    _id,
+    version: _stored,
+    ...definition
+  } = await db.collection("grants").findOne({ code, version });
+  await putGrantDefinition(s3Key, definition);
   await db.collection("config_versions").insertOne(
     ConfigVersion.new({
       grantCode: alias,
@@ -129,6 +133,8 @@ export const publishGrantAlias = async (db, alias, code, version = "1.0.0") => {
       s3Bucket: "config-broker-local",
     }).toDocument(),
   );
+
+  return { s3Key, definition };
 };
 
 export const createGrant = async (code = "test-code-1") => {

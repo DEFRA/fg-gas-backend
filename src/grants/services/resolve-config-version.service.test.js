@@ -291,7 +291,7 @@ describe("resolveAndFetchGrant", () => {
     });
     updateFetchStatus.mockResolvedValue();
 
-    const message = `Grant definition for ${GRANT_CODE}@${VERSION} declares code "another-grant"`;
+    const message = `Definition is for "another-grant", not "${GRANT_CODE}"`;
     await expect(resolveAndFetchGrant(GRANT_CODE, VERSION)).rejects.toThrow(
       message,
     );
