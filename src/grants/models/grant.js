@@ -418,7 +418,6 @@ export class Grant {
     };
   }
 
-  // eslint-disable-next-line complexity
   isValidTransition(targetPhase, targetStage, targetStatus, currentStatus) {
     const statusDef = this.findStatusDefinition(
       targetPhase,

@@ -28,7 +28,6 @@ export class Application {
     phases: Joi.array().required(),
   });
 
-  // eslint-disable-next-line complexity
   constructor(props) {
     const { error } = Application.validationSchema.validate(props, {
       stripUnknown: true,

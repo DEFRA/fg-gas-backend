@@ -1,4 +1,3 @@
-// eslint-disable-next-line complexity
 export const getMessageGroupId = (id, data) => {
   if (!id) {
     if (data.clientRef && data.grantCode) {
