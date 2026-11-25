@@ -134,12 +134,13 @@ reports until the earlier one succeeds or an operator purges it.
 Reporting for a replacement application starts at its first subsequent status
 change, under the replacement application reference.
 
-For the first CDP rollout, deploy with `OUTBOX_SEQUENCED_DELIVERY_ENABLED=false`
-(the default). GAS stages sequenced events while the previous workers are rolling
-off. Once CDP shows only upgraded instances, set the flag to `true` and redeploy.
-Upgraded workers release staged events in sequence, including any staged by
-peers still running with the flag off. Purging a sequenced event permanently
-skips it and releases its successors. Redrive a dead letter before purging
+Application reports are always delivered in sequence. Workers automatically
+release any events left in `STAGED` by the initial rollout. The temporary
+`OUTBOX_SEQUENCED_DELIVERY_ENABLED` switch has been removed; existing environment
+values are ignored and can be deleted.
+
+Purging a sequenced event permanently skips it and releases its successors.
+Redrive a dead letter before purging
 when the original event should still be delivered.
 
 ### Configure claim-approval transitions

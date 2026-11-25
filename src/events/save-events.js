@@ -1,5 +1,4 @@
-import { config } from "../common/config.js";
-import { Outbox, OutboxStatus } from "./models/outbox.js";
+import { Outbox } from "./models/outbox.js";
 import { insertMany } from "./repositories/outbox.repository.js";
 import { outboxStamps } from "./stamps.js";
 
@@ -17,10 +16,6 @@ const toOutbox = ({
     target,
     segregationRef: orderingKey,
     deliverySequence,
-    status:
-      deliverySequence !== undefined && !config.outbox.sequencedDeliveryEnabled
-        ? OutboxStatus.STAGED
-        : OutboxStatus.PUBLISHED,
     ...outboxStamps(event, { segregationRef: orderingKey, refs }),
   });
 };

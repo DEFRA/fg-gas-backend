@@ -16,7 +16,6 @@ let findNextMessage;
 let purgeById;
 let redriveById;
 let editPayloadById;
-let config;
 let OutboxSubscriber;
 let saveEvents;
 let submitApplicationUseCase;
@@ -30,6 +29,8 @@ let createTestApplication;
 let createTestGrant;
 
 beforeAll(async () => {
+  // A stale rollout override must not pause reporting after the upgrade.
+  vi.stubEnv("OUTBOX_SEQUENCED_DELIVERY_ENABLED", "false");
   replSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   vi.stubEnv("MONGO_URI", replSet.getUri());
   vi.stubEnv("MONGO_DATABASE", "application-status-reporting-test");
@@ -47,7 +48,6 @@ beforeAll(async () => {
     await import("../use-cases/resolve-current-grant.use-case.js");
   ({ save: saveGrant } = await import("../repositories/grant.repository.js"));
   ({ saveEvents } = await import("../../events/save-events.js"));
-  ({ config } = await import("../../common/config.js"));
   ({ findNextMessage, purgeById, redriveById, editPayloadById } =
     await import("../../events/repositories/outbox.repository.js"));
   ({ OutboxSubscriber } =
@@ -164,6 +164,16 @@ describe("Application status reporting", () => {
     // A later writer's clock can put the withdrawal before both submission
     // reports. Delivery still follows the sequence assigned by the producer.
     await application.move("APPLICATION_WITHDRAWN");
+    const reports = await db
+      .collection("outbox")
+      .find({ segregationRef, deliverySequence: { $exists: true } })
+      .sort({ deliverySequence: 1 })
+      .toArray();
+    expect(reports.map(({ status }) => status)).toEqual([
+      "PUBLISHED",
+      "PUBLISHED",
+      "PUBLISHED",
+    ]);
     await db
       .collection("outbox")
       .updateOne(
@@ -317,65 +327,59 @@ describe("Application status reporting", () => {
     ).toBe(false);
   });
 
-  it("keeps sequenced reports unclaimable during the worker rollout and releases them in order", async () => {
+  it("releases the staged rollout backlog before a published successor", async () => {
     const code = "reporting-staged-rollout";
-    const previous = config.outbox.sequencedDeliveryEnabled;
-    config.outbox.sequencedDeliveryEnabled = false;
-    try {
-      const application = await scenario(
-        code,
-        [{ code: "APPLICATION_WITHDRAWN" }],
-        { submit: true },
+    const application = await scenario(
+      code,
+      [{ code: "APPLICATION_WITHDRAWN" }],
+      { submit: true },
+    );
+    const { clientRef } = await application.stored();
+    const segregationRef = `${clientRef}-${code}`;
+    // Recreate receipt and initial status held by the previous rollout gate.
+    const { modifiedCount } = await db
+      .collection("outbox")
+      .updateMany(
+        { segregationRef, deliverySequence: { $in: [-1, 0] } },
+        { $set: { status: "STAGED" } },
       );
-      const { clientRef } = await application.stored();
-      const segregationRef = `${clientRef}-${code}`;
-      // The enabling instance can write a published successor while peers
-      // still have the earlier staged receipt and initial status in MongoDB.
-      config.outbox.sequencedDeliveryEnabled = true;
-      await application.move("APPLICATION_WITHDRAWN");
-      config.outbox.sequencedDeliveryEnabled = false;
+    expect(modifiedCount).toBe(2);
+    await application.move("APPLICATION_WITHDRAWN");
 
-      const subscriber = new OutboxSubscriber();
-      const deliver = vi
-        .spyOn(subscriber, "deliver")
-        .mockResolvedValue(undefined);
-      const process = () =>
-        subscriber.processWithLock("rollout-test", segregationRef);
-      const reports = () =>
-        deliver.mock.calls.flatMap(([, event]) =>
-          event.eventData ? [event.eventData] : [],
-        );
+    const subscriber = new OutboxSubscriber();
+    const deliver = vi
+      .spyOn(subscriber, "deliver")
+      .mockResolvedValue(undefined);
+    const process = () =>
+      subscriber.processWithLock("rollout-test", segregationRef);
 
-      await subscriber.processResubmittedEvents();
-      await process();
-      expect(reports()).toEqual([]);
-      const staged = await db
-        .collection("outbox")
-        .find({ segregationRef, status: "STAGED" })
-        .sort({ deliverySequence: 1 })
-        .toArray();
-      expect(staged.map(({ deliverySequence }) => deliverySequence)).toEqual([
-        -1, 0,
-      ]);
+    await process();
+    expect(deliver.mock.calls.filter(([, event]) => event.eventData)).toEqual(
+      [],
+    );
 
-      config.outbox.sequencedDeliveryEnabled = true;
-      await subscriber.processResubmittedEvents();
-      await process();
-      await process();
-      await process();
-      expect(
-        reports().map(({ eventType, applicationStatus }) => [
-          eventType,
-          applicationStatus,
-        ]),
-      ).toEqual([
-        ["APPLICATION_CREATED", undefined],
-        ["APPLICATION_STATUS_CHANGED", initialStatus],
-        ["APPLICATION_STATUS_CHANGED", "APPLICATION_WITHDRAWN"],
-      ]);
-    } finally {
-      config.outbox.sequencedDeliveryEnabled = previous;
-    }
+    await subscriber.processResubmittedEvents();
+    await process();
+    await process();
+    await process();
+    expect(
+      deliver.mock.calls.flatMap(([, event]) =>
+        event.eventData
+          ? [[event.eventData.eventType, event.eventData.applicationStatus]]
+          : [],
+      ),
+    ).toEqual([
+      ["APPLICATION_CREATED", undefined],
+      ["APPLICATION_STATUS_CHANGED", initialStatus],
+      ["APPLICATION_STATUS_CHANGED", "APPLICATION_WITHDRAWN"],
+    ]);
+    expect(
+      await db.collection("outbox").countDocuments({
+        segregationRef,
+        deliverySequence: { $exists: true },
+        status: { $ne: "COMPLETED" },
+      }),
+    ).toBe(0);
   });
 
   it("orders by publication metadata regardless of the event payload", async () => {

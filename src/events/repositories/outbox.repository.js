@@ -260,11 +260,8 @@ export const updateFailedEvents = async () => {
 };
 
 export const updateResubmittedEvents = async () => {
-  const status = config.outbox.sequencedDeliveryEnabled
-    ? { $in: [OutboxStatus.RESUBMITTED, OutboxStatus.STAGED] }
-    : OutboxStatus.RESUBMITTED;
   const results = await db.collection(collection).updateMany(
-    { status },
+    { status: { $in: [OutboxStatus.RESUBMITTED, OutboxStatus.STAGED] } },
     {
       $set: {
         status: OutboxStatus.PUBLISHED,
