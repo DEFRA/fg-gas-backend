@@ -11,6 +11,7 @@ import {
   findCwCaseExistence,
   findCwBuckets,
   findCwEvent,
+  findCwEventStatus,
   purgeCwEvent,
   queryCwBucket,
   readCwBucketTimeline,
@@ -114,6 +115,27 @@ const httpError = (statusCode, body) =>
         body === undefined ? undefined : Buffer.from(JSON.stringify(body)),
     },
   });
+
+describe("findCwEventStatus", () => {
+  it("GETs /actuators/events/{box}/{id}/status and returns its answer", async () => {
+    const status = { status: "FAILED", completionAttempts: 2, maxAttempts: 7 };
+    wreck.get.mockResolvedValue({ payload: status });
+
+    expect(await findCwEventStatus("outbox", ID)).toBe(status);
+    expect(new URL(wreck.get.mock.calls[0][0]).pathname).toBe(
+      `/actuators/events/outbox/${ID}/status`,
+    );
+  });
+
+  it("turns a caseworking 404 into a 404", async () => {
+    wreck.get.mockRejectedValue(httpError(404, { message: "SECRET-BODY" }));
+
+    const error = await findCwEventStatus("inbox", ID).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(404);
+    expect(error.message).not.toContain("SECRET-BODY");
+  });
+});
 
 describe("findCwEvent", () => {
   it("GETs /actuators/events/{box}/{id} with the bearer token", async () => {

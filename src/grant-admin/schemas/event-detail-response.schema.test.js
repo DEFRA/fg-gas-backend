@@ -42,6 +42,7 @@ const aDetail = (overrides = {}) => ({
   lastResubmissionDate: null,
   attemptHistory: [],
   lastRedrive: null,
+  history: [],
   lastPurge: null,
   purgeDeletionDate: null,
   payloadRevision: 0,
@@ -566,5 +567,76 @@ describe("eventDetailResponseSchema record", () => {
         aDetail({ record: null, searchRef: null }),
       ).error,
     ).toBeUndefined();
+  });
+});
+
+describe("eventDetailResponseSchema history", () => {
+  const AT = "2026-06-16T10:05:00.000Z";
+  const validate = (history) =>
+    eventDetailResponseSchema.validate(aDetail({ history })).error;
+
+  it("accepts every kind of entry", () => {
+    expect(
+      validate([
+        { kind: "delivered", at: AT },
+        { kind: "dead-lettered", at: AT },
+        {
+          kind: "attempt",
+          at: AT,
+          number: 1,
+          name: "TypeError",
+          message: "boom",
+          stack: null,
+        },
+        {
+          kind: "purged",
+          at: AT,
+          by: "donatas",
+          reasonCode: "OTHER",
+          note: null,
+        },
+        { kind: "redriven", at: AT, by: "System" },
+        {
+          kind: "payload-edited",
+          at: AT,
+          by: "donatas",
+          note: "fixed",
+          before: { a: 1 },
+          after: { a: 2 },
+        },
+        { kind: "received", at: AT },
+      ]),
+    ).toBeUndefined();
+  });
+
+  it("accepts an edit whose before-image was not kept", () => {
+    expect(
+      validate([
+        {
+          kind: "payload-edited",
+          at: AT,
+          by: "donatas",
+          note: null,
+          before: null,
+          after: null,
+        },
+      ]),
+    ).toBeUndefined();
+  });
+
+  it("refuses a kind it does not declare", () => {
+    expect(validate([{ kind: "teleported", at: AT }])).toBeDefined();
+  });
+
+  it("refuses a key another kind has", () => {
+    expect(
+      validate([{ kind: "dead-lettered", at: AT, by: "donatas" }]),
+    ).toBeDefined();
+  });
+
+  it("is required", () => {
+    const { history, ...detail } = aDetail();
+
+    expect(eventDetailResponseSchema.validate(detail).error).toBeDefined();
   });
 });

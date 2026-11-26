@@ -586,6 +586,105 @@ describe("GET /grant-admin/events/{service}/{box}/{id} attemptHistory", () => {
   });
 });
 
+describe("GET /grant-admin/events/{service}/{box}/{id} history", () => {
+  const attempt = (at, message) => ({
+    at,
+    name: "TypeError",
+    message,
+    stack: null,
+  });
+
+  it("answers a GAS row's stored history with its attempts, newest first", async () => {
+    const doc = anInboxDoc({
+      status: "DEAD_LETTER",
+      completionDate: null,
+      attemptHistory: [
+        attempt("2026-06-16T10:01:00.000Z", "one"),
+        attempt("2026-06-16T10:03:00.000Z", "two"),
+      ],
+      lastRedrive: { at: "2026-06-16T10:02:00.000Z", by: "Ada Lovelace" },
+      history: [
+        { kind: "dead-lettered", at: "2026-06-16T10:01:30.000Z" },
+        {
+          kind: "redriven",
+          at: "2026-06-16T10:02:00.000Z",
+          by: "Ada Lovelace",
+        },
+        { kind: "dead-lettered", at: "2026-06-16T10:03:30.000Z" },
+      ],
+    });
+    await inbox.insertOne(doc);
+
+    const detail = await detailOf("gas", "inbox", doc._id.toHexString());
+
+    expect(eventDetailResponseSchema.validate(detail).error).toBeUndefined();
+    expect(detail.attemptHistory.map(({ message }) => message)).toEqual([
+      "two",
+    ]);
+    expect(detail.history).toEqual([
+      { kind: "dead-lettered", at: "2026-06-16T10:03:30.000Z" },
+      {
+        kind: "attempt",
+        number: 2,
+        ...attempt("2026-06-16T10:03:00.000Z", "two"),
+      },
+      { kind: "redriven", at: "2026-06-16T10:02:00.000Z", by: "Ada Lovelace" },
+      { kind: "dead-lettered", at: "2026-06-16T10:01:30.000Z" },
+      {
+        kind: "attempt",
+        number: 1,
+        ...attempt("2026-06-16T10:01:00.000Z", "one"),
+      },
+      { kind: "received", at: "2026-06-16T10:00:01.000Z" },
+    ]);
+  });
+
+  it("derives a legacy dead letter's history from the fields it kept", async () => {
+    const doc = anOutboxDoc({
+      status: "DEAD_LETTER",
+      completionDate: null,
+      completionAttempts: 5,
+      lastResubmissionDate: "2026-06-16T10:05:00.000Z",
+    });
+    await outbox.insertOne(doc);
+
+    const detail = await detailOf("gas", "outbox", doc._id.toHexString());
+
+    expect(detail.history).toEqual([
+      { kind: "dead-lettered", at: "2026-06-16T10:05:00.000Z" },
+      { kind: "received", at: "2026-06-16T10:00:00.000Z" },
+    ]);
+  });
+
+  it("answers a Caseworking document's history the same way", async () => {
+    await setCwStub({
+      inbox: {
+        detail: {
+          ...aCwInboxDetail(),
+          history: [
+            {
+              kind: "purged",
+              at: "2026-06-16T09:06:00.000Z",
+              by: "Ada Lovelace",
+              reasonCode: "OTHER",
+              note: "sent twice",
+            },
+          ],
+        },
+      },
+    });
+
+    const detail = await detailOf("caseworking", "inbox", UNKNOWN_ID);
+
+    expect(eventDetailResponseSchema.validate(detail).error).toBeUndefined();
+    expect(detail.history.map(({ kind }) => kind)).toEqual([
+      "purged",
+      "dead-lettered",
+      "received",
+    ]);
+  });
+});
+
 describe("swagger - the detail page", () => {
   it("documents the detail route with its response schema", async () => {
     const { payload } = await wreck.get("/swagger.json");

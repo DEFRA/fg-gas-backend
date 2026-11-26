@@ -24,6 +24,7 @@ describe("grant-admin", () => {
       "get /grant-admin/buckets",
       "get /grant-admin/clients/{service}",
       "get /grant-admin/events/{service}/{box}/{id}",
+      "get /grant-admin/events/{service}/{box}/{id}/status",
       "get /grant-admin/explore/vocabulary",
       "get /grant-admin/grants",
       "get /grant-admin/grants/{code}/allow-list",

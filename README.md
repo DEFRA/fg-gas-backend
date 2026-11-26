@@ -343,6 +343,8 @@ The `/grant-admin` routes answer the Grants Platform Admin alone. Each admin req
 - **`GET /grant-admin/workflows/{code}/versions/{version}/phases`** answers the workflow definition with `grantStatusMap`: what GAS does with the statuses the workflow sends, from the grant of the same code and version (`found` with its lifecycle, `no-grant`, `not-stored`, `unreadable` or `unavailable`), audited as a view of that grant's Phases tab.
 - **Events:**
   - `GET /grant-admin/events/{service}/{box}/{id}` carries `shell` on every answer, a 404 too.
+  - Its `history` is everything that happened to the event, newest first: received, each kept attempt (the 25 newest, numbered from 1 across redrives), dead-lettered, purged, payload-edited (with `before` and `after`, null past the 5 newest edits), redriven and delivered. A row stored before the history existed gets its entries from `lastRedrive`, `lastPurge`, `lastEdit` and `lastResubmissionDate`. `attemptHistory` stays the attempts since the last redrive.
+  - `GET …/status` answers `{ status, statusLabel, attemptsSinceRedrive, maxAttempts }` and nothing of the payload, unaudited, for a page watching a redrive.
   - `POST …/payload` takes `redrive: true` to redrive the event once it is saved, in the same transaction and with both audits for a GAS event. The 200 adds `redrive`: `null`, `redriven`, `conflict` (with its status) or `failed`; the save stands in every case. A stale revision is 412 `STALE_REVISION` with `event`, as the event read answers it (null when it can't be read).
   - `POST …/purge` answers 409 `NOT_PURGEABLE` with `status` and `statusLabel` for an event that is not dead-lettered with a deletion date; 404 means only that there is no such event.
 - **API client tokens:**

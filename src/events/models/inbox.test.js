@@ -5,6 +5,23 @@ import { config } from "../../common/config.js";
 import { markPermanentFailure } from "../retryable.js";
 import { Inbox, InboxStatus } from "./inbox.js";
 
+const RealDate = Date;
+
+// Every `new Date()` reads a millisecond after the one before.
+const tickingClock = () => {
+  let tick = 0;
+  vi.stubGlobal(
+    "Date",
+    class extends RealDate {
+      constructor(...args) {
+        super(
+          ...(args.length > 0 ? args : [RealDate.UTC(2026, 5, 16) + tick++]),
+        );
+      }
+    },
+  );
+};
+
 describe("inbox model", () => {
   it("creates an inbox model", () => {
     const messageId = randomUUID();
@@ -412,16 +429,16 @@ describe("Inbox attemptHistory", () => {
     ]);
   });
 
-  it("keeps only the ten most recent entries", () => {
+  it("keeps only the 25 most recent entries", () => {
     const event = Inbox.createMock();
 
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 29; i++) {
       event.markAsFailed(new Error(`attempt-${i}`));
     }
 
-    expect(event.attemptHistory).toHaveLength(10);
+    expect(event.attemptHistory).toHaveLength(25);
     expect(event.attemptHistory.at(0).message).toBe("attempt-4");
-    expect(event.attemptHistory.at(-1).message).toBe("attempt-13");
+    expect(event.attemptHistory.at(-1).message).toBe("attempt-28");
   });
 
   it("truncates an entry's message to 512 characters", () => {
@@ -695,5 +712,57 @@ describe("inbox model dead letter facts", () => {
     inbox.markAsFailed(new Error("mongo is down"));
 
     expect(inbox.isDeadLetter()).toBe(false);
+  });
+});
+
+describe("inbox model history", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("records the death a failure retrying cannot fix, at the failure's time", () => {
+    const inbox = Inbox.createMock();
+
+    inbox.markAsFailed(markPermanentFailure(new Error("bad definition")));
+
+    expect(inbox.newHistory).toEqual([
+      { kind: "dead-lettered", at: inbox.lastResubmissionDate },
+    ]);
+  });
+
+  it("stamps the death, the attempt and the error with one instant, however the clock moves", () => {
+    const inbox = Inbox.createMock();
+    tickingClock();
+
+    inbox.markAsFailed(markPermanentFailure(new Error("bad definition")));
+
+    const [death] = inbox.newHistory;
+
+    expect(inbox.attemptHistory.at(-1).at).toBe(death.at);
+    expect(inbox.lastError.at).toBe(death.at);
+  });
+
+  it("records nothing for a failure it will retry, or a completion", () => {
+    const failed = Inbox.createMock();
+    const completed = Inbox.createMock();
+
+    failed.markAsFailed(new Error("mongo is down"));
+    completed.markAsComplete();
+
+    expect(failed.newHistory).toEqual([]);
+    expect(completed.newHistory).toEqual([]);
+  });
+
+  // The repository `$set`s the document, which would erase the stored history.
+  it("never puts a history in its document", () => {
+    const inbox = Inbox.fromDocument({
+      ...Inbox.createMock().toDocument(),
+      history: [{ kind: "redriven", at: "2026-06-16T11:00:00.000Z", by: null }],
+    });
+
+    inbox.markAsFailed(markPermanentFailure(new Error("bad definition")));
+
+    expect(inbox.toDocument()).not.toHaveProperty("history");
+    expect(inbox.toDocument()).not.toHaveProperty("newHistory");
   });
 });

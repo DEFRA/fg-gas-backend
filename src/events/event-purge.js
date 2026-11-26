@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { HISTORY_KINDS, appendAction } from "./event-history.js";
 import { DEAD_LETTER } from "./event-redrive.js";
 import { expiryFrom } from "./event-retention.js";
 
@@ -27,17 +28,21 @@ export const purgeUpdate = (
   { by, reasonCode, note, retentionDays, at } = {},
 ) => {
   const when = at ?? new Date();
+  const record = purgeRecord({ by, reasonCode, note, at: when });
 
-  return {
-    $set: {
-      status: purgedStatus,
-      lastPurge: purgeRecord({ by, reasonCode, note, at: when }),
-      // A BSON Date: the TTL index does not read strings.
-      expireAt: expiryFrom(when, retentionDays),
+  return [
+    {
+      $set: {
+        status: purgedStatus,
+        lastPurge: { $literal: record },
+        // A BSON Date: the TTL index does not read strings.
+        expireAt: { $literal: expiryFrom(when, retentionDays) },
+        // An editor opened before the purge must not save onto the purged row.
+        payloadRevision: { $add: [{ $ifNull: ["$payloadRevision", 0] }, 1] },
+        history: appendAction({ kind: HISTORY_KINDS.PURGED, ...record }),
+      },
     },
-    // An editor opened before the purge must not save onto the purged row.
-    $inc: { payloadRevision: 1 },
-  };
+  ];
 };
 
 // The status labels are passed in: this module is shared with the pollers.

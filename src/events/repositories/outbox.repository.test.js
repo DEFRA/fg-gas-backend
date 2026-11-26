@@ -11,6 +11,7 @@ import {
   deadLetterEvent,
   editPayloadById,
   findById,
+  findProgressById,
   findEditableById,
   findNextMessage,
   findStatusById,
@@ -25,6 +26,7 @@ import {
   updateResubmittedEvents,
 } from "./outbox.repository.js";
 import { STAMPED_FIELDS } from "../stamps.js";
+import { appendAction } from "../event-history.js";
 
 vi.mock("../../common/mongo-client.js");
 
@@ -49,12 +51,26 @@ describe("outbox.repository", () => {
       expect(mockUpdateOne).toHaveBeenCalledWith(
         {
           _id: record._id,
+          status: { $ne: OutboxStatus.DEAD_LETTER },
         },
         [
           {
             $set: {
               status: OutboxStatus.DEAD_LETTER,
               errorKey: { $ifNull: ["$errorKey", "No error recorded"] },
+              history: {
+                $concatArrays: [
+                  { $ifNull: ["$history", []] },
+                  [
+                    {
+                      $literal: {
+                        kind: "dead-lettered",
+                        at: expect.any(String),
+                      },
+                    },
+                  ],
+                ],
+              },
               claimedAt: null,
               claimExpiresAt: null,
               claimedBy: null,
@@ -303,7 +319,7 @@ describe("outbox.repository", () => {
                   stack: null,
                 },
               ],
-              $slice: -10,
+              $slice: -25,
             },
           },
         },
@@ -395,6 +411,19 @@ describe("outbox.repository", () => {
             $set: {
               status: OutboxStatus.DEAD_LETTER,
               errorKey: { $ifNull: ["$errorKey", "No error recorded"] },
+              history: {
+                $concatArrays: [
+                  { $ifNull: ["$history", []] },
+                  [
+                    {
+                      $literal: {
+                        kind: "dead-lettered",
+                        at: expect.any(String),
+                      },
+                    },
+                  ],
+                ],
+              },
               claimedAt: null,
               claimExpiresAt: null,
               claimedBy: null,
@@ -440,6 +469,21 @@ describe("outbox.repository detail and redrive", () => {
     );
   });
 
+  it("reads only the status and the attempts for a watch, never the payload", async () => {
+    const progress = { status: "RESUBMITTED", completionAttempts: 1 };
+    const findOne = vi.fn().mockResolvedValue(progress);
+    db.collection.mockReturnValue({ findOne });
+
+    expect(await findProgressById(ID)).toBe(progress);
+    expect(findOne).toHaveBeenCalledWith(
+      { _id: new ObjectId(ID) },
+      {
+        projection: { _id: 0, status: 1, completionAttempts: 1 },
+        ...MAX_TIME,
+      },
+    );
+  });
+
   it("returns a null status for an unknown id", async () => {
     db.collection.mockReturnValue({
       findOne: vi.fn().mockResolvedValue(null),
@@ -469,8 +513,20 @@ describe("outbox.repository detail and redrive", () => {
             status: OutboxStatus.RESUBMITTED,
             retryable: true,
             completionAttempts: 0,
-            attemptHistory: [],
             lastRedrive: { $literal: { at: expect.any(String), by: null } },
+            history: expect.objectContaining({
+              $concatArrays: expect.arrayContaining([
+                [
+                  {
+                    $literal: {
+                      kind: "redriven",
+                      at: expect.any(String),
+                      by: null,
+                    },
+                  },
+                ],
+              ]),
+            }),
             expireAt: null,
             claimedBy: null,
             claimedAt: null,
@@ -510,6 +566,13 @@ describe("outbox.repository detail and redrive", () => {
       vi.useRealTimers();
     });
 
+    const PURGE_RECORD = {
+      at: PURGED_AT.toISOString(),
+      by: "donatas",
+      reasonCode: "BROKEN_PAYLOAD",
+      note: "the payload lost its clientRef",
+    };
+
     it("purges with a single conditional update fenced on DEAD_LETTER", async () => {
       const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
       db.collection.mockReturnValue({ updateOne });
@@ -524,19 +587,19 @@ describe("outbox.repository detail and redrive", () => {
       expect(updateOne).toHaveBeenCalledTimes(1);
       expect(updateOne).toHaveBeenCalledWith(
         { _id: new ObjectId(ID), status: OutboxStatus.DEAD_LETTER },
-        {
-          $set: {
-            status: OutboxStatus.PURGED,
-            lastPurge: {
-              at: PURGED_AT.toISOString(),
-              by: "donatas",
-              reasonCode: "BROKEN_PAYLOAD",
-              note: "the payload lost its clientRef",
+        [
+          {
+            $set: {
+              status: OutboxStatus.PURGED,
+              lastPurge: { $literal: PURGE_RECORD },
+              expireAt: { $literal: DELETION_DATE },
+              payloadRevision: {
+                $add: [{ $ifNull: ["$payloadRevision", 0] }, 1],
+              },
+              history: appendAction({ kind: "purged", ...PURGE_RECORD }),
             },
-            expireAt: DELETION_DATE,
           },
-          $inc: { payloadRevision: 1 },
-        },
+        ],
         {},
       );
     });
@@ -559,7 +622,9 @@ describe("outbox.repository detail and redrive", () => {
 
       await purgeById(ID, { reasonCode: "SENT_IN_ERROR" });
 
-      expect(updateOne.mock.calls[0][1].$set.expireAt).toBeInstanceOf(Date);
+      expect(
+        updateOne.mock.calls[0][1][0].$set.expireAt.$literal,
+      ).toBeInstanceOf(Date);
     });
 
     it("stores a null note and a null actor where neither was given", async () => {
@@ -568,7 +633,7 @@ describe("outbox.repository detail and redrive", () => {
 
       await purgeById(ID, { reasonCode: "SENT_IN_ERROR" });
 
-      expect(updateOne.mock.calls[0][1].$set.lastPurge).toEqual({
+      expect(updateOne.mock.calls[0][1][0].$set.lastPurge.$literal).toEqual({
         at: PURGED_AT.toISOString(),
         by: null,
         reasonCode: "SENT_IN_ERROR",
@@ -585,10 +650,12 @@ describe("outbox.repository detail and redrive", () => {
 
       await purgeById(ID, { reasonCode: "OTHER", note: "no longer wanted" });
 
-      expect(Object.keys(updateOne.mock.calls[0][1].$set)).toEqual([
+      expect(Object.keys(updateOne.mock.calls[0][1][0].$set)).toEqual([
         "status",
         "lastPurge",
         "expireAt",
+        "payloadRevision",
+        "history",
       ]);
     });
 
@@ -625,6 +692,15 @@ describe("outbox.repository payload edits", () => {
     note: "a was wrong",
     ...overrides,
   });
+
+  // The edit's one pipeline stage, its values without their `$literal` wrappers.
+  const editSetOf = (updateOne) =>
+    Object.fromEntries(
+      Object.entries(updateOne.mock.calls[0][1][0].$set).map(([key, value]) => [
+        key,
+        value.$literal ?? value,
+      ]),
+    );
 
   it("reads what an edit decides on, in the transaction", async () => {
     const doc = { status: "DEAD_LETTER", event: { id: "evt-1" } };
@@ -671,10 +747,8 @@ describe("outbox.repository payload edits", () => {
     await editPayloadById(ID, anEdit({ revision: 2, original: undefined }));
 
     expect(updateOne.mock.calls[0][0].payloadRevision).toBe(2);
-    expect(updateOne.mock.calls[0][1].$set.payloadRevision).toBe(3);
-    expect(updateOne.mock.calls[0][1].$set).not.toHaveProperty(
-      "originalPayload",
-    );
+    expect(editSetOf(updateOne).payloadRevision).toBe(3);
+    expect(editSetOf(updateOne)).not.toHaveProperty("originalPayload");
   });
 
   it("keeps the original, records the edit and leaves the status alone", async () => {
@@ -683,7 +757,7 @@ describe("outbox.repository payload edits", () => {
 
     await editPayloadById(ID, anEdit());
 
-    const { $set } = updateOne.mock.calls[0][1];
+    const $set = editSetOf(updateOne);
 
     expect($set).toMatchObject({
       event: anEdit().event,
@@ -723,8 +797,8 @@ describe("outbox.repository payload edits", () => {
 
     await editPayloadById(ID, anEdit());
 
-    expect(updateOne.mock.calls[0][1].$set).not.toHaveProperty("eventTime");
-    expect(updateOne.mock.calls[0][1].$set).not.toHaveProperty("type");
+    expect(editSetOf(updateOne)).not.toHaveProperty("eventTime");
+    expect(editSetOf(updateOne)).not.toHaveProperty("type");
   });
 
   // The poller saves a whole model with `$set`, so a field the model does not

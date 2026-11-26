@@ -3,6 +3,7 @@ import Joi from "joi";
 import { ObjectId } from "mongodb";
 import { config } from "../../common/config.js";
 import { isObjectIdHex } from "../../common/object-id-hex.js";
+import { deadLetteredEntry } from "../event-history.js";
 import { expiryFrom } from "../event-retention.js";
 import {
   appendAttempt,
@@ -85,6 +86,8 @@ export class Inbox {
     // whole document, so a field missing here is erased on the next save.
     this.expireAt = props.expireAt ?? null;
     this.lastRedrive = props.lastRedrive ?? null;
+    // Entries this save appends to the stored history, which no model holds.
+    this.newHistory = [];
     this.claimedBy = null;
     this.claimedAt = null;
     this.claimExpiresAt = null;
@@ -122,15 +125,20 @@ export class Inbox {
     this.status = this.retryable ? InboxStatus.FAILED : InboxStatus.DEAD_LETTER;
     this.expireAt = null;
     this.lastResubmissionDate = new Date().toISOString();
-    this.lastError = toLastError(error) ?? this.lastError;
+    this.lastError =
+      toLastError(error, this.lastResubmissionDate) ?? this.lastError;
     this.attemptHistory = appendAttempt(
       this.attemptHistory,
-      toAttemptEntry(error),
+      toAttemptEntry(error, this.lastResubmissionDate),
     );
     this.completionAttempts += 1;
     this.claimedBy = null;
     this.claimedAt = null;
     this.claimExpiresAt = null;
+
+    if (this.isDeadLetter()) {
+      this.newHistory.push(deadLetteredEntry(this.lastResubmissionDate));
+    }
   }
 
   isDeadLetter() {
