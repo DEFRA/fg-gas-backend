@@ -246,7 +246,7 @@ describe("processConfigVersionUseCase", () => {
       });
     });
 
-    it("does not mix unsuffixed optional definitions into a variant release", async () => {
+    it("falls back to unsuffixed optional definitions when their variants are absent", async () => {
       mockConfig.configBroker.variant = "next";
       await processConfigVersionUseCase({
         grantCode: "woodland",
@@ -261,10 +261,67 @@ describe("processConfigVersionUseCase", () => {
       });
       expect(mockValidateConfigDefinitions.mock.calls[0][0].s3Keys).toEqual({
         grant: "woodland/1.2.3/gas/gas.next.json",
-        agreement: null,
-        payment: null,
+        agreement: "woodland/1.2.3/gas/agreement.json",
+        payment: "woodland/1.2.3/gas/payment.json",
       });
-      expect(mockUpsert).toHaveBeenCalledWith(expect.anything(), {});
+      expect(mockUpsert).toHaveBeenCalledWith(expect.anything(), {
+        agreementS3Key: "woodland/1.2.3/gas/agreement.json",
+        paymentS3Key: "woodland/1.2.3/gas/payment.json",
+      });
+    });
+
+    it("falls back to standard definitions when no selected variants exist", async () => {
+      mockConfig.configBroker.variant = "next";
+      await processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        s3Bucket: "configs-bucket",
+        manifest: [
+          "woodland/1.2.3/gas/gas.json",
+          "woodland/1.2.3/gas/agreement.json",
+          "woodland/1.2.3/gas/payment.json",
+        ],
+      });
+
+      expect(mockValidateConfigDefinitions.mock.calls[0][0].s3Keys).toEqual({
+        grant: "woodland/1.2.3/gas/gas.json",
+        agreement: "woodland/1.2.3/gas/agreement.json",
+        payment: "woodland/1.2.3/gas/payment.json",
+      });
+      expect(mockUpsert.mock.calls[0][0].s3Key).toBe(
+        "woodland/1.2.3/gas/gas.json",
+      );
+      expect(mockUpsert.mock.calls[0][1]).toEqual({
+        agreementS3Key: "woodland/1.2.3/gas/agreement.json",
+        paymentS3Key: "woodland/1.2.3/gas/payment.json",
+      });
+    });
+
+    it("does not fall back when the selected definition fails validation", async () => {
+      mockConfig.configBroker.variant = "next";
+      mockValidateConfigDefinitions.mockRejectedValueOnce(
+        Boom.badData("invalid selected variant"),
+      );
+
+      await expect(
+        processConfigVersionUseCase({
+          grantCode: "woodland",
+          version: "1.2.3",
+          status: "active",
+          s3Bucket: "configs-bucket",
+          manifest: [
+            "woodland/1.2.3/gas/gas.json",
+            "woodland/1.2.3/gas/gas.next.json",
+          ],
+        }),
+      ).rejects.toThrow("invalid selected variant");
+
+      expect(mockValidateConfigDefinitions).toHaveBeenCalledTimes(1);
+      expect(mockValidateConfigDefinitions.mock.calls[0][0].s3Keys.grant).toBe(
+        "woodland/1.2.3/gas/gas.next.json",
+      );
+      expect(mockUpsert).not.toHaveBeenCalled();
     });
 
     it("records the unsuffixed definition when no variant is configured", async () => {
@@ -371,9 +428,9 @@ describe("processConfigVersionUseCase", () => {
       ["agreement only", "", ["woodland/1.2.3/gas/agreement.json"]],
       ["another variant only", "", ["woodland/1.2.3/gas/gas.next.json"]],
       [
-        "only an unsuffixed definition under a variant",
+        "another variant without an unsuffixed definition",
         "next",
-        ["woodland/1.2.3/gas/gas.json"],
+        ["woodland/1.2.3/gas/gas.preview.json"],
       ],
     ])("warns and skips a manifest with %s", async (_, variant, manifest) => {
       mockConfig.configBroker.variant = variant;

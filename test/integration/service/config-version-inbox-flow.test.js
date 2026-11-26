@@ -29,6 +29,7 @@ const { handleConfigVersionMessage } =
 const { saveConfigVersionInboxMessageUseCase } =
   await import("../../../src/grants/use-cases/save-config-version-inbox-message.use-case.js");
 const { db: serviceDb } = await import("../../../src/common/mongo-client.js");
+const { config } = await import("../../../src/common/config.js");
 
 // The bucket the compose stack seeds, and a version whose definitions are already in it.
 const BUCKET = "config-broker-local";
@@ -147,14 +148,43 @@ describe("config broker inbox flow", () => {
   });
 
   // A broker update can legitimately contain no GAS definition.
-  it("completes a manifest missing the grant definition and applies nothing", async () => {
-    await saveEvent("msg-3", [`${GRANT}/${VERSION}/metadata.json`]);
+  it.each(["", "next"])(
+    "completes a manifest missing the grant definition with variant %j and applies nothing",
+    async (variant) => {
+      const previousVariant = config.configBroker.variant;
+      config.configBroker.variant = variant;
+      try {
+        await saveEvent("msg-3", [`${GRANT}/${VERSION}/metadata.json`]);
 
-    const doc = await handleOne();
+        const doc = await handleOne();
 
-    expect(doc.status).toBe(InboxStatus.COMPLETED);
-    expect(doc.completionAttempts).toBe(0);
-    await expect(configVersions.countDocuments({})).resolves.toBe(0);
+        expect(doc.status).toBe(InboxStatus.COMPLETED);
+        expect(doc.completionAttempts).toBe(0);
+        await expect(configVersions.countDocuments({})).resolves.toBe(0);
+      } finally {
+        config.configBroker.variant = previousVariant;
+      }
+    },
+  );
+
+  it("completes a variant notification using its default grant when the variant file is absent", async () => {
+    const previousVariant = config.configBroker.variant;
+    config.configBroker.variant = "next";
+    try {
+      await saveEvent("msg-default-fallback", manifest);
+
+      const doc = await handleOne();
+
+      expect(doc.status).toBe(InboxStatus.COMPLETED);
+      expect(doc.completionAttempts).toBe(0);
+      await expect(
+        configVersions.findOne({ grantCode: GRANT, version: VERSION }),
+      ).resolves.toMatchObject({
+        definitions: { grant: { s3Key: `${GRANT}/${VERSION}/gas/gas.json` } },
+      });
+    } finally {
+      config.configBroker.variant = previousVariant;
+    }
   });
 
   it("gives up on a message with no bucket", async () => {
