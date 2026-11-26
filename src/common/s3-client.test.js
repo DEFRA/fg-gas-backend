@@ -35,51 +35,72 @@ describe("s3-client", () => {
     vi.clearAllMocks();
   });
 
-  describe("findDefinitionKey", () => {
-    const defaultKey = "woodland/1.2.3/gas/gas.json";
-    const variantKey = "woodland/1.2.3/gas/gas.next.json";
+  describe.each(["gas.json", "agreement.json", "payment.json"])(
+    "findDefinitionKey for %s",
+    (file) => {
+      const defaultKey = `woodland/1.2.3/gas/${file}`;
+      const variantKey = `woodland/1.2.3/gas/${file.replace(".json", ".next.json")}`;
 
-    it.each([
-      [
-        "selects the unsuffixed file without a variant",
-        "",
-        [variantKey, defaultKey],
-        defaultKey,
-      ],
-      [
-        "selects the configured variant when both files exist",
-        "next",
-        [defaultKey, variantKey],
-        variantKey,
-      ],
-      [
-        "does not fall back when the configured variant is absent",
-        "next",
-        [defaultKey],
-        null,
-      ],
-      [
-        "returns null when no file matches",
-        "",
-        ["woodland/1.2.3/metadata.json"],
-        null,
-      ],
-      [
-        "ignores a matching filename in another directory",
-        "",
-        ["woodland/1.2.3/cw/gas.json"],
-        null,
-      ],
-      [
-        "preserves the publisher's paths for aliased releases",
-        "",
-        ["farm-payments/1.2.3/gas/gas.json"],
-        "farm-payments/1.2.3/gas/gas.json",
-      ],
-    ])("%s", (_, variant, manifest, expected) => {
-      expect(findDefinitionKey(manifest, "gas.json", variant)).toBe(expected);
-    });
-  });
+      it.each([
+        [
+          "selects the unsuffixed file without a variant",
+          "",
+          [variantKey, defaultKey],
+          defaultKey,
+        ],
+        [
+          "selects the configured variant when both files exist",
+          "next",
+          [defaultKey, variantKey],
+          variantKey,
+        ],
+        [
+          "falls back to the default when the configured variant is absent",
+          "next",
+          [defaultKey],
+          defaultKey,
+        ],
+        [
+          "returns null when neither the configured variant nor the default exists",
+          "next",
+          [`woodland/1.2.3/gas/${file.replace(".json", ".preview.json")}`],
+          null,
+        ],
+        [
+          "does not select a variant when none is configured",
+          "",
+          [variantKey],
+          null,
+        ],
+        [
+          "selects the configured variant without a default",
+          "next",
+          [variantKey],
+          variantKey,
+        ],
+        [
+          "returns null when no file matches",
+          "",
+          ["woodland/1.2.3/metadata.json"],
+          null,
+        ],
+        [
+          "ignores a matching filename in another directory",
+          "",
+          [`woodland/1.2.3/cw/${file}`],
+          null,
+        ],
+        [
+          "preserves the publisher's paths for aliased releases",
+          "",
+          [`farm-payments/1.2.3/gas/${file}`],
+          `farm-payments/1.2.3/gas/${file}`,
+        ],
+      ])("%s", (_, variant, manifest, expected) => {
+        expect(findDefinitionKey(manifest, file, variant)).toBe(expected);
+      });
+    },
+  );
 
   describe("fetchConfigFile", () => {
     const bucket = "config-broker-test";

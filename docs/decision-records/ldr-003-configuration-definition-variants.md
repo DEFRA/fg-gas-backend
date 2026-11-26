@@ -131,3 +131,11 @@ The current lazy-cache design remains unchanged, but switching an existing cache
 ## More Information
 
 Delivery ticket: [FGP-1413 - GAS/CW: Support configurable definition variants](https://eaflood.atlassian.net/browse/FGP-1413).
+
+## Follow-up: default fallback (FGP-1137, 26 Nov 2026)
+
+GAS now treats variants as overrides for individual definition files. This supersedes the strict no-fallback rule above for GAS: it prefers the configured variant and uses the unsuffixed definition when that variant is absent from the manifest. This allows a next grant workflow to share unchanged agreement and payment definitions without requiring duplicate files.
+
+If neither grant definition exists, GAS still warns and skips the notification without recording a version or sending an otherwise valid notification to the inbox DLQ. Agreement and payment definitions remain optional when neither filename exists. A selected definition that cannot be fetched or validated does not fall back to a different definition; its existing failure handling remains unchanged.
+
+Production continues to ignore the variant setting. The cache and release rules above still apply: this change does not refresh previously stored definitions or recover claims that never requested payment. Publish a new configuration version to register the selected definition locations reliably.

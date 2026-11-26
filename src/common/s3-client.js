@@ -36,10 +36,14 @@ export class S3FetchError extends Error {
 }
 
 // Aliased releases keep the publisher's paths in the manifest.
-// A configured variant selects exactly one filename; never fall back to the unsuffixed file.
+// Prefer the configured variant, then use the unsuffixed definition if it is absent.
 export const findDefinitionKey = (manifest, file, variant = "") => {
   const target = variantFileName(file, variant);
-  return manifest.find((path) => path.endsWith(`/gas/${target}`)) ?? null;
+  return (
+    manifest.find((path) => path.endsWith(`/gas/${target}`)) ??
+    manifest.find((path) => path.endsWith(`/gas/${file}`)) ??
+    null
+  );
 };
 
 const classifyS3Error = (err, key, bucket) => {
