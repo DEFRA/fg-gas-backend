@@ -84,8 +84,6 @@ export const setup = async ({ globalConfig }) => {
         MONGO_PORT: env.MONGO_PORT,
         FLOCI_PORT: env.FLOCI_PORT,
         OUTBOX_POLL_MS: env.OUTBOX_POLL_MS,
-        OUTBOX_SEQUENCED_DELIVERY_ENABLED:
-          env.OUTBOX_SEQUENCED_DELIVERY_ENABLED,
         INBOX_POLL_MS: env.INBOX_POLL_MS,
         GRANT_FUNDING_CALCULATOR_URL: fundingCalculatorUrl,
         VIEW_AGREEMENT_URI: env.VIEW_AGREEMENT_URI,
