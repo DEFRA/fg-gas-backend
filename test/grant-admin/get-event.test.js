@@ -544,6 +544,39 @@ describe("GET /grant-admin/events/{service}/{box}/{id} attemptHistory", () => {
     expect(eventDetailResponseSchema.validate(detail).error).toBeUndefined();
   });
 
+  it("serves only a GAS row's attempts since its last redrive", async () => {
+    const doc = anInboxDoc({
+      attemptHistory: [
+        anEntry("before"),
+        { ...anEntry("after"), at: "2026-06-16T11:06:00.000Z" },
+      ],
+      lastRedrive: { at: "2026-06-16T11:05:00.000Z", by: "Ada Lovelace" },
+    });
+    await inbox.insertOne(doc);
+
+    const detail = await detailOf("gas", "inbox", doc._id.toHexString());
+
+    expect(detail.attemptHistory.map(({ message }) => message)).toEqual([
+      "after",
+    ]);
+  });
+
+  it("serves only a Caseworking row's attempts since its last redrive", async () => {
+    await setCwStub({
+      inbox: {
+        detail: {
+          ...aCwInboxDetail(),
+          attemptHistory: [anEntry("cw-before")],
+          lastRedrive: { at: "2026-06-16T11:05:00.000Z", by: "Ada Lovelace" },
+        },
+      },
+    });
+
+    const detail = await detailOf("caseworking", "inbox", UNKNOWN_ID);
+
+    expect(detail.attemptHistory).toEqual([]);
+  });
+
   it("is [] for a Caseworking row that has none", async () => {
     await setCwStub({ inbox: { detail: aCwInboxDetail() } });
 
