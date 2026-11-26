@@ -18,6 +18,6 @@ export const logConfigurationVariant = (configBroker, cdpEnvironment, log) => {
   }
 
   log.info(
-    `Configuration variant "${variant}" active — selecting variant definition files`,
+    `Configuration variant "${variant}" active — preferring variant definition files, falling back to unsuffixed files when absent`,
   );
 };
